@@ -31,7 +31,7 @@ FetchContent_Declare(
 )
 FetchContent_MakeAvailable(glm)
 
-add_executable(vk-raytracing "src/vk-raytracing.cpp" )
+add_executable(vk-raytracing "src/main.cpp" )
 
 # Include dirs
 target_include_directories(vk-raytracing PRIVATE ${CMAKE_SOURCE_DIR}/include)
