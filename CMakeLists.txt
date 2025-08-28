@@ -58,7 +58,7 @@ FetchContent_Declare(
 )
 FetchContent_MakeAvailable(tinyobjloader)
 
-add_executable(vk-raytracing "src/Application.cpp" "src/Vulkan/Core/VulkanCore.cpp" "src/vk_rt_utils.cpp")
+add_executable(vk-raytracing "src/Application.cpp" "src/Vulkan/Core/VulkanCore.cpp" "src/Vulkan/Core/vk_rt_utils.cpp" "src/Vulkan/Core/VulkanPhysicalDevices.cpp")
 
 # Include dirs
 target_include_directories(vk-raytracing PRIVATE "${CMAKE_SOURCE_DIR}/include")

@@ -1,5 +1,7 @@
 #include "vk_rt_utils.h"
 
+namespace PathTracingVK {
+
 const char* GetDebugSeverityStr(vk::DebugUtilsMessageSeverityFlagBitsEXT severity)
 {
 	switch (severity) {
@@ -16,11 +18,8 @@ const char* GetDebugSeverityStr(vk::DebugUtilsMessageSeverityFlagBitsEXT severit
 		return "Error";
 
 	default:
-		std::cerr << "Invalid severity code" << std::endl;
-		exit(1);
+		throw std::runtime_error("Invalid severity code");
 	}
-
-	return "NO SUCH SEVERITY!";
 }
 
 
@@ -36,9 +35,7 @@ const char* GetDebugType(vk::DebugUtilsMessageTypeFlagsEXT type)
 	if (type & vk::DebugUtilsMessageTypeFlagBitsEXT::eDeviceAddressBinding)
 		return "Device address binding";
 #endif
+	throw std::runtime_error("Invalid type code");
+}
 
-	std::cerr << "Invalid type code" << std::endl;
-	exit(1);
-
-	return "NO SUCH TYPE!";
 }

@@ -1,5 +1,7 @@
 #include "VulkanCore.h"
 
+#include <algorithm>
+
 namespace PathTracingVK {
 
 VulkanCore::VulkanCore() {
@@ -9,10 +11,11 @@ VulkanCore::VulkanCore() {
 VulkanCore::~VulkanCore() {
 }
 
-void VulkanCore::Init(const char* pAppName) {
+void VulkanCore::Init(const char* pAppName, GLFWwindow* pWindow) {
 	CreateInstance(pAppName);
-	CreateDebugCallback();
-	CreatePhysicalDevice();
+	if (enableValidationLayers) { CreateDebugCallback(); }
+	CreateSurface(pWindow);
+	SelectPhysicalDevice();
 }
 
 void VulkanCore::CreateInstance(const char* pAppName) {
@@ -85,67 +88,17 @@ void VulkanCore::CreateInstance(const char* pAppName) {
 	std::cout << std::endl;
 }
 
-void VulkanCore::CreatePhysicalDevice() {
-
-	auto devices = m_instance.enumeratePhysicalDevices();
-	if (devices.empty()) {
-		throw std::runtime_error("Failed to find GPUs with Vulkan support!");
+void VulkanCore::CreateSurface(GLFWwindow* pWindow) {
+	VkSurfaceKHR surface;
+	if (glfwCreateWindowSurface(*m_instance, pWindow, nullptr, &surface) != 0) {
+		throw std::runtime_error("Failed to create window surface!");
 	}
-	std::cout << "Available Physical Devices:" << std::endl;
-	for (const auto& device : devices) {
-		// If it is useful to query for raytracing property keep using VkPhysicalDeviceProperties2
-		// else revert to VkPhysicalDeviceProperties
-		auto deviceProperties = device.getProperties2();
+	m_surface = vk::raii::SurfaceKHR(m_instance, surface);
+}
 
-		// Other queriable stuff if ever needed
-		//auto deviceFeatures = device.getFeatures2();
-		//auto extensions = device.enumerateDeviceExtensionProperties();
-		//auto queueFamilyProperties = device.getQueueFamilyProperties();
-
-		// Device properties
-		std::cout << '\t' << "Name: " << deviceProperties.properties.deviceName << std::endl;
-		std::cout << '\t' << "API version: " << deviceProperties.properties.apiVersion << std::endl;
-		std::cout << '\t' << "Driver version: " << deviceProperties.properties.driverVersion << std::endl;
-		std::cout << '\t' << "Vendor ID: " << deviceProperties.properties.vendorID << std::endl;
-		std::cout << '\t' << "ID: " << deviceProperties.properties.deviceID << std::endl;
-
-		switch (deviceProperties.properties.deviceType) {
-			case vk::PhysicalDeviceType::eOther: {
-				std::cout << '\t' << "Type: " << "Other" << std::endl;
-				break;
-			}
-			case vk::PhysicalDeviceType::eIntegratedGpu: {
-				std::cout << '\t' << "Type: " << "Integrated GPU" << std::endl;
-				break;
-			}
-			case vk::PhysicalDeviceType::eDiscreteGpu: {
-				std::cout << '\t' << "Type: " << "Discrete GPU" << std::endl;
-				break;
-			}
-			case vk::PhysicalDeviceType::eVirtualGpu: {
-				std::cout << '\t' << "Type: " << "Virtual GPU" << std::endl;
-				break;
-			}
-			case vk::PhysicalDeviceType::eCpu: {
-				std::cout << '\t' << "Type: " << "CPU" << std::endl;
-				break;
-			}
-		}
-
-		/*
-			std::cout << '\t' << "Supported extensions:" << std::endl;
-			for (const auto& extension : extensions) {
-				std::cout << "\t\t - " << extension.extensionName << std::endl;
-			}
-		*/
-
-		// Check for suitability (TODO: properly check for raytracing extensions support)
-		bool isSuitable = device.getProperties().apiVersion >= VK_API_VERSION_1_4;
-		if (isSuitable) {
-			m_physicalDevice = device;
-			break;
-		}
-	}
+void VulkanCore::SelectPhysicalDevice() {
+	m_physDevices.Init(m_instance, m_surface);
+	m_queueFamily = m_physDevices.SelectDevice(vk::QueueFlagBits::eGraphics, true);
 }
 
 static VKAPI_ATTR vk::Bool32 VKAPI_CALL DebugCallback(
@@ -165,8 +118,6 @@ static VKAPI_ATTR vk::Bool32 VKAPI_CALL DebugCallback(
 	return vk::False;
 }
 
-
-
 void VulkanCore::CreateDebugCallback() {
 	vk::DebugUtilsMessengerCreateInfoEXT msgCreateInfo{
 		.messageSeverity = vk::DebugUtilsMessageSeverityFlagBitsEXT::eVerbose |
@@ -181,6 +132,18 @@ void VulkanCore::CreateDebugCallback() {
 	};
 
 	m_debugMessenger = m_instance.createDebugUtilsMessengerEXT(msgCreateInfo);
+}
+
+void VulkanCore::CreateLogicalDevice() {
+
+}
+
+void VulkanCore::CreateSwapchain() {
+
+}
+
+void VulkanCore::CreateCommandBuffers() {
+
 }
 
 }

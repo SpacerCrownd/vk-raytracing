@@ -1,21 +1,13 @@
 #ifndef VULKAN_CORE_H
 #define VULKAN_CORE_H
 
-#define GLFW_INCLUDE_VULKAN
-#include <GLFW/glfw3.h>
-
-#define GLM_FORCE_RADIANS
-#define GLM_FORCE_DEPTH_ZERO_TO_ONE
-#include <glm/vec4.hpp>
-#include <glm/mat4x4.hpp>
-
-#include <memory>
-#include <iostream>
-#include <algorithm>
-
-import vulkan_hpp;
+#include "Vulkan.h"
 
 #include "vk_rt_utils.h"
+#include "vk_mem_alloc.h"
+#include "VulkanPhysicalDevices.h"
+
+#include <iostream>
 
 namespace PathTracingVK {
 
@@ -30,17 +22,26 @@ class VulkanCore {
 public:
 	VulkanCore();
 	~VulkanCore();
-	void Init(const char* pAppName);
+	void Init(const char* pAppName, GLFWwindow* pWindow);
 
 private:
 	vk::raii::Context m_context;
-	vk::raii::Instance m_instance = VK_NULL_HANDLE;
-	vk::raii::PhysicalDevice m_physicalDevice = VK_NULL_HANDLE;
-	vk::raii::DebugUtilsMessengerEXT m_debugMessenger = VK_NULL_HANDLE;
+	vk::raii::Instance m_instance = nullptr;
+	vk::raii::DebugUtilsMessengerEXT m_debugMessenger = nullptr;
+	vk::raii::SurfaceKHR m_surface = nullptr;
+
+	VulkanPhysicalDevices m_physDevices;
+	uint32_t m_queueFamily = 0;
 
 	void CreateInstance(const char* pAppName);
 	void CreateDebugCallback();
-	void CreatePhysicalDevice();
+	void CreateSurface(GLFWwindow* pWindow);
+	void SelectPhysicalDevice();
+	void CreateLogicalDevice();
+	void CreateSwapchain();
+	void CreateCommandBuffers();
+	void CreateRaytracingPipeline();
+	void CreateGraphicsPipeline();
 };
 
 }
