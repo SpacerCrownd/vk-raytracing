@@ -1,5 +1,6 @@
 #include "VulkanPhysicalDevices.h"
 #include <algorithm>
+#include <iostream>
 
 namespace PathTracingVK {
 
@@ -78,11 +79,15 @@ void VulkanPhysicalDevices::Init(const vk::raii::Instance& instance, const vk::S
 		// API version
 		uint32_t apiVersion = m_devices[i].m_devProperties.apiVersion;
 		printf("	API version: %d.%d.%d.%d\n",
-			VK_API_VERSION_VARIANT(apiVersion),
-			VK_API_VERSION_MAJOR(apiVersion),
-			VK_API_VERSION_VARIANT(apiVersion),
-			VK_API_VERSION_VARIANT(apiVersion)
+			vk::apiVersionVariant(apiVersion),
+			vk::apiVersionMajor(apiVersion),
+			vk::apiVersionMinor(apiVersion),
+			vk::apiVersionPatch(apiVersion)
 		);
+
+		if (apiVersion < vk::ApiVersion13) {
+			throw std::runtime_error("API version lower than 1.3");
+		}
 
 		// Queue Families
 		m_devices[i].m_qFamilyProperties = m_devices[i].m_physDevice.getQueueFamilyProperties();
@@ -166,7 +171,13 @@ void VulkanPhysicalDevices::Init(const vk::raii::Instance& instance, const vk::S
 		//extensions
 		auto extensions = m_devices[i].m_physDevice.enumerateDeviceExtensionProperties();
 		m_devices[i].m_extensions.resize(extensions.size());
-		m_devices[i].m_extensions = extensions;
+		m_devices[i].m_extensions = std::move(extensions);
+
+		/*printf("Available extensions:\n");
+		std::cout << "Extension count: " << m_devices[i].m_extensions.size() << "\n";
+		for (const auto& ext : m_devices[i].m_extensions) {
+			std::cout << std::string(ext.extensionName.data()) << "\n";
+		}*/
 	}
 }
 
@@ -181,7 +192,7 @@ uint32_t VulkanPhysicalDevices::SelectDevice(vk::QueueFlags requiredQueueType, b
 
 				// Hard coded extensions validation
 				std::vector<const char*> requiredExtensions = {
-					VK_KHR_RAY_TRACING_PIPELINE_EXTENSION_NAME
+					vk::KHRRayTracingPipelineExtensionName
 				};
 
 				for(auto reqExtension : requiredExtensions)
@@ -208,12 +219,16 @@ const PhysicalDevice& VulkanPhysicalDevices::Selected() const {
 	if (m_devIndex < 0) {
 		throw std::runtime_error("No physical device selected");
 	}
+	return m_devices[m_devIndex];
 }
 
 bool PhysicalDevice::IsExtensionSupported(const char* pExt) const {
 	bool res = false;
-	for (const auto extension : m_extensions) {
-		if (strcmp(extension.extensionName, pExt)) {
+	std::string reqExtension(pExt);
+
+	for (const vk::ExtensionProperties& extension : m_extensions) {
+		std::string curExtension(extension.extensionName.data());
+		if (reqExtension == curExtension) {
 			res = true;
 			break;
 		}

@@ -9,6 +9,7 @@ VulkanCore::VulkanCore() {
 }
 
 VulkanCore::~VulkanCore() {
+
 }
 
 void VulkanCore::Init(const char* pAppName, GLFWwindow* pWindow) {
@@ -16,15 +17,18 @@ void VulkanCore::Init(const char* pAppName, GLFWwindow* pWindow) {
 	if (enableValidationLayers) { CreateDebugCallback(); }
 	CreateSurface(pWindow);
 	SelectPhysicalDevice();
+	CreateLogicalDevice();
 }
 
 void VulkanCore::CreateInstance(const char* pAppName) {
+	UpdateInstanceVersion();
+
 	vk::ApplicationInfo appInfo{
 		.pApplicationName = pAppName,
-		.applicationVersion = VK_MAKE_VERSION(0, 1, 0),
+		.applicationVersion = vk::makeVersion(0, 1, 0),
 		.pEngineName = "NoEngine",
-		.engineVersion = VK_MAKE_VERSION(0, 1, 0),
-		.apiVersion = vk::ApiVersion14
+		.engineVersion = vk::makeVersion(0, 1, 0),
+		.apiVersion = vk::makeApiVersion(0, m_instanceVersion.Major, m_instanceVersion.Minor, m_instanceVersion.Patch),
 	};
 
 	std::vector<const char*> validationLayers = {
@@ -32,8 +36,8 @@ void VulkanCore::CreateInstance(const char* pAppName) {
 	};
 
 	std::vector<const char*> extensions = {
-		VK_KHR_SURFACE_EXTENSION_NAME,
-		VK_EXT_DEBUG_UTILS_EXTENSION_NAME,
+		vk::KHRSurfaceExtensionName,
+		vk::EXTDebugUtilsExtensionName,
 #if defined (_WIN32)
 			"VK_KHR_win32_surface",
 #endif
@@ -135,7 +139,72 @@ void VulkanCore::CreateDebugCallback() {
 }
 
 void VulkanCore::CreateLogicalDevice() {
+	float qPriorities[] = { 1.0f };
 
+	vk::DeviceQueueCreateInfo qInfo = {
+		.queueFamilyIndex = m_queueFamily,
+		.queueCount = 1,
+		.pQueuePriorities = &qPriorities[0]
+	};
+
+	std::vector<const char*> devExtensions = {
+		vk::KHRShaderDrawParametersExtensionName,
+		vk::KHRSwapchainExtensionName,
+		vk::KHRSpirv14ExtensionName,
+		vk::KHRSynchronization2ExtensionName,
+		vk::KHRCreateRenderpass2ExtensionName,
+		vk::KHRRayTracingPipelineExtensionName,
+		vk::KHRAccelerationStructureExtensionName,
+		vk::KHRDeferredHostOperationsExtensionName
+	};
+
+	bool deviceSupportsDynamicRendering = m_physDevices.Selected().IsExtensionSupported(vk::KHRDynamicRenderingExtensionName);
+	
+	bool instance_is_1_3_or_more = (m_instanceVersion.Major >= 1) || (m_instanceVersion.Minor >= 3);
+
+	if (instance_is_1_3_or_more && deviceSupportsDynamicRendering) {
+		printf("The Vulkan instance and device support dynamic rendering as a core feature\n");
+	}
+	else if (m_instanceVersion.Minor == 2) {
+		if (deviceSupportsDynamicRendering) {
+			devExtensions.push_back(vk::KHRDynamicRenderingExtensionName);
+		}
+		else {
+			throw std::runtime_error("The system doesn't support dynamic rendering");
+		}
+	}
+	else {
+		throw std::runtime_error("The system doesn't support dynamic rendering");
+	}
+
+	if (m_physDevices.Selected().m_features.geometryShader == vk::False) {
+		throw std::runtime_error("The Geometry Shader is not supported!");
+	}
+
+	if (m_physDevices.Selected().m_features.tessellationShader == vk::False) {
+		throw std::runtime_error("The Tessellation Shader is not supported!");
+	}
+
+	vk::StructureChain<vk::PhysicalDeviceFeatures2, vk::PhysicalDeviceVulkan13Features, vk::PhysicalDeviceExtendedDynamicStateFeaturesEXT> featureChain = {
+		{},
+		{.dynamicRendering = true},
+		{.extendedDynamicState = true}
+	};
+
+	featureChain.get<vk::PhysicalDeviceFeatures2>().features.geometryShader = vk::True;
+	featureChain.get<vk::PhysicalDeviceFeatures2>().features.tessellationShader = vk::True;
+
+	vk::DeviceCreateInfo DeviceCreateInfo = {
+		.pNext = &featureChain.get<vk::PhysicalDeviceFeatures2>(),
+		.queueCreateInfoCount = 1,
+		.pQueueCreateInfos = &qInfo,
+		.enabledExtensionCount = (uint32_t)devExtensions.size(),
+		.ppEnabledExtensionNames = devExtensions.data(),
+	};
+
+	m_device = vk::raii::Device(m_physDevices.Selected().m_physDevice, DeviceCreateInfo);
+
+	printf("\nDevice created\n");
 }
 
 void VulkanCore::CreateSwapchain() {
@@ -144,6 +213,16 @@ void VulkanCore::CreateSwapchain() {
 
 void VulkanCore::CreateCommandBuffers() {
 
+}
+
+void VulkanCore::UpdateInstanceVersion() {
+	uint32_t instanceVersion = m_context.enumerateInstanceVersion();
+
+	m_instanceVersion.Major = vk::apiVersionMajor(instanceVersion);
+	m_instanceVersion.Minor = vk::apiVersionMinor(instanceVersion);
+	m_instanceVersion.Patch = vk::apiVersionPatch(instanceVersion);
+
+	printf("Vulkan loader supports version %d.%d.%d\n", m_instanceVersion.Major, m_instanceVersion.Minor, m_instanceVersion.Patch);
 }
 
 }

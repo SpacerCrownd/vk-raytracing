@@ -26,12 +26,18 @@ public:
 
 private:
 	vk::raii::Context m_context;
-	vk::raii::Instance m_instance = nullptr;
-	vk::raii::DebugUtilsMessengerEXT m_debugMessenger = nullptr;
-	vk::raii::SurfaceKHR m_surface = nullptr;
+	vk::raii::Instance m_instance = VK_NULL_HANDLE;
+	vk::raii::DebugUtilsMessengerEXT m_debugMessenger = VK_NULL_HANDLE;
+	vk::raii::SurfaceKHR m_surface = VK_NULL_HANDLE;
+	vk::raii::Device m_device = VK_NULL_HANDLE;
 
 	VulkanPhysicalDevices m_physDevices;
 	uint32_t m_queueFamily = 0;
+	struct {
+		int Major = 0;
+		int Minor = 0;
+		int Patch = 0;
+	} m_instanceVersion;
 
 	void CreateInstance(const char* pAppName);
 	void CreateDebugCallback();
@@ -42,6 +48,7 @@ private:
 	void CreateCommandBuffers();
 	void CreateRaytracingPipeline();
 	void CreateGraphicsPipeline();
+	void UpdateInstanceVersion();
 };
 
 }
