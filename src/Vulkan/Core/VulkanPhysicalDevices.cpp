@@ -92,19 +92,14 @@ void VulkanPhysicalDevices::Init(const vk::raii::Instance& instance, const vk::S
 		// Queue Families
 		m_devices[i].m_qFamilyProperties = m_devices[i].m_physDevice.getQueueFamilyProperties();
 		size_t numQFamilies = m_devices[i].m_qFamilyProperties.size();
-		printf("	Number of Queue families: %d\n", (int)numQFamilies);
-
-		m_devices[i].m_qFamilyProperties.resize(numQFamilies);
 		m_devices[i].m_qSupportsPresent.resize(numQFamilies);
-
+		printf("	Number of Queue families: %d\n", (int)numQFamilies);
 		
 		for (uint32_t j = 0; j < numQFamilies; j++) {
 			auto queueFamProperty = m_devices[i].m_qFamilyProperties[j];
-
 			printf("	Family %d Num queues %d", j, queueFamProperty.queueCount);
 
 			vk::QueueFlags flags = queueFamProperty.queueFlags;
-
 			printf("	Graphics %s, Compute %s, Transfer %s, Sparse binding %s\n", 
 				(flags & vk::QueueFlagBits::eGraphics) ? "Yes" : "No",
 				(flags & vk::QueueFlagBits::eCompute) ? "Yes" : "No",
@@ -112,13 +107,13 @@ void VulkanPhysicalDevices::Init(const vk::raii::Instance& instance, const vk::S
 				(flags & vk::QueueFlagBits::eSparseBinding) ? "Yes" : "No"
 			);
 
+
+
 			m_devices[i].m_qSupportsPresent[j] = m_devices[i].m_physDevice.getSurfaceSupportKHR(j, surface);
 		}
 		printf("\n	Surface Stuff\n");
 		// Formats
-		auto surfaceFormats = m_devices[i].m_physDevice.getSurfaceFormatsKHR(surface);
-		m_devices[i].m_surfaceFormats.resize(surfaceFormats.size());
-		m_devices[i].m_surfaceFormats = std::move(surfaceFormats);
+		m_devices[i].m_surfaceFormats = m_devices[i].m_physDevice.getSurfaceFormatsKHR(surface);
 
 		for (uint32_t j = 0; j < m_devices[i].m_surfaceFormats.size(); j++)
 		{
@@ -135,27 +130,37 @@ void VulkanPhysicalDevices::Init(const vk::raii::Instance& instance, const vk::S
 		printf("	minImageExtent = %d x %d\n", m_devices[i].m_surfaceCapabilities.minImageExtent.width, m_devices[i].m_surfaceCapabilities.minImageExtent.height);
 
 		// Present modes
-		auto presentModes = m_devices[i].m_physDevice.getSurfacePresentModesKHR(surface);
-		m_devices[i].m_presentModes.resize(presentModes.size());
-		m_devices[i].m_presentModes = presentModes;
+		m_devices[i].m_presentModes = m_devices[i].m_physDevice.getSurfacePresentModesKHR(surface);
 
-		printf("	Present modes: %d\n", (int)presentModes.size());
+		printf("	Present modes: %d\n", (int)m_devices[i].m_presentModes.size());
 
-		for (vk::PresentModeKHR presentMode : presentModes) {
+		for (vk::PresentModeKHR presentMode : m_devices[i].m_presentModes) {
 			const char* name = "";
+
 			switch (presentMode) {
-			case vk::PresentModeKHR::eImmediate: name = "IMMEDIATE"; break;
-			case vk::PresentModeKHR::eMailbox:   name = "MAILBOX"; break;
-			case vk::PresentModeKHR::eFifo:      name = "FIFO"; break;
-			case vk::PresentModeKHR::eFifoRelaxed: name = "FIFO_RELAXED"; break;
-			default: name = "UNKNOWN"; break;
+			case vk::PresentModeKHR::eImmediate: 
+				name = "IMMEDIATE"; 
+				break;
+			case vk::PresentModeKHR::eMailbox:   
+				name = "MAILBOX"; 
+				break;
+			case vk::PresentModeKHR::eFifo:      
+				name = "FIFO"; 
+				break;
+			case vk::PresentModeKHR::eFifoRelaxed: 
+				name = "FIFO_RELAXED"; 
+				break;
+			default: name = "UNKNOWN"; 
+				break;
 			}
+
 			printf("	Present mode %s supported\n", name);
 		}
 
 		// Memory properties
 		m_devices[i].m_memProperties = m_devices[i].m_physDevice.getMemoryProperties();
 		printf("Memory types: %d\n", m_devices[i].m_memProperties.memoryTypeCount);
+
 		for (uint32_t j = 0; j < m_devices[i].m_memProperties.memoryTypeCount; j++) {
 			printf("%d: flags %x, heap %d ",
 				j,
@@ -169,9 +174,7 @@ void VulkanPhysicalDevices::Init(const vk::raii::Instance& instance, const vk::S
 		printf("Heap Types %d\n", m_devices[i].m_memProperties.memoryHeapCount);
 
 		//extensions
-		auto extensions = m_devices[i].m_physDevice.enumerateDeviceExtensionProperties();
-		m_devices[i].m_extensions.resize(extensions.size());
-		m_devices[i].m_extensions = std::move(extensions);
+		m_devices[i].m_extensions = m_devices[i].m_physDevice.enumerateDeviceExtensionProperties();
 
 		/*printf("Available extensions:\n");
 		std::cout << "Extension count: " << m_devices[i].m_extensions.size() << "\n";
@@ -181,12 +184,14 @@ void VulkanPhysicalDevices::Init(const vk::raii::Instance& instance, const vk::S
 	}
 }
 
+// select logical device and return the queue family index
 uint32_t VulkanPhysicalDevices::SelectDevice(vk::QueueFlags requiredQueueType, bool supportsPresent) {
 	for (uint32_t i = 0; i < m_devices.size(); i++) {
 		// Check each queue
 		for (uint32_t j = 0; j < m_devices[i].m_qFamilyProperties.size(); j++) {
 			const vk::QueueFamilyProperties qFamilyProp = m_devices[i].m_qFamilyProperties[j];
 
+			// check if the queue is suitable for our needs
 			if (qFamilyProp.queueFlags & requiredQueueType && (bool)m_devices[i].m_qSupportsPresent[j] == supportsPresent) {
 				bool isSuitable = true;
 

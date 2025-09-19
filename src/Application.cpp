@@ -4,6 +4,12 @@ constexpr uint32_t WINDOW_WIDTH = 1240;
 constexpr uint32_t WINDOW_HEIGHT = 720;
 constexpr const char* APP_NAME = "vk-raytracing";
 
+void GLFW_KeyCallback(GLFWwindow* window, int key, int scancode, int action, int mods) {
+	if ((key == GLFW_KEY_ESCAPE) && (action == GLFW_PRESS)) {
+		glfwSetWindowShouldClose(window, GLFW_TRUE);
+	}
+}
+
 class VulkanApp {
 public:
 	int width = 1240;
@@ -24,7 +30,10 @@ public:
 
 private:
 	GLFWwindow* m_pMainWindow = nullptr;
+
 	PathTracingVK::VulkanCore m_vkCore;
+	int m_numImages = 0;
+	std::vector<vk::raii::CommandBuffer> m_cmdBuffs;
 
 	void Init() {
 		InitGLFW();
@@ -33,6 +42,8 @@ private:
 
 	void InitVulkan() {
 		m_vkCore.Init(pAppName, m_pMainWindow);
+		m_numImages = m_vkCore.GetNumImages();
+		m_vkCore.CreateCommandBuffers(m_numImages, m_cmdBuffs);
 	}
 
 	void InitGLFW() {
@@ -44,7 +55,7 @@ private:
 		glfwWindowHint(GLFW_CLIENT_API, GLFW_NO_API);
 		glfwWindowHint(GLFW_RESIZABLE, GLFW_FALSE);
 		m_pMainWindow = glfwCreateWindow(width, height, pAppName, nullptr, nullptr);
-
+		glfwSetKeyCallback(m_pMainWindow, GLFW_KeyCallback);
 		//glfwSetErrorCallback(GLFWErrorCallback);
 	}
 

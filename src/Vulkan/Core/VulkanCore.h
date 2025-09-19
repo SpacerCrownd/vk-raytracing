@@ -1,6 +1,9 @@
 #ifndef VULKAN_CORE_H
 #define VULKAN_CORE_H
 
+#define VMA_STATIC_VULKAN_FUNCTIONS 0
+#define VMA_DYNAMIC_VULKAN_FUNCTIONS 1
+
 #include "Vulkan.h"
 
 #include "vk_rt_utils.h"
@@ -22,32 +25,48 @@ class VulkanCore {
 public:
 	VulkanCore();
 	~VulkanCore();
-	void Init(const char* pAppName, GLFWwindow* pWindow);
 
+	void Init(const char* pAppName, GLFWwindow* pWindow);
+	void CreateCommandBuffers(uint32_t count, std::vector<vk::raii::CommandBuffer>& cmdBuffs);
+	void Render();
+
+	int GetNumImages() { return static_cast<int>(m_swapChainImages.size()); };
 private:
 	vk::raii::Context m_context;
 	vk::raii::Instance m_instance = VK_NULL_HANDLE;
 	vk::raii::DebugUtilsMessengerEXT m_debugMessenger = VK_NULL_HANDLE;
+	// vulkan window abstraction
 	vk::raii::SurfaceKHR m_surface = VK_NULL_HANDLE;
 	vk::raii::Device m_device = VK_NULL_HANDLE;
+	vk::raii::SwapchainKHR m_swapChain = VK_NULL_HANDLE;
+	std::vector<vk::Image> m_swapChainImages;
+	std::vector<vk::raii::ImageView> m_swapChainImageViews;
+	vk::raii::CommandPool m_cmdPool = VK_NULL_HANDLE;
 
+	// struct containing all available physical devices
 	VulkanPhysicalDevices m_physDevices;
+	// selected queue family index
 	uint32_t m_queueFamily = 0;
+
 	struct {
 		int Major = 0;
 		int Minor = 0;
 		int Patch = 0;
 	} m_instanceVersion;
 
+	VmaAllocator m_allocator = nullptr;
+
 	void CreateInstance(const char* pAppName);
 	void CreateDebugCallback();
 	void CreateSurface(GLFWwindow* pWindow);
 	void SelectPhysicalDevice();
 	void CreateLogicalDevice();
-	void CreateSwapchain();
-	void CreateCommandBuffers();
+	void InitVmaAllocator();
+	void CreateSwapChain();
+	void CreateCommandPool();
+	void CreateAccelerationStructs();
 	void CreateRaytracingPipeline();
-	void CreateGraphicsPipeline();
+
 	void UpdateInstanceVersion();
 };
 
