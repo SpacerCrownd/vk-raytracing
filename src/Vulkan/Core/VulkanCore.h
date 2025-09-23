@@ -9,8 +9,10 @@
 #include "vk_rt_utils.h"
 #include "vk_mem_alloc.h"
 #include "VulkanPhysicalDevices.h"
+#include "VulkanQueue.h"
 
 #include <iostream>
+#include <optional>
 
 namespace PathTracingVK {
 
@@ -33,6 +35,8 @@ public:
 
 	int GetNumImages() { return static_cast<int>(m_swapChainImages.size()); };
 	vk::Image GetImage(int n) { return m_swapChainImages[n]; };
+	VulkanQueue* GetQueue() { return std::addressof(m_queue.value()); }
+
 private:
 	vk::raii::Context m_context;
 	vk::raii::Instance m_instance = VK_NULL_HANDLE;
@@ -49,6 +53,7 @@ private:
 	VulkanPhysicalDevices m_physDevices;
 	// selected queue family index
 	uint32_t m_queueFamily = 0;
+	std::optional<VulkanQueue> m_queue;
 
 	struct {
 		int Major = 0;

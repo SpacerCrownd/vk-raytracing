@@ -15,5 +15,7 @@ const char* GetDebugSeverityStr(vk::DebugUtilsMessageSeverityFlagBitsEXT severit
 
 const char* GetDebugType(vk::DebugUtilsMessageTypeFlagsEXT type);
 
+vk::raii::Semaphore CreateSemaphore(vk::raii::Device& device);
+
 }
 #endif

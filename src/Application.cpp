@@ -1,4 +1,5 @@
 ﻿#include "Application.h"
+#include "Vulkan/Core/VulkanQueue.h"
 
 constexpr uint32_t WINDOW_WIDTH = 1240;
 constexpr uint32_t WINDOW_HEIGHT = 720;
@@ -32,6 +33,7 @@ private:
 	GLFWwindow* m_pMainWindow = nullptr;
 
 	PathTracingVK::VulkanCore m_vkCore;
+	PathTracingVK::VulkanQueue* m_vkpQueue;
 	int m_numImages = 0;
 	std::vector<vk::raii::CommandBuffer> m_cmdBuffs;
 
@@ -43,6 +45,7 @@ private:
 	void InitVulkan() {
 		m_vkCore.Init(pAppName, m_pMainWindow);
 		m_numImages = m_vkCore.GetNumImages();
+		m_vkpQueue = m_vkCore.GetQueue();
 		CreateCommandBuffers();
 		RecordCommandBuffers();
 	}
@@ -98,7 +101,7 @@ private:
 	}
 
 	void RenderFrame() {
-
+		//auto [result, imageIndx] = 
 	}
 };
 

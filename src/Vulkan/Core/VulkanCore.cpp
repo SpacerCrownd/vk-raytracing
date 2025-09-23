@@ -73,6 +73,8 @@ void VulkanCore::Init(const char* pAppName, GLFWwindow* pWindow) {
 	InitVmaAllocator();
 	CreateSwapChain();
 	CreateCommandPool();
+	m_queue.emplace(m_device, m_swapChain);
+	m_queue.value().Init(m_queueFamily, 0);
 }
 
 void VulkanCore::UpdateInstanceVersion() {
@@ -368,6 +370,5 @@ void VulkanCore::CreateCommandBuffers(uint32_t size, std::vector<vk::raii::Comma
 
 void VulkanCore::FreeCommandBuffers(uint32_t size, std::vector<vk::raii::CommandBuffer>& cmdBuffs) {
 	cmdBuffs.clear();
-	cmdBuffs.reserve(size);
 }
 }

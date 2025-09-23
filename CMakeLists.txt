@@ -1,50 +1,8 @@
 ﻿cmake_minimum_required (VERSION 3.31)
 
-function(add_slang_shader_target TARGET)
-    cmake_parse_arguments(SHADER "" "PROFILE" "SOURCES;ENTRIES" ${ARGN})
-
-    if(NOT SHADER_SOURCES)
-        message(FATAL_ERROR "No SOURCES given to add_slang_shader_target")
-    endif()
-
-    if(NOT SHADER_ENTRIES)
-        message(FATAL_ERROR "No ENTRIES given to add_slang_shader_target")
-    endif()
-
-    if(NOT SHADER_PROFILE)
-        set(SHADER_PROFILE spirv_1_4) # default
-    endif()
-
-    set(SHADER_OUTPUTS "")
-
-    foreach(SHADER_FILE ${SHADER_SOURCES})
-        get_filename_component(FILE_NAME ${SHADER_FILE} NAME_WE)
-        set(OUTPUT_FILE ${CMAKE_CURRENT_BINARY_DIR}/${FILE_NAME}.spv)
-
-        add_custom_command(
-            OUTPUT ${OUTPUT_FILE}
-            COMMAND ${CMAKE_COMMAND} -E make_directory ${CMAKE_CURRENT_BINARY_DIR}
-            COMMAND ${SLANGC_EXECUTABLE} ${SHADER_FILE}
-                -target spirv
-                -profile ${SHADER_PROFILE}
-                -emit-spirv-directly
-                -fvk-use-entrypoint-name
-                ${SHADER_ENTRIES}
-                -o ${OUTPUT_FILE}
-            DEPENDS ${SHADER_FILE}
-            COMMENT "Compiling ${SHADER_FILE} -> ${OUTPUT_FILE}"
-            VERBATIM
-        )
-
-        list(APPEND SHADER_OUTPUTS ${OUTPUT_FILE})
-    endforeach()
-
-    add_custom_target(${TARGET} DEPENDS ${SHADER_OUTPUTS})
-endfunction()
-
-
-project (vk-raytracing)
+set(CMAKE_CXX_SCAN_FOR_MODULES ON)
 set(CMAKE_CXX_STANDARD 20)
+project (vk-raytracing)
 include(FetchContent)
 
 # Vulkan
@@ -75,7 +33,14 @@ target_sources(VulkanCppModule
         BASE_DIRS
         "${Vulkan_INCLUDE_DIR}"
         FILES
-        "${Vulkan_INCLUDE_DIR}/vulkan/vulkan.cppm")
+        "${Vulkan_INCLUDE_DIR}/vulkan/vulkan.cppm"
+)
+
+# Add the vulkan.cppm file directly as a source file
+target_sources(VulkanCppModule
+        PRIVATE
+        "${Vulkan_INCLUDE_DIR}/vulkan/vulkan.cppm"
+)
 
 # GLFW
 FetchContent_Declare(
@@ -93,20 +58,60 @@ FetchContent_Declare(
 )
 FetchContent_MakeAvailable(glm)
 
-#tinyobjloader
+# assimp
 FetchContent_Declare(
-    tinyobjloader
-    GIT_REPOSITORY https://github.com/tinyobjloader/tinyobjloader
-    GIT_TAG v2.0-rc1
+    assimp
+    GIT_REPOSITORY https://github.com/assimp/assimp.git
+    GIT_TAG v6.0.2
 )
-FetchContent_MakeAvailable(tinyobjloader)
+FetchContent_MakeAvailable(assimp)
 
-add_executable(vk-raytracing "src/Application.cpp" "src/Vulkan/Core/VulkanCore.cpp" "src/Vulkan/Core/vk_rt_utils.cpp" "src/Vulkan/Core/VulkanPhysicalDevices.cpp" "src/Vulkan/Core/vk_mem_alloc.cpp")
+add_executable(vk-raytracing "src/Application.cpp" "src/Vulkan/Core/VulkanCore.cpp" "src/Vulkan/Core/vk_rt_utils.cpp" "src/Vulkan/Core/VulkanPhysicalDevices.cpp" "src/Vulkan/Core/vk_mem_alloc.cpp" "src/Vulkan/Core/VulkanQueue.cpp")
 
 # Include dirs
 target_include_directories(vk-raytracing PRIVATE "${CMAKE_SOURCE_DIR}/include")
 
 # Libraries
-target_link_libraries(vk-raytracing PRIVATE Vulkan::cppm glfw glm::glm tinyobjloader)
+target_link_libraries(vk-raytracing PRIVATE Vulkan::cppm glfw glm::glm assimp)
 
+function(add_slang_shader_target TARGET)
+    cmake_parse_arguments(SHADER "" "PROFILE" "SOURCES;ENTRIES" ${ARGN})
 
+    if(NOT SHADER_SOURCES)
+        message(FATAL_ERROR "No SOURCES given to add_slang_shader_target")
+    endif()
+
+    if(NOT SHADER_ENTRIES)
+        message(FATAL_ERROR "No ENTRIES given to add_slang_shader_target")
+    endif()
+
+    if(NOT SHADER_PROFILE)
+        set(SHADER_PROFILE spirv_1_4) # default
+    endif()
+
+    set(SHADER_OUTPUTS "")
+
+    foreach(SHADER_FILE ${SHADER_SOURCES})
+        get_filename_component(FILE_NAME ${SHADER_FILE} NAME_WE)
+        set(OUTPUT_FILE ${CMAKE_CURRENT_BINARY_DIR}/${FILE_NAME}.spv)
+
+        add_custom_command(
+                OUTPUT ${OUTPUT_FILE}
+                COMMAND ${CMAKE_COMMAND} -E make_directory ${CMAKE_CURRENT_BINARY_DIR}
+                COMMAND ${SLANGC_EXECUTABLE} ${SHADER_FILE}
+                -target spirv
+                -profile ${SHADER_PROFILE}
+                -emit-spirv-directly
+                -fvk-use-entrypoint-name
+                ${SHADER_ENTRIES}
+                -o ${OUTPUT_FILE}
+                DEPENDS ${SHADER_FILE}
+                COMMENT "Compiling ${SHADER_FILE} -> ${OUTPUT_FILE}"
+                VERBATIM
+        )
+
+        list(APPEND SHADER_OUTPUTS ${OUTPUT_FILE})
+    endforeach()
+
+    add_custom_target(${TARGET} DEPENDS ${SHADER_OUTPUTS})
+endfunction()
