@@ -1,6 +1,8 @@
 #include "VulkanCore.h"
-
 #include <algorithm>
+#include <iostream>
+
+#include "vk_rt_utils.h"
 
 namespace PathTracingVK {
 
@@ -368,7 +370,7 @@ void VulkanCore::CreateCommandBuffers(uint32_t size, std::vector<vk::raii::Comma
 	}
 }
 
-void VulkanCore::FreeCommandBuffers(uint32_t size, std::vector<vk::raii::CommandBuffer>& cmdBuffs) {
+void VulkanCore::FreeCommandBuffers(std::vector<vk::raii::CommandBuffer>& cmdBuffs) {
 	cmdBuffs.clear();
 }
 }

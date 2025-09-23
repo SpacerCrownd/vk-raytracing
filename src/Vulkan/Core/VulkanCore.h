@@ -5,14 +5,9 @@
 #define VMA_DYNAMIC_VULKAN_FUNCTIONS 1
 
 #include "Vulkan.h"
-
-#include "vk_rt_utils.h"
 #include "vk_mem_alloc.h"
 #include "VulkanPhysicalDevices.h"
 #include "VulkanQueue.h"
-
-#include <iostream>
-#include <optional>
 
 namespace PathTracingVK {
 
@@ -30,7 +25,7 @@ public:
 
 	void Init(const char* pAppName, GLFWwindow* pWindow);
 	void CreateCommandBuffers(uint32_t count, std::vector<vk::raii::CommandBuffer>& cmdBuffs);
-	void FreeCommandBuffers(uint32_t size, std::vector<vk::raii::CommandBuffer>& cmdBuffs);
+	void FreeCommandBuffers(std::vector<vk::raii::CommandBuffer> &cmdBuffs);
 	void Render();
 
 	int GetNumImages() { return static_cast<int>(m_swapChainImages.size()); };

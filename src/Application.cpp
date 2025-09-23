@@ -1,5 +1,5 @@
-﻿#include "Application.h"
-#include "Vulkan/Core/VulkanQueue.h"
+﻿#include "Vulkan/Core/VulkanCore.h"
+#include <iostream>
 
 constexpr uint32_t WINDOW_WIDTH = 1240;
 constexpr uint32_t WINDOW_HEIGHT = 720;
@@ -101,7 +101,8 @@ private:
 	}
 
 	void RenderFrame() {
-		//auto [result, imageIndx] = 
+		int imgIndex = m_vkpQueue->AcquireNextImage();
+		printf("imgIndex %d", imgIndex);
 	}
 };
 

@@ -1,7 +1,7 @@
 #ifndef VK_RT_UTILS_H
 #define VK_RT_UTILS_H
 
-#include "VulkanCore.h"
+#include "Vulkan.h"
 
 #define CHECK_VK_RESULT(res, msg) \
 if(res != VK_SUCCESS) { \

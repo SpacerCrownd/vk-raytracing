@@ -19,7 +19,6 @@ void VulkanQueue::WaitIdle() {
 
 uint32_t VulkanQueue::AcquireNextImage() {
 	auto [result, imageIndx] = m_swapChain.acquireNextImage(UINT64_MAX, m_presentFinishedSemaphore);
-	CHECK_VK_RESULT(result, "vkAcquireNextImage\n");
 	return imageIndx;
 }
 

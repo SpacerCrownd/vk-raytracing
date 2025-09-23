@@ -13,5 +13,6 @@ import vulkan_hpp;
 #include <glm/mat4x4.hpp>
 
 #include <stdexcept>
+#include <optional>
 
 #endif
