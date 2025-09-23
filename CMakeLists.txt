@@ -1,5 +1,48 @@
 ﻿cmake_minimum_required (VERSION 3.31)
 
+function(add_slang_shader_target TARGET)
+    cmake_parse_arguments(SHADER "" "PROFILE" "SOURCES;ENTRIES" ${ARGN})
+
+    if(NOT SHADER_SOURCES)
+        message(FATAL_ERROR "No SOURCES given to add_slang_shader_target")
+    endif()
+
+    if(NOT SHADER_ENTRIES)
+        message(FATAL_ERROR "No ENTRIES given to add_slang_shader_target")
+    endif()
+
+    if(NOT SHADER_PROFILE)
+        set(SHADER_PROFILE spirv_1_4) # default
+    endif()
+
+    set(SHADER_OUTPUTS "")
+
+    foreach(SHADER_FILE ${SHADER_SOURCES})
+        get_filename_component(FILE_NAME ${SHADER_FILE} NAME_WE)
+        set(OUTPUT_FILE ${CMAKE_CURRENT_BINARY_DIR}/${FILE_NAME}.spv)
+
+        add_custom_command(
+            OUTPUT ${OUTPUT_FILE}
+            COMMAND ${CMAKE_COMMAND} -E make_directory ${CMAKE_CURRENT_BINARY_DIR}
+            COMMAND ${SLANGC_EXECUTABLE} ${SHADER_FILE}
+                -target spirv
+                -profile ${SHADER_PROFILE}
+                -emit-spirv-directly
+                -fvk-use-entrypoint-name
+                ${SHADER_ENTRIES}
+                -o ${OUTPUT_FILE}
+            DEPENDS ${SHADER_FILE}
+            COMMENT "Compiling ${SHADER_FILE} -> ${OUTPUT_FILE}"
+            VERBATIM
+        )
+
+        list(APPEND SHADER_OUTPUTS ${OUTPUT_FILE})
+    endforeach()
+
+    add_custom_target(${TARGET} DEPENDS ${SHADER_OUTPUTS})
+endfunction()
+
+
 project (vk-raytracing)
 set(CMAKE_CXX_STANDARD 20)
 include(FetchContent)
@@ -65,3 +108,5 @@ target_include_directories(vk-raytracing PRIVATE "${CMAKE_SOURCE_DIR}/include")
 
 # Libraries
 target_link_libraries(vk-raytracing PRIVATE Vulkan::cppm glfw glm::glm tinyobjloader)
+
+

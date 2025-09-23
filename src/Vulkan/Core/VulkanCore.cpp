@@ -351,22 +351,23 @@ void VulkanCore::CreateCommandPool() {
 	m_cmdPool = vk::raii::CommandPool(m_device, cmdPoolCreateInfo);
 }
 
-void VulkanCore::CreateCommandBuffers(uint32_t count, std::vector<vk::raii::CommandBuffer>& cmdBuffs) {
+void VulkanCore::CreateCommandBuffers(uint32_t size, std::vector<vk::raii::CommandBuffer>& cmdBuffs) {
 	vk::CommandBufferAllocateInfo cmdBuffAllocateInfo = {
 		.sType = vk::StructureType::eCommandBufferAllocateInfo,
 		.commandPool = m_cmdPool,
 		.level = vk::CommandBufferLevel::ePrimary,
-		.commandBufferCount = count,
+		.commandBufferCount = size,
 	};
 
 	vk::raii::CommandBuffers buffers = vk::raii::CommandBuffers(m_device, cmdBuffAllocateInfo);
-
-	cmdBuffs.clear();
-	cmdBuffs.reserve(buffers.size());
 
 	for (auto& buffer : buffers) {
 		cmdBuffs.push_back(std::move(buffer));
 	}
 }
 
+void VulkanCore::FreeCommandBuffers(uint32_t size, std::vector<vk::raii::CommandBuffer>& cmdBuffs) {
+	cmdBuffs.clear();
+	cmdBuffs.reserve(size);
+}
 }

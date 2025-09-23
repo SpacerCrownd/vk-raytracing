@@ -43,7 +43,33 @@ private:
 	void InitVulkan() {
 		m_vkCore.Init(pAppName, m_pMainWindow);
 		m_numImages = m_vkCore.GetNumImages();
+		CreateCommandBuffers();
+		RecordCommandBuffers();
+	}
+
+	void CreateCommandBuffers() {
+		m_cmdBuffs.reserve(m_numImages);
 		m_vkCore.CreateCommandBuffers(m_numImages, m_cmdBuffs);
+	}
+
+	void RecordCommandBuffers() {
+		vk::ClearColorValue clearColor = {1.0f, .0f, .0f, .0f};
+
+		vk::ImageSubresourceRange imageRange = {
+			.aspectMask = vk::ImageAspectFlagBits::eColor,
+			.baseMipLevel = 0,
+			.levelCount = 1,
+			.baseArrayLayer = 0,
+			.layerCount = 1,
+		};
+
+		for (uint32_t i = 0; i < m_cmdBuffs.size(); i++) {
+			m_cmdBuffs[i].begin({});
+
+			m_cmdBuffs[i].clearColorImage(m_vkCore.GetImage(i), vk::ImageLayout::eGeneral, clearColor, imageRange);
+			
+			m_cmdBuffs[i].end();
+		}
 	}
 
 	void InitGLFW() {

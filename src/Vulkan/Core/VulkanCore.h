@@ -28,9 +28,11 @@ public:
 
 	void Init(const char* pAppName, GLFWwindow* pWindow);
 	void CreateCommandBuffers(uint32_t count, std::vector<vk::raii::CommandBuffer>& cmdBuffs);
+	void FreeCommandBuffers(uint32_t size, std::vector<vk::raii::CommandBuffer>& cmdBuffs);
 	void Render();
 
 	int GetNumImages() { return static_cast<int>(m_swapChainImages.size()); };
+	vk::Image GetImage(int n) { return m_swapChainImages[n]; };
 private:
 	vk::raii::Context m_context;
 	vk::raii::Instance m_instance = VK_NULL_HANDLE;
