@@ -8,14 +8,14 @@ namespace PathTracingVK {
 class VulkanQueue {
 public:
 	VulkanQueue(vk::raii::Device& device, vk::raii::SwapchainKHR& swapchain) : m_device(device), m_swapChain(swapchain) {}
-	~VulkanQueue() {}
+	~VulkanQueue() = default;
 
-	void Init(uint32_t queueFamily, uint32_t queueIndx);
+	void Init(uint32_t queueFamily, uint32_t queueIndex);
 	void Destroy();
 	uint32_t AcquireNextImage();
-	void SubmitSync(vk::raii::CommandBuffer& cmdBuff);
-	void SubmitAsync(vk::raii::CommandBuffer& cmdBuff);
-	void Present(uint32_t imgIndx);
+	void SubmitSync(const vk::CommandBuffer& cmdBuff);
+	void SubmitAsync(const vk::CommandBuffer& cmdBuff);
+	void Present(uint32_t imgIndex);
 	void WaitIdle();
 
 private:

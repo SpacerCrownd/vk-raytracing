@@ -6,11 +6,7 @@
 
 namespace PathTracingVK {
 
-static VKAPI_ATTR vk::Bool32 VKAPI_CALL DebugCallback(
-	vk::DebugUtilsMessageSeverityFlagBitsEXT severity,
-	vk::DebugUtilsMessageTypeFlagsEXT type,
-	const vk::DebugUtilsMessengerCallbackDataEXT* pCallbackData,
-	void*) {
+static VKAPI_ATTR vk::Bool32 VKAPI_CALL DebugCallback(vk::DebugUtilsMessageSeverityFlagBitsEXT severity, vk::DebugUtilsMessageTypeFlagsEXT type,const vk::DebugUtilsMessengerCallbackDataEXT* pCallbackData, void*) {
 	printf("Debug callback: %s\n", pCallbackData->pMessage);
 	printf(" Severity %s\n", GetDebugSeverityStr(severity));
 	printf(" Type %s", GetDebugType(type));
@@ -24,23 +20,23 @@ static VKAPI_ATTR vk::Bool32 VKAPI_CALL DebugCallback(
 }
 
 static uint32_t ChooseNumImages(const vk::SurfaceCapabilitiesKHR& surfaceCaps) {
-	uint32_t requesteNumImages = surfaceCaps.minImageCount + 1;
+	const uint32_t requestedNumImages = surfaceCaps.minImageCount + 1;
 	int finalNumImages = 0;
 
-	if (surfaceCaps.maxImageCount > 0 && requesteNumImages > surfaceCaps.maxImageCount) {
+	if (surfaceCaps.maxImageCount > 0 && requestedNumImages > surfaceCaps.maxImageCount) {
 		finalNumImages = surfaceCaps.maxImageCount;
 	}
 	else {
-		finalNumImages = requesteNumImages;
+		finalNumImages = requestedNumImages;
 	}
 
 	return finalNumImages;
 }
 
 static vk::PresentModeKHR ChoosePresentMode(const std::vector<vk::PresentModeKHR>& presentModes) {
-	for (int i = 0; i < presentModes.size(); i++) {
-		if (presentModes[i] == vk::PresentModeKHR::eMailbox) {
-			return presentModes[i];
+	for (const auto presentMode : presentModes) {
+		if (presentMode == vk::PresentModeKHR::eMailbox) {
+			return presentMode;
 		}
 	}
 
@@ -48,19 +44,17 @@ static vk::PresentModeKHR ChoosePresentMode(const std::vector<vk::PresentModeKHR
 }
 
 static vk::SurfaceFormatKHR ChooseSurfaceFormatAndColorSpace(const std::vector<vk::SurfaceFormatKHR>& surfaceFormats) {
-	for (int i = 0; i < surfaceFormats.size(); i++) {
-		if (surfaceFormats[i].format == vk::Format::eB8G8R8A8Srgb &&
-			surfaceFormats[i].colorSpace == vk::ColorSpaceKHR::eSrgbNonlinear) {
-			return surfaceFormats[i];
+	for (const auto surfaceFormat : surfaceFormats) {
+		if (surfaceFormat.format == vk::Format::eB8G8R8A8Srgb
+			&& surfaceFormat.colorSpace == vk::ColorSpaceKHR::eSrgbNonlinear) {
+			return surfaceFormat;
 		}
-
-		return surfaceFormats[0];
 	}
+
+	return surfaceFormats[0];
 }
 
-VulkanCore::VulkanCore() {
-
-}
+VulkanCore::VulkanCore() = default;
 
 VulkanCore::~VulkanCore() {
 	vmaDestroyAllocator(m_allocator);
@@ -77,6 +71,7 @@ void VulkanCore::Init(const char* pAppName, GLFWwindow* pWindow) {
 	CreateCommandPool();
 	m_queue.emplace(m_device, m_swapChain);
 	m_queue.value().Init(m_queueFamily, 0);
+
 }
 
 void VulkanCore::UpdateInstanceVersion() {

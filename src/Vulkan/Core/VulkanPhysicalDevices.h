@@ -1,8 +1,8 @@
 #ifndef PHYSICAL_DEVICE_H
 #define PHYSICAL_DEVICE_H
 
-#include <vector>
 #include "Vulkan.h"
+#include <vector>
 
 namespace PathTracingVK {
 

@@ -15,9 +15,13 @@ class VulkanApp {
 public:
 	int width = 1240;
 	int height = 720;
-	const char* pAppName;
+	const char* pAppName = nullptr;
 
-	VulkanApp() {}
+	VulkanApp(int width, int height, const char* pAppName) : m_pQueue(nullptr) {
+		this->width = width;
+		this->height = height;
+		this->pAppName = pAppName;
+	};
 
 	~VulkanApp() {
 		CleanUp();
@@ -33,7 +37,7 @@ private:
 	GLFWwindow* m_pMainWindow = nullptr;
 
 	PathTracingVK::VulkanCore m_vkCore;
-	PathTracingVK::VulkanQueue* m_vkpQueue;
+	PathTracingVK::VulkanQueue* m_pQueue;
 	int m_numImages = 0;
 	std::vector<vk::raii::CommandBuffer> m_cmdBuffs;
 
@@ -45,7 +49,7 @@ private:
 	void InitVulkan() {
 		m_vkCore.Init(pAppName, m_pMainWindow);
 		m_numImages = m_vkCore.GetNumImages();
-		m_vkpQueue = m_vkCore.GetQueue();
+		m_pQueue = m_vkCore.GetQueue();
 		CreateCommandBuffers();
 		RecordCommandBuffers();
 	}
@@ -56,7 +60,7 @@ private:
 	}
 
 	void RecordCommandBuffers() {
-		vk::ClearColorValue clearColor = {1.0f, .0f, .0f, .0f};
+		const vk::ClearColorValue clearColor = {1.0f, .0f, .0f, .0f};
 
 		vk::ImageSubresourceRange imageRange = {
 			.aspectMask = vk::ImageAspectFlagBits::eColor,
@@ -67,7 +71,7 @@ private:
 		};
 
 		for (uint32_t i = 0; i < m_cmdBuffs.size(); i++) {
-			m_cmdBuffs[i].begin({});
+			m_cmdBuffs[i].begin({vk::StructureType::eCommandBufferBeginInfo, nullptr, vk::CommandBufferUsageFlagBits::eSimultaneousUse});
 
 			m_cmdBuffs[i].clearColorImage(m_vkCore.GetImage(i), vk::ImageLayout::eGeneral, clearColor, imageRange);
 			
@@ -90,6 +94,7 @@ private:
 
 	void MainLoop() {
 		while (!glfwWindowShouldClose(m_pMainWindow)) {
+			RenderFrame();
 			glfwPollEvents();
 		}
 	}
@@ -101,16 +106,14 @@ private:
 	}
 
 	void RenderFrame() {
-		int imgIndex = m_vkpQueue->AcquireNextImage();
-		printf("imgIndex %d", imgIndex);
+		const uint32_t imgIndex = m_pQueue->AcquireNextImage();
+		m_pQueue->SubmitAsync(*m_cmdBuffs[imgIndex]);
+		m_pQueue->Present(imgIndex);
 	}
 };
 
 int main() {
-	VulkanApp app;
-	app.width = WINDOW_WIDTH;
-	app.height = WINDOW_HEIGHT;
-	app.pAppName = APP_NAME;
+	VulkanApp app = VulkanApp(WINDOW_WIDTH, WINDOW_HEIGHT, APP_NAME);
 
 	try {
 		app.Run();

@@ -39,11 +39,7 @@ const char* GetDebugType(vk::DebugUtilsMessageTypeFlagsEXT type)
 }
 
 vk::raii::Semaphore CreateSemaphore(vk::raii::Device& device) {
-	vk::SemaphoreCreateInfo createInfo = {
-		.sType = vk::StructureType::eSemaphoreCreateInfo,
-	};
-
-	return device.createSemaphore(createInfo);
+	return vk::raii::Semaphore(device, vk::SemaphoreCreateInfo());
 }
 
 }

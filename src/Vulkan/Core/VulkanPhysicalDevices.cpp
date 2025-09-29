@@ -1,6 +1,5 @@
 #include "VulkanPhysicalDevices.h"
 #include <algorithm>
-#include <iostream>
 
 namespace PathTracingVK {
 
