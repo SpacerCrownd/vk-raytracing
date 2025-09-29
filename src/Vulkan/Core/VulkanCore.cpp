@@ -21,7 +21,7 @@ static VKAPI_ATTR vk::Bool32 VKAPI_CALL DebugCallback(vk::DebugUtilsMessageSever
 
 static uint32_t ChooseNumImages(const vk::SurfaceCapabilitiesKHR& surfaceCaps) {
 	const uint32_t requestedNumImages = surfaceCaps.minImageCount + 1;
-	int finalNumImages = 0;
+	uint32_t finalNumImages = 0;
 
 	if (surfaceCaps.maxImageCount > 0 && requestedNumImages > surfaceCaps.maxImageCount) {
 		finalNumImages = surfaceCaps.maxImageCount;
@@ -367,5 +367,9 @@ void VulkanCore::CreateCommandBuffers(uint32_t size, std::vector<vk::raii::Comma
 
 void VulkanCore::FreeCommandBuffers(std::vector<vk::raii::CommandBuffer>& cmdBuffs) {
 	cmdBuffs.clear();
+}
+
+void VulkanCore::Destroy() {
+	m_device.waitIdle();
 }
 }

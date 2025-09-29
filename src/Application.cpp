@@ -93,14 +93,35 @@ private:
 	}
 
 	void MainLoop() {
+		auto curTime = static_cast<float>(glfwGetTime());
+		int frames = 0;
+		float fpsTime = 0.0f;
+
 		while (!glfwWindowShouldClose(m_pMainWindow)) {
+			auto time = static_cast<float>(glfwGetTime());
+			float dt = time - curTime;
+
 			RenderFrame();
+
+			curTime = time;
 			glfwPollEvents();
+			frames++;
+			fpsTime += dt;
+
+			if (fpsTime >= 1.0f) {
+				printf("%d\n", frames);
+				char title[256];
+				snprintf(title, sizeof(title), "%s : FPS %d\n", APP_NAME, frames);
+				glfwSetWindowTitle(m_pMainWindow, title);
+				fpsTime = 0.0f;
+				frames = 0;
+			}
 		}
 	}
 
 	void CleanUp() {
 		// GLFW
+		m_vkCore.Destroy();
 		glfwDestroyWindow(m_pMainWindow);
 		glfwTerminate();
 	}

@@ -28,7 +28,9 @@ public:
 	void FreeCommandBuffers(std::vector<vk::raii::CommandBuffer> &cmdBuffs);
 	void Render();
 
-	int GetNumImages() { return static_cast<int>(m_swapChainImages.size()); };
+	int GetNumImages() { return static_cast<int>(m_swapChainImages.size()); }
+
+	void Destroy();;
 	vk::Image GetImage(int n) { return m_swapChainImages[n]; };
 	VulkanQueue* GetQueue() { return std::addressof(m_queue.value()); }
 
@@ -48,6 +50,7 @@ private:
 	VulkanPhysicalDevices m_physDevices;
 	// selected queue family index
 	uint32_t m_queueFamily = 0;
+	// vulkan queue abstraction
 	std::optional<VulkanQueue> m_queue;
 
 	struct {

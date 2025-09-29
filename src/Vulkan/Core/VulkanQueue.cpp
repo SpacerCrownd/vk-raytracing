@@ -1,32 +1,45 @@
 #include "VulkanQueue.h"
-#include "vk_rt_utils.h"
 
 namespace PathTracingVK {
 
 void VulkanQueue::Init(uint32_t queueFamily, uint32_t queueIndex) {
 	m_queue = m_device.getQueue(queueFamily, queueIndex);
+	m_numFrames = m_swapChain.getImages().size();
 	printf("Queue acquired\n");
-	CreateSemaphores();
+	CreateSyncObjs();
 }
 
-void VulkanQueue::CreateSemaphores() {
-	m_presentFinishedSemaphore = std::move(CreateSemaphore(m_device));
-	m_renderFinishedSemaphore = std::move(CreateSemaphore(m_device));
-}
-
-void VulkanQueue::WaitIdle() {
-	m_queue.waitIdle();
+void VulkanQueue::CreateSyncObjs() {
+	m_imagesInFlight.resize(m_numFrames, VK_NULL_HANDLE);
+	// for each in-flight frame create semaphores and fences
+	for (int i = 0; i < m_numFrames; i++) {
+		m_imgAvailableSemaphores.emplace_back(m_device, vk::SemaphoreCreateInfo());
+		m_renderFinishedSemaphores.emplace_back(m_device, vk::SemaphoreCreateInfo());
+		m_fences.emplace_back(m_device, vk::FenceCreateInfo(vk::StructureType::eFenceCreateInfo, nullptr,
+		                                                    vk::FenceCreateFlags(vk::FenceCreateFlagBits::eSignaled)));
+	}
 }
 
 uint32_t VulkanQueue::AcquireNextImage() {
-	auto [result, imageIndx] = m_swapChain.acquireNextImage(UINT64_MAX, *m_presentFinishedSemaphore, nullptr);
-	return imageIndx;
+	while (m_device.waitForFences(*m_fences[m_currentFrame], vk::True, UINT64_MAX) == vk::Result::eTimeout);
+	m_device.resetFences(*m_fences[m_currentFrame]);
+
+	auto [result, imageIndex] = m_swapChain.acquireNextImage(UINT64_MAX, m_imgAvailableSemaphores[m_currentFrame]);
+	if (static_cast<VkFence>(m_imagesInFlight[imageIndex]) != VK_NULL_HANDLE &&
+		m_imagesInFlight[imageIndex] != *m_fences[imageIndex]) {
+		while (m_device.waitForFences(m_imagesInFlight[imageIndex], vk::True, UINT64_MAX)== vk::Result::eTimeout);
+	}
+
+	m_imagesInFlight[imageIndex] = m_fences[imageIndex];
+
+	return imageIndex;
 }
 
 void VulkanQueue::SubmitSync(const vk::CommandBuffer &cmdBuff) {
 
 	vk::SubmitInfo submitInfo = {
 		.sType = vk::StructureType::eSubmitInfo,
+		.pNext = nullptr,
 		.waitSemaphoreCount = 0,
 		.pWaitSemaphores = VK_NULL_HANDLE,
 		.pWaitDstStageMask = VK_NULL_HANDLE,
@@ -45,22 +58,23 @@ void VulkanQueue::SubmitAsync(const vk::CommandBuffer &cmdBuff) {
 	const vk::SubmitInfo submitInfo = {
 		.sType = vk::StructureType::eSubmitInfo,
 		.waitSemaphoreCount = 1,
-		.pWaitSemaphores = &*m_presentFinishedSemaphore,
+		.pWaitSemaphores = &*m_imgAvailableSemaphores[m_currentFrame],
 		.pWaitDstStageMask = &waitFlags,
 		.commandBufferCount = 1,
 		.pCommandBuffers = &cmdBuff,
 		.signalSemaphoreCount = 1,
-		.pSignalSemaphores = &*m_renderFinishedSemaphore,
+		.pSignalSemaphores = &*m_renderFinishedSemaphores[m_currentFrame],
 	};
 
-	m_queue.submit(submitInfo);
+	m_queue.submit(submitInfo, m_fences[m_currentFrame]);
 }
 
 void VulkanQueue::Present(uint32_t imgIndex) {
 	const vk::PresentInfoKHR presentInfo = {
 		.sType = vk::StructureType::ePresentInfoKHR,
+		.pNext = nullptr,
 		.waitSemaphoreCount = 1,
-		.pWaitSemaphores = &*m_renderFinishedSemaphore,
+		.pWaitSemaphores = &*m_renderFinishedSemaphores[m_currentFrame],
 		.swapchainCount = 1,
 		.pSwapchains = &*m_swapChain,
 		.pImageIndices = &imgIndex,
@@ -68,6 +82,6 @@ void VulkanQueue::Present(uint32_t imgIndex) {
 
 	auto res = m_queue.presentKHR(presentInfo);
 	vk::detail::resultCheck(res, "vkQueuePresentKHR");
-	WaitIdle();
+	m_currentFrame = (m_currentFrame + 1) % m_numFrames;
 }
 }

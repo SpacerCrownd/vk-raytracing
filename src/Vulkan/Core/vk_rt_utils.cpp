@@ -38,8 +38,4 @@ const char* GetDebugType(vk::DebugUtilsMessageTypeFlagsEXT type)
 	throw std::runtime_error("Invalid type code");
 }
 
-vk::raii::Semaphore CreateSemaphore(vk::raii::Device& device) {
-	return vk::raii::Semaphore(device, vk::SemaphoreCreateInfo());
-}
-
 }
