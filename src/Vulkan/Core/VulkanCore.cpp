@@ -77,9 +77,9 @@ void VulkanCore::Init(const char* pAppName, GLFWwindow* pWindow) {
 void VulkanCore::UpdateInstanceVersion() {
 	uint32_t instanceVersion = m_context.enumerateInstanceVersion();
 
-	m_instanceVersion.Major = vk::apiVersionMajor(instanceVersion);
-	m_instanceVersion.Minor = vk::apiVersionMinor(instanceVersion);
-	m_instanceVersion.Patch = vk::apiVersionPatch(instanceVersion);
+	m_instanceVersion.Major = static_cast<int>(vk::apiVersionMajor(instanceVersion));
+	m_instanceVersion.Minor = static_cast<int>(vk::apiVersionMinor(instanceVersion));
+	m_instanceVersion.Patch = static_cast<int>(vk::apiVersionPatch(instanceVersion));
 
 	printf("Vulkan loader supports version %d.%d.%d\n", m_instanceVersion.Major, m_instanceVersion.Minor, m_instanceVersion.Patch);
 }
@@ -206,7 +206,7 @@ void VulkanCore::CreateLogicalDevice() {
 	};
 
 	bool deviceSupportsDynamicRendering = m_physDevices.Selected().IsExtensionSupported(vk::KHRDynamicRenderingExtensionName);
-	
+
 	bool instance_is_1_3_or_more = (m_instanceVersion.Major >= 1) || (m_instanceVersion.Minor >= 3);
 
 	if (instance_is_1_3_or_more && deviceSupportsDynamicRendering) {
@@ -233,8 +233,8 @@ void VulkanCore::CreateLogicalDevice() {
 	}
 
 	vk::StructureChain<
-		vk::PhysicalDeviceFeatures2, 
-		vk::PhysicalDeviceVulkan13Features, 
+		vk::PhysicalDeviceFeatures2,
+		vk::PhysicalDeviceVulkan13Features,
 		vk::PhysicalDeviceExtendedDynamicStateFeaturesEXT
 	> featureChain = {
 		{},
@@ -282,13 +282,13 @@ void VulkanCore::CreateSwapChain() {
 	const std::vector<vk::PresentModeKHR>& presentModes = m_physDevices.Selected().m_presentModes;
 	vk::PresentModeKHR presentMode = ChoosePresentMode(presentModes);
 
-	vk::SurfaceFormatKHR surfaceFormat = ChooseSurfaceFormatAndColorSpace(m_physDevices.Selected().m_surfaceFormats);
+	m_swapChainSurfaceFormat = ChooseSurfaceFormatAndColorSpace(m_physDevices.Selected().m_surfaceFormats);
 
 	vk::SwapchainCreateInfoKHR swapChainCreateInfo = {
 		.surface = m_surface,
 		.minImageCount = numImages,
-		.imageFormat = surfaceFormat.format,
-		.imageColorSpace = surfaceFormat.colorSpace,
+		.imageFormat = m_swapChainSurfaceFormat.format,
+		.imageColorSpace = m_swapChainSurfaceFormat.colorSpace,
 		.imageExtent = surfaceCaps.currentExtent,
 		.imageArrayLayers = 1,
 		.imageUsage =
@@ -316,7 +316,7 @@ void VulkanCore::CreateSwapChain() {
 
 	vk::ImageViewCreateInfo viewInfo = {
 		.viewType = vk::ImageViewType::e2D,
-		.format = surfaceFormat.format,
+		.format = m_swapChainSurfaceFormat.format,
 		.components = {
 			.r = vk::ComponentSwizzle::eIdentity,
 			.g = vk::ComponentSwizzle::eIdentity,
@@ -336,10 +336,6 @@ void VulkanCore::CreateSwapChain() {
 		viewInfo.image = image;
 		m_swapChainImageViews.emplace_back(m_device, viewInfo);
 	}
-}
-
-void VulkanCore::CreateRaytracingPipeline() {
-	
 }
 
 void VulkanCore::CreateCommandPool() {
@@ -367,6 +363,26 @@ void VulkanCore::CreateCommandBuffers(uint32_t size, std::vector<vk::raii::Comma
 
 void VulkanCore::FreeCommandBuffers(std::vector<vk::raii::CommandBuffer>& cmdBuffs) {
 	cmdBuffs.clear();
+}
+
+void VulkanCore::CreateBLAS() {
+
+}
+
+void VulkanCore::CreateTLAS() {
+
+}
+
+void VulkanCore::CreateAccelerationStructure() {
+
+}
+
+void VulkanCore::CreateSBT() {
+
+}
+
+void VulkanCore::CreateRaytracingPipeline() {
+
 }
 
 void VulkanCore::Destroy() {

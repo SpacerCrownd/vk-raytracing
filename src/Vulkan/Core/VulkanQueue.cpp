@@ -2,10 +2,10 @@
 
 namespace PathTracingVK {
 
-void VulkanQueue::Init(uint32_t queueFamily, uint32_t queueIndex) {
+void VulkanQueue::Init(const uint32_t queueFamily, const uint32_t queueIndex) {
 	m_queue = m_device.getQueue(queueFamily, queueIndex);
 	m_numFrames = m_swapChain.getImages().size();
-	printf("Queue acquired\n");
+	//printf("Queue acquired\n");
 	CreateSyncObjs();
 }
 

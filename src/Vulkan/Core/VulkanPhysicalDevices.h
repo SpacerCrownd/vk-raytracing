@@ -16,6 +16,8 @@ struct PhysicalDevice {
 	vk::PhysicalDeviceMemoryProperties m_memProperties;
 	std::vector<vk::PresentModeKHR> m_presentModes;
 	vk::PhysicalDeviceFeatures m_features;
+	vk::Format m_depthFormat;
+
 	struct {
 		int Variant = 0;
 		int Major = 0;
@@ -29,8 +31,8 @@ struct PhysicalDevice {
 
 class VulkanPhysicalDevices {
 public:
-	VulkanPhysicalDevices() {}
-	~VulkanPhysicalDevices() {}
+	VulkanPhysicalDevices() = default;
+	~VulkanPhysicalDevices() = default;
 
 	void Init(const vk::raii::Instance& instance, const vk::SurfaceKHR& surface);
 	uint32_t SelectDevice(vk::QueueFlags requiredQueueType, bool supportsPresent);

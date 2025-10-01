@@ -60,9 +60,18 @@ private:
 	}
 
 	void RecordCommandBuffers() {
-		const vk::ClearColorValue clearColor = {1.0f, .0f, .0f, .0f};
+		for (auto cmdBuff : m_cmdBuffs) {
+			cmdBuff.reset();
+		}
 
-		vk::ImageSubresourceRange imageRange = {
+		//Clear();
+	}
+
+	// only useful for rasterization
+	void Clear() {
+		constexpr vk::ClearColorValue clearColor = {1.0f, .0f, .0f, .0f};
+
+		constexpr vk::ImageSubresourceRange imageRange = {
 			.aspectMask = vk::ImageAspectFlagBits::eColor,
 			.baseMipLevel = 0,
 			.levelCount = 1,
@@ -70,11 +79,52 @@ private:
 			.layerCount = 1,
 		};
 
-		for (uint32_t i = 0; i < m_cmdBuffs.size(); i++) {
-			m_cmdBuffs[i].begin({vk::StructureType::eCommandBufferBeginInfo, nullptr, vk::CommandBufferUsageFlagBits::eSimultaneousUse});
+		vk::ImageMemoryBarrier presentToClearBarrier = {
+			.sType = vk::StructureType::eImageMemoryBarrier,
+			.pNext = nullptr,
+			.srcAccessMask = vk::AccessFlagBits::eMemoryRead,
+			.dstAccessMask = vk::AccessFlagBits::eTransferWrite,
+			.oldLayout = vk::ImageLayout::eUndefined,
+			.newLayout = vk::ImageLayout::eTransferDstOptimal,
+			.srcQueueFamilyIndex = vk::QueueFamilyIgnored,
+			.dstQueueFamilyIndex = vk::QueueFamilyIgnored,
+			.subresourceRange = imageRange,
+		};
 
-			m_cmdBuffs[i].clearColorImage(m_vkCore.GetImage(i), vk::ImageLayout::eGeneral, clearColor, imageRange);
-			
+		vk::ImageMemoryBarrier clearToPresentBarrier = {
+			.sType = vk::StructureType::eImageMemoryBarrier,
+			.pNext = nullptr,
+			.srcAccessMask = vk::AccessFlagBits::eTransferWrite,
+			.dstAccessMask = vk::AccessFlagBits::eMemoryRead,
+			.oldLayout = vk::ImageLayout::eTransferDstOptimal,
+			.newLayout = vk::ImageLayout::ePresentSrcKHR,
+			.srcQueueFamilyIndex = vk::QueueFamilyIgnored,
+			.dstQueueFamilyIndex = vk::QueueFamilyIgnored,
+			.subresourceRange = imageRange,
+		};
+
+		for (uint32_t i = 0; i < m_cmdBuffs.size(); i++) {
+			presentToClearBarrier.image = m_vkCore.GetImage(static_cast<int>(i));
+			clearToPresentBarrier.image = m_vkCore.GetImage(static_cast<int>(i));
+
+			m_cmdBuffs[i].begin({vk::StructureType::eCommandBufferBeginInfo, nullptr});
+
+			m_cmdBuffs[i].pipelineBarrier(vk::PipelineStageFlagBits::eTransfer,
+				vk::PipelineStageFlagBits::eTransfer,
+				vk::DependencyFlags{},
+				{},
+				{},
+				{presentToClearBarrier});
+
+			m_cmdBuffs[i].clearColorImage(m_vkCore.GetImage(static_cast<int>(i)), vk::ImageLayout::eTransferDstOptimal, clearColor, imageRange);
+
+			m_cmdBuffs[i].pipelineBarrier(vk::PipelineStageFlagBits::eTransfer,
+							vk::PipelineStageFlagBits::eBottomOfPipe,
+							vk::DependencyFlags{},
+							{},
+							{},
+							{clearToPresentBarrier});
+
 			m_cmdBuffs[i].end();
 		}
 	}
@@ -102,14 +152,14 @@ private:
 			float dt = time - curTime;
 
 			RenderFrame();
-
 			curTime = time;
 			glfwPollEvents();
+
+			// calculate framerate
 			frames++;
 			fpsTime += dt;
-
 			if (fpsTime >= 1.0f) {
-				printf("%d\n", frames);
+				//printf("%d\n", frames);
 				char title[256];
 				snprintf(title, sizeof(title), "%s : FPS %d\n", APP_NAME, frames);
 				glfwSetWindowTitle(m_pMainWindow, title);
@@ -134,7 +184,7 @@ private:
 };
 
 int main() {
-	VulkanApp app = VulkanApp(WINDOW_WIDTH, WINDOW_HEIGHT, APP_NAME);
+	auto app = VulkanApp(WINDOW_WIDTH, WINDOW_HEIGHT, APP_NAME);
 
 	try {
 		app.Run();
@@ -143,7 +193,6 @@ int main() {
 		std::cerr << e.what() << std::endl;
 		return EXIT_FAILURE;
 	}
-
 
 	return EXIT_SUCCESS;
 }

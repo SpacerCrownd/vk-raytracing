@@ -61,6 +61,36 @@ static void PrintMemoryProperty(const vk::Flags<vk::MemoryPropertyFlagBits>& fla
 	}
 }
 
+static vk::Format FindSupportedFormat(const vk::raii::PhysicalDevice& device, const std::vector<vk::Format>& candidates,
+							 const vk::ImageTiling tiling, const vk::FormatFeatureFlags features)
+{
+	for (const auto format : candidates) {
+		vk::FormatProperties props = device.getFormatProperties(format);
+
+		if (tiling == vk::ImageTiling::eLinear && (props.linearTilingFeatures & features) == features) {
+			return format;
+		}
+
+		if (tiling == vk::ImageTiling::eOptimal && (props.optimalTilingFeatures & features) == features) {
+			return format;
+		}
+	}
+
+	throw std::runtime_error("failed to find supporting format!");
+}
+
+static vk::Format FindDepthFormat(vk::raii::PhysicalDevice& device)
+{
+	std::vector<vk::Format> Candidates = { vk::Format::eD32Sfloat,
+										 vk::Format::eD32SfloatS8Uint,
+										 vk::Format::eD24UnormS8Uint };
+
+	vk::Format depthFormat = FindSupportedFormat(device, Candidates, vk::ImageTiling::eOptimal,
+											   vk::FormatFeatureFlagBits::eDepthStencilAttachment);
+
+	return depthFormat;
+}
+
 void VulkanPhysicalDevices::Init(const vk::raii::Instance& instance, const vk::SurfaceKHR& surface) {
 	auto devices = instance.enumeratePhysicalDevices();
 	m_devices.resize(devices.size());
@@ -114,10 +144,9 @@ void VulkanPhysicalDevices::Init(const vk::raii::Instance& instance, const vk::S
 		// Formats
 		m_devices[i].m_surfaceFormats = m_devices[i].m_physDevice.getSurfaceFormatsKHR(surface);
 
-		for (uint32_t j = 0; j < m_devices[i].m_surfaceFormats.size(); j++)
+		for (const auto [format, colorSpace] : m_devices[i].m_surfaceFormats)
 		{
-			const vk::SurfaceFormatKHR& surfaceFormat = m_devices[i].m_surfaceFormats[j];
-			printf("	Format %d color space %d\n", surfaceFormat.format, surfaceFormat.colorSpace);
+				printf("	Format %d color space %d\n", format, colorSpace);
 		}
 
 		// Capabilities
@@ -133,8 +162,8 @@ void VulkanPhysicalDevices::Init(const vk::raii::Instance& instance, const vk::S
 
 		printf("	Present modes: %d\n", (int)m_devices[i].m_presentModes.size());
 
-		for (vk::PresentModeKHR presentMode : m_devices[i].m_presentModes) {
-			const char* name = "";
+		for (const vk::PresentModeKHR presentMode : m_devices[i].m_presentModes) {
+			auto name = "";
 
 			switch (presentMode) {
 			case vk::PresentModeKHR::eImmediate: 
@@ -174,6 +203,8 @@ void VulkanPhysicalDevices::Init(const vk::raii::Instance& instance, const vk::S
 
 		//extensions
 		m_devices[i].m_extensions = m_devices[i].m_physDevice.enumerateDeviceExtensionProperties();
+
+		m_devices[i].m_depthFormat = FindDepthFormat(m_devices[i].m_physDevice);
 
 		/*printf("Available extensions:\n");
 		std::cout << "Extension count: " << m_devices[i].m_extensions.size() << "\n";

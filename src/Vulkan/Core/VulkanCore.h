@@ -25,14 +25,15 @@ public:
 
 	void Init(const char* pAppName, GLFWwindow* pWindow);
 	void CreateCommandBuffers(uint32_t count, std::vector<vk::raii::CommandBuffer>& cmdBuffs);
-	void FreeCommandBuffers(std::vector<vk::raii::CommandBuffer> &cmdBuffs);
-	void Render();
+	static void FreeCommandBuffers(std::vector<vk::raii::CommandBuffer> &cmdBuffs);
+	void Destroy();
 
 	int GetNumImages() { return static_cast<int>(m_swapChainImages.size()); }
-
-	void Destroy();;
 	vk::Image GetImage(int n) { return m_swapChainImages[n]; };
 	VulkanQueue* GetQueue() { return std::addressof(m_queue.value()); }
+	uint32_t GetQueueFamily() const { return m_queueFamily; }
+	vk::Format GetSwapChainFormat() const { return m_swapChainSurfaceFormat.format; }
+	vk::Format GetDepthFormat() const { return m_physDevices.Selected().m_depthFormat; }
 
 private:
 	vk::raii::Context m_context;
@@ -42,6 +43,7 @@ private:
 	vk::raii::SurfaceKHR m_surface = VK_NULL_HANDLE;
 	vk::raii::Device m_device = VK_NULL_HANDLE;
 	vk::raii::SwapchainKHR m_swapChain = VK_NULL_HANDLE;
+	vk::SurfaceFormatKHR m_swapChainSurfaceFormat{};
 	std::vector<vk::Image> m_swapChainImages;
 	std::vector<vk::raii::ImageView> m_swapChainImageViews;
 	vk::raii::CommandPool m_cmdPool = VK_NULL_HANDLE;
@@ -69,7 +71,11 @@ private:
 	void InitVmaAllocator();
 	void CreateSwapChain();
 	void CreateCommandPool();
-	void CreateAccelerationStructs();
+
+	void CreateBLAS();
+	void CreateTLAS();
+	void CreateSBT();
+	void CreateAccelerationStructure();
 	void CreateRaytracingPipeline();
 
 	void UpdateInstanceVersion();
