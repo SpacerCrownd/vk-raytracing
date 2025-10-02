@@ -1,5 +1,5 @@
-#include "VulkanPhysicalDevices.h"
 #include <algorithm>
+#include "VulkanPhysicalDevices.h"
 
 namespace PathTracingVK {
 
@@ -81,12 +81,14 @@ static vk::Format FindSupportedFormat(const vk::raii::PhysicalDevice& device, co
 
 static vk::Format FindDepthFormat(vk::raii::PhysicalDevice& device)
 {
-	std::vector<vk::Format> Candidates = { vk::Format::eD32Sfloat,
-										 vk::Format::eD32SfloatS8Uint,
-										 vk::Format::eD24UnormS8Uint };
+	std::vector Candidates = {
+		vk::Format::eD32Sfloat,
+		vk::Format::eD32SfloatS8Uint,
+		vk::Format::eD24UnormS8Uint
+	};
 
 	vk::Format depthFormat = FindSupportedFormat(device, Candidates, vk::ImageTiling::eOptimal,
-											   vk::FormatFeatureFlagBits::eDepthStencilAttachment);
+		vk::FormatFeatureFlagBits::eDepthStencilAttachment);
 
 	return depthFormat;
 }
@@ -100,13 +102,14 @@ void VulkanPhysicalDevices::Init(const vk::raii::Instance& instance, const vk::S
 
 		// Properties
 		m_devices[i].m_physDevice = std::move(device);
-		m_devices[i].m_devProperties = m_devices[i].m_physDevice.getProperties();
-		printf("\nDevice name: %s\n", m_devices[i].m_devProperties.deviceName.data());
+		m_devices[i].m_devProperties2 = m_devices[i].m_physDevice.getProperties2();
 
-		m_devices[i].m_features = m_devices[i].m_physDevice.getFeatures();
+		printf("\nDevice name: %s\n", m_devices[i].m_devProperties2.properties.deviceName.data());
+
+		m_devices[i].m_features2 = m_devices[i].m_physDevice.getFeatures2();
 
 		// API version
-		uint32_t apiVersion = m_devices[i].m_devProperties.apiVersion;
+		uint32_t apiVersion = m_devices[i].m_devProperties2.properties.apiVersion;
 		printf("	API version: %d.%d.%d.%d\n",
 			vk::apiVersionVariant(apiVersion),
 			vk::apiVersionMajor(apiVersion),
@@ -135,8 +138,6 @@ void VulkanPhysicalDevices::Init(const vk::raii::Instance& instance, const vk::S
 				(flags & vk::QueueFlagBits::eTransfer) ? "Yes" : "No",
 				(flags & vk::QueueFlagBits::eSparseBinding) ? "Yes" : "No"
 			);
-
-
 
 			m_devices[i].m_qSupportsPresent[j] = m_devices[i].m_physDevice.getSurfaceSupportKHR(j, surface);
 		}
@@ -217,32 +218,48 @@ void VulkanPhysicalDevices::Init(const vk::raii::Instance& instance, const vk::S
 // select logical device and return the queue family index
 uint32_t VulkanPhysicalDevices::SelectDevice(vk::QueueFlags requiredQueueType, bool supportsPresent) {
 	for (uint32_t i = 0; i < m_devices.size(); i++) {
+		// Check device extensions
+		bool missingRequiredExtensions = false;
+
+		std::vector<const char*> requiredExtensions = {
+			vk::KHRRayTracingPipelineExtensionName,
+			vk::KHRAccelerationStructureExtensionName,
+			vk::KHRDeferredHostOperationsExtensionName
+		};
+
+		for(auto reqExtension : requiredExtensions)
+		{
+			if (!m_devices[i].IsExtensionSupported(reqExtension)) {
+				missingRequiredExtensions = true;
+				break;
+			}
+		}
+
+		if (missingRequiredExtensions)
+			continue;
+
+		// Check device features
+		if (m_devices[i].m_features2.features.geometryShader == vk::False) {
+			continue;
+		}
+
+		if (m_devices[i].m_features2.features.tessellationShader == vk::False) {
+			continue;
+		}
+
+		m_devices[i].m_asProperties = m_devices[i].m_physDevice.getProperties2<vk::PhysicalDeviceProperties2, vk::PhysicalDeviceAccelerationStructurePropertiesKHR>().get<vk::PhysicalDeviceAccelerationStructurePropertiesKHR>();
+		m_devices[i].m_rtProperties = m_devices[i].m_physDevice.getProperties2<vk::PhysicalDeviceProperties2, vk::PhysicalDeviceRayTracingPipelinePropertiesKHR>().get<vk::PhysicalDeviceRayTracingPipelinePropertiesKHR>();
+
 		// Check each queue
 		for (uint32_t j = 0; j < m_devices[i].m_qFamilyProperties.size(); j++) {
 			const vk::QueueFamilyProperties qFamilyProp = m_devices[i].m_qFamilyProperties[j];
 
 			// check if the queue is suitable for our needs
 			if (qFamilyProp.queueFlags & requiredQueueType && (bool)m_devices[i].m_qSupportsPresent[j] == supportsPresent) {
-				bool isSuitable = true;
-
-				// Hard coded extensions validation
-				std::vector<const char*> requiredExtensions = {
-					vk::KHRRayTracingPipelineExtensionName
-				};
-
-				for(auto reqExtension : requiredExtensions)
-				{
-					isSuitable = m_devices[i].IsExtensionSupported(reqExtension);
-					if (!isSuitable)
-						break;
-				}
-
-				if (isSuitable) {
-					m_devIndex = i;
-					int queueFamily = j;
-					printf("Using graphics device %d and queue family %d\n", m_devIndex, queueFamily);
-					return queueFamily;
-				}
+				m_devIndex = i;
+				int queueFamily = j;
+				printf("Using graphics device %d and queue family %d\n", m_devIndex, queueFamily);
+				return queueFamily;
 			}
 		}
 	}

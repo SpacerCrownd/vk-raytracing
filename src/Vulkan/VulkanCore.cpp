@@ -3,6 +3,8 @@
 #include <iostream>
 
 #include "vk_rt_utils.h"
+#include "../Pathtracer/Scene.h"
+#include "vulkan/vulkan_raii.hpp"
 
 namespace PathTracingVK {
 
@@ -96,7 +98,8 @@ void VulkanCore::CreateInstance(const char* pAppName) {
 	};
 
 	std::vector<const char*> validationLayers = {
-		"VK_LAYER_KHRONOS_validation"
+		"VK_LAYER_KHRONOS_validation",
+		"VK_LAYER_LUNARG_monitor"
 	};
 
 	std::vector<const char*> extensions = {
@@ -205,10 +208,9 @@ void VulkanCore::CreateLogicalDevice() {
 		vk::KHRDeferredHostOperationsExtensionName
 	};
 
+	/*
 	bool deviceSupportsDynamicRendering = m_physDevices.Selected().IsExtensionSupported(vk::KHRDynamicRenderingExtensionName);
-
 	bool instance_is_1_3_or_more = (m_instanceVersion.Major >= 1) || (m_instanceVersion.Minor >= 3);
-
 	if (instance_is_1_3_or_more && deviceSupportsDynamicRendering) {
 		printf("The Vulkan instance and device support dynamic rendering as a core feature\n");
 	}
@@ -223,23 +225,20 @@ void VulkanCore::CreateLogicalDevice() {
 	else {
 		throw std::runtime_error("The system doesn't support dynamic rendering");
 	}
-
-	if (m_physDevices.Selected().m_features.geometryShader == vk::False) {
-		throw std::runtime_error("The Geometry Shader is not supported!");
-	}
-
-	if (m_physDevices.Selected().m_features.tessellationShader == vk::False) {
-		throw std::runtime_error("The Tessellation Shader is not supported!");
-	}
+	*/
 
 	vk::StructureChain<
 		vk::PhysicalDeviceFeatures2,
 		vk::PhysicalDeviceVulkan13Features,
-		vk::PhysicalDeviceExtendedDynamicStateFeaturesEXT
+		vk::PhysicalDeviceExtendedDynamicStateFeaturesEXT,
+		vk::PhysicalDeviceRayTracingPipelineFeaturesKHR,
+		vk::PhysicalDeviceAccelerationStructureFeaturesKHR
 	> featureChain = {
 		{},
 		{.dynamicRendering = true},
-		{.extendedDynamicState = true}
+		{.extendedDynamicState = true},
+		{.rayTracingPipeline = true},
+		{.accelerationStructure = true},
 	};
 
 	featureChain.get<vk::PhysicalDeviceFeatures2>().features.geometryShader = vk::True;
@@ -249,7 +248,7 @@ void VulkanCore::CreateLogicalDevice() {
 		.pNext = &featureChain.get<vk::PhysicalDeviceFeatures2>(),
 		.queueCreateInfoCount = 1,
 		.pQueueCreateInfos = &qInfo,
-		.enabledExtensionCount = (uint32_t)devExtensions.size(),
+		.enabledExtensionCount = static_cast<uint32_t>(devExtensions.size()),
 		.ppEnabledExtensionNames = devExtensions.data(),
 	};
 
@@ -365,16 +364,44 @@ void VulkanCore::FreeCommandBuffers(std::vector<vk::raii::CommandBuffer>& cmdBuf
 	cmdBuffs.clear();
 }
 
-void VulkanCore::CreateBLAS() {
+void VulkanCore::CreateBLAS(vk::raii::CommandBuffer& cmdBuff) {
+	// for each model in the scene
+
+	// test code
+	auto triangleData = vk::AccelerationStructureGeometryDataKHR{
+		.vertexFormat = vk::Format::eR32G32B32A32Sfloat,
+		.vertexData = &m_vertices,
+		.vertexStride = sizeof(m_vertices),
+		.
+	};
+}
+
+void VulkanCore::CreateTLAS(vk::raii::CommandBuffer& cmdBuff) {
 
 }
 
-void VulkanCore::CreateTLAS() {
+void VulkanCore::CreateAccelerationStructure(Scene scene) {
+	vk::CommandBufferAllocateInfo cmdBuffAllocateInfo = {
+		.sType = vk::StructureType::eCommandBufferAllocateInfo,
+		.commandPool = m_cmdPool,
+		.level = vk::CommandBufferLevel::ePrimary,
+		.commandBufferCount = 1,
+	};
+	vk::raii::CommandBuffer cmdBuff = std::move(vk::raii::CommandBuffers(m_device, cmdBuffAllocateInfo).front());
 
-}
+	CreateBLAS(cmdBuff);
 
-void VulkanCore::CreateAccelerationStructure() {
+	auto flags = vk::AccessFlagBits::eAccelerationStructureReadKHR | vk::AccessFlagBits::eAccelerationStructureWriteKHR;
+	vk::MemoryBarrier memoryBarrier = {
+		.sType = vk::StructureType::eMemoryBarrier,
+		.srcAccessMask = flags,
+		.dstAccessMask = flags,
+	};
+	cmdBuff.pipelineBarrier(vk::PipelineStageFlagBits::eAccelerationStructureBuildKHR,
+		vk::PipelineStageFlagBits::eAccelerationStructureBuildKHR,
+		{}, memoryBarrier, {}, {});
 
+	CreateTLAS(cmdBuff);
 }
 
 void VulkanCore::CreateSBT() {

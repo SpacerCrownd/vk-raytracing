@@ -13,7 +13,7 @@ public:
 	~VulkanQueue() = default;
 
 	void Init(uint32_t queueFamily, uint32_t queueIndex);
-	uint32_t AcquireNextImage();
+	[[nodiscard]] uint32_t AcquireNextImage();
 	void SubmitSync(const vk::CommandBuffer& cmdBuff);
 	void SubmitAsync(const vk::CommandBuffer& cmdBuff);
 	void Present(uint32_t imgIndex);

@@ -1,13 +1,12 @@
 #ifndef VULKAN_CORE_H
 #define VULKAN_CORE_H
 
-#define VMA_STATIC_VULKAN_FUNCTIONS 0
-#define VMA_DYNAMIC_VULKAN_FUNCTIONS 1
-
 #include "Vulkan.h"
 #include "vk_mem_alloc.h"
 #include "VulkanPhysicalDevices.h"
 #include "VulkanQueue.h"
+#include "../Pathtracer/Scene.h"
+#include "vulkan/vulkan_raii.hpp"
 
 namespace PathTracingVK {
 
@@ -31,29 +30,50 @@ public:
 	int GetNumImages() { return static_cast<int>(m_swapChainImages.size()); }
 	vk::Image GetImage(int n) { return m_swapChainImages[n]; };
 	VulkanQueue* GetQueue() { return std::addressof(m_queue.value()); }
-	uint32_t GetQueueFamily() const { return m_queueFamily; }
-	vk::Format GetSwapChainFormat() const { return m_swapChainSurfaceFormat.format; }
-	vk::Format GetDepthFormat() const { return m_physDevices.Selected().m_depthFormat; }
+	[[nodiscard]] uint32_t GetQueueFamily() const { return m_queueFamily; }
+	[[nodiscard]] vk::Format GetSwapChainFormat() const { return m_swapChainSurfaceFormat.format; }
+	[[nodiscard]] vk::Format GetDepthFormat() const { return m_physDevices.Selected().m_depthFormat; }
 
 private:
 	vk::raii::Context m_context;
 	vk::raii::Instance m_instance = VK_NULL_HANDLE;
 	vk::raii::DebugUtilsMessengerEXT m_debugMessenger = VK_NULL_HANDLE;
-	// vulkan window abstraction
-	vk::raii::SurfaceKHR m_surface = VK_NULL_HANDLE;
+	vk::raii::SurfaceKHR m_surface = VK_NULL_HANDLE; // vulkan window abstraction
 	vk::raii::Device m_device = VK_NULL_HANDLE;
+
+	// Swapchain components
 	vk::raii::SwapchainKHR m_swapChain = VK_NULL_HANDLE;
 	vk::SurfaceFormatKHR m_swapChainSurfaceFormat{};
 	std::vector<vk::Image> m_swapChainImages;
 	std::vector<vk::raii::ImageView> m_swapChainImageViews;
+
+	VulkanPhysicalDevices m_physDevices; // struct containing all available physical devices
+	uint32_t m_queueFamily = 0; // selected queue family index
+	std::optional<VulkanQueue> m_queue; // vulkan queue abstraction
 	vk::raii::CommandPool m_cmdPool = VK_NULL_HANDLE;
 
-	// struct containing all available physical devices
-	VulkanPhysicalDevices m_physDevices;
-	// selected queue family index
-	uint32_t m_queueFamily = 0;
-	// vulkan queue abstraction
-	std::optional<VulkanQueue> m_queue;
+	// Raytracing pipeline components
+	vk::raii::Pipeline m_rtPipeline = VK_NULL_HANDLE;
+	vk::raii::PipelineLayout m_rtPipelineLayout = VK_NULL_HANDLE;
+	std::vector<vk::raii::AccelerationStructureKHR> m_BLASs;
+	vk::raii::AccelerationStructureKHR m_TLASs = VK_NULL_HANDLE;
+
+	// Shader binding table stuff
+	vk::raii::Buffer m_sbtBuffer = VK_NULL_HANDLE;
+	std::vector<uint8_t> m_shaderHandles;
+	vk::StridedDeviceAddressRegionKHR m_raygenRegion{};
+	vk::StridedDeviceAddressRegionKHR m_missRegion{};
+	vk::StridedDeviceAddressRegionKHR m_hitRegion{};
+	vk::StridedDeviceAddressRegionKHR m_callableRegion{}; // callable shader region
+
+	// Scene data
+	const float m_vertices[9] = {
+		0.25f, 0.25f, 0.0f,
+		0.75f, 0.25f, 0.0f,
+		0.50f, 0.75f, 0.0f
+	};
+
+	const uint32_t m_indices[3] = { 0, 1, 2 };
 
 	struct {
 		int Major = 0;
@@ -72,10 +92,10 @@ private:
 	void CreateSwapChain();
 	void CreateCommandPool();
 
-	void CreateBLAS();
-	void CreateTLAS();
+	void CreateBLAS(vk::raii::CommandBuffer &cmdBuff);
+	void CreateTLAS(vk::raii::CommandBuffer &cmdBuff);
 	void CreateSBT();
-	void CreateAccelerationStructure();
+	void CreateAccelerationStructure(Scene scene);
 	void CreateRaytracingPipeline();
 
 	void UpdateInstanceVersion();

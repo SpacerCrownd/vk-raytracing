@@ -66,7 +66,14 @@ FetchContent_Declare(
 )
 FetchContent_MakeAvailable(assimp)
 
-add_executable(vk-raytracing "src/Application.cpp" "src/Vulkan/Core/VulkanCore.cpp" "src/Vulkan/Core/vk_rt_utils.cpp" "src/Vulkan/Core/VulkanPhysicalDevices.cpp" "src/Vulkan/Core/vk_mem_alloc.cpp" "src/Vulkan/Core/VulkanQueue.cpp")
+add_executable(vk-raytracing "src/Pathtracer/Application.cpp" "src/Vulkan/VulkanCore.cpp" "src/Vulkan/vk_rt_utils.cpp" "src/Vulkan/VulkanPhysicalDevices.cpp" "src/Vulkan/vk_mem_alloc.cpp" "src/Vulkan/VulkanQueue.cpp"
+        src/Pathtracer/Model.cpp
+        src/Pathtracer/Model.h
+        src/Pathtracer/Shader.cpp
+        src/Pathtracer/Shader.h
+        src/Pathtracer/Scene.cpp
+        src/Pathtracer/Scene.h
+)
 
 # Include dirs
 target_include_directories(vk-raytracing PRIVATE "${CMAKE_SOURCE_DIR}/include")

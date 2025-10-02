@@ -81,7 +81,12 @@ void VulkanQueue::Present(uint32_t imgIndex) {
 	};
 
 	auto res = m_queue.presentKHR(presentInfo);
-	vk::detail::resultCheck(res, "vkQueuePresentKHR");
+	if (res == vk::Result::eSuboptimalKHR || res == vk::Result::eErrorOutOfDateKHR) {
+
+	}else {
+		vk::detail::resultCheck(res, "vkQueuePresentKHR");
+	}
+
 	m_currentFrame = (m_currentFrame + 1) % m_numFrames;
 }
 }

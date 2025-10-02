@@ -1,5 +1,7 @@
-﻿#include "Vulkan/Core/VulkanCore.h"
+﻿#include "../Vulkan/VulkanCore.h"
 #include <iostream>
+
+#include "Scene.h"
 
 constexpr uint32_t WINDOW_WIDTH = 1240;
 constexpr uint32_t WINDOW_HEIGHT = 720;
@@ -15,7 +17,7 @@ class VulkanApp {
 public:
 	int width = 1240;
 	int height = 720;
-	const char* pAppName = nullptr;
+	const char* pAppName{};
 
 	VulkanApp(int width, int height, const char* pAppName) : m_pQueue(nullptr) {
 		this->width = width;
@@ -34,10 +36,11 @@ public:
 	}
 
 private:
-	GLFWwindow* m_pMainWindow = nullptr;
+	GLFWwindow* m_pMainWindow{};
+	Scene m_scene{};
 
-	PathTracingVK::VulkanCore m_vkCore;
-	PathTracingVK::VulkanQueue* m_pQueue;
+	PathTracingVK::VulkanCore m_vkCore{};
+	PathTracingVK::VulkanQueue* m_pQueue{};
 	int m_numImages = 0;
 	std::vector<vk::raii::CommandBuffer> m_cmdBuffs;
 
@@ -60,11 +63,7 @@ private:
 	}
 
 	void RecordCommandBuffers() {
-		for (auto cmdBuff : m_cmdBuffs) {
-			cmdBuff.reset();
-		}
-
-		//Clear();
+		Clear();
 	}
 
 	// only useful for rasterization
@@ -143,18 +142,20 @@ private:
 	}
 
 	void MainLoop() {
+		/*
 		auto curTime = static_cast<float>(glfwGetTime());
 		int frames = 0;
 		float fpsTime = 0.0f;
-
+		*/
 		while (!glfwWindowShouldClose(m_pMainWindow)) {
+			/*
 			auto time = static_cast<float>(glfwGetTime());
 			float dt = time - curTime;
-
+			*/
 			RenderFrame();
-			curTime = time;
+			//curTime = time;
 			glfwPollEvents();
-
+			/*
 			// calculate framerate
 			frames++;
 			fpsTime += dt;
@@ -166,6 +167,7 @@ private:
 				fpsTime = 0.0f;
 				frames = 0;
 			}
+			*/
 		}
 	}
 

@@ -1,0 +1,9 @@
+﻿#ifndef VK_RAYTRACING_SHADER_H
+#define VK_RAYTRACING_SHADER_H
+
+
+class Shader {
+};
+
+
+#endif //VK_RAYTRACING_SHADER_H
