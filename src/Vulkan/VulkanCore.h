@@ -6,7 +6,6 @@
 #include "VulkanPhysicalDevices.h"
 #include "VulkanQueue.h"
 #include "../Pathtracer/Scene.h"
-#include "vulkan/vulkan_raii.hpp"
 
 namespace PathTracingVK {
 
@@ -29,12 +28,14 @@ public:
 
 	int GetNumImages() { return static_cast<int>(m_swapChainImages.size()); }
 	vk::Image GetImage(int n) { return m_swapChainImages[n]; };
-	VulkanQueue* GetQueue() { return std::addressof(m_queue.value()); }
+	VulkanQueue* GetQueue() { return m_queue.get(); }
 	[[nodiscard]] uint32_t GetQueueFamily() const { return m_queueFamily; }
 	[[nodiscard]] vk::Format GetSwapChainFormat() const { return m_swapChainSurfaceFormat.format; }
 	[[nodiscard]] vk::Format GetDepthFormat() const { return m_physDevices.Selected().m_depthFormat; }
 
 private:
+	VmaAllocator m_allocator = nullptr;
+
 	vk::raii::Context m_context;
 	vk::raii::Instance m_instance = VK_NULL_HANDLE;
 	vk::raii::DebugUtilsMessengerEXT m_debugMessenger = VK_NULL_HANDLE;
@@ -49,7 +50,7 @@ private:
 
 	VulkanPhysicalDevices m_physDevices; // struct containing all available physical devices
 	uint32_t m_queueFamily = 0; // selected queue family index
-	std::optional<VulkanQueue> m_queue; // vulkan queue abstraction
+	std::unique_ptr<VulkanQueue> m_queue; // vulkan queue abstraction
 	vk::raii::CommandPool m_cmdPool = VK_NULL_HANDLE;
 
 	// Raytracing pipeline components
@@ -80,8 +81,6 @@ private:
 		int Minor = 0;
 		int Patch = 0;
 	} m_instanceVersion;
-
-	VmaAllocator m_allocator = nullptr;
 
 	void CreateInstance(const char* pAppName);
 	void CreateDebugCallback();

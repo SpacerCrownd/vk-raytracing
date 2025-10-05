@@ -1,7 +1,6 @@
 ﻿#include "../Vulkan/VulkanCore.h"
-#include <iostream>
-
 #include "Scene.h"
+#include <iostream>
 
 constexpr uint32_t WINDOW_WIDTH = 1240;
 constexpr uint32_t WINDOW_HEIGHT = 720;
@@ -19,7 +18,7 @@ public:
 	int height = 720;
 	const char* pAppName{};
 
-	VulkanApp(int width, int height, const char* pAppName) : m_pQueue(nullptr) {
+	VulkanApp(int width, int height, const char* pAppName) {
 		this->width = width;
 		this->height = height;
 		this->pAppName = pAppName;

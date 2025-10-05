@@ -69,8 +69,8 @@ FetchContent_MakeAvailable(assimp)
 add_executable(vk-raytracing "src/Pathtracer/Application.cpp" "src/Vulkan/VulkanCore.cpp" "src/Vulkan/vk_rt_utils.cpp" "src/Vulkan/VulkanPhysicalDevices.cpp" "src/Vulkan/vk_mem_alloc.cpp" "src/Vulkan/VulkanQueue.cpp"
         src/Pathtracer/Model.cpp
         src/Pathtracer/Model.h
-        src/Pathtracer/Shader.cpp
-        src/Pathtracer/Shader.h
+        src/Vulkan/Shader.cpp
+        src/Vulkan/Shader.h
         src/Pathtracer/Scene.cpp
         src/Pathtracer/Scene.h
 )
@@ -80,6 +80,11 @@ target_include_directories(vk-raytracing PRIVATE "${CMAKE_SOURCE_DIR}/include")
 
 # Libraries
 target_link_libraries(vk-raytracing PRIVATE Vulkan::cppm glfw glm::glm assimp)
+
+add_custom_command(
+        TARGET vk-raytracing POST_BUILD
+        COMMAND ${CMAKE_COMMAND} -E copy_directory ${CMAKE_SOURCE_DIR}/shaders $<TARGET_FILE_DIR:vk-raytracing>/shaders
+)
 
 function(add_slang_shader_target TARGET)
     cmake_parse_arguments(SHADER "" "PROFILE" "SOURCES;ENTRIES" ${ARGN})

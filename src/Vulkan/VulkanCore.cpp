@@ -4,19 +4,19 @@
 
 #include "vk_rt_utils.h"
 #include "../Pathtracer/Scene.h"
-#include "vulkan/vulkan_raii.hpp"
 
 namespace PathTracingVK {
 
 static VKAPI_ATTR vk::Bool32 VKAPI_CALL DebugCallback(vk::DebugUtilsMessageSeverityFlagBitsEXT severity, vk::DebugUtilsMessageTypeFlagsEXT type,const vk::DebugUtilsMessengerCallbackDataEXT* pCallbackData, void*) {
-	printf("Debug callback: %s\n", pCallbackData->pMessage);
-	printf(" Severity %s\n", GetDebugSeverityStr(severity));
-	printf(" Type %s", GetDebugType(type));
+	printf("[Debug Callback]\n %s\n", pCallbackData->pMessage);
+	printf("\tSeverity: %s\n", GetDebugSeverityStr(severity));
+	printf("\tType: %s", GetDebugType(type));
 	printf(" Objects ");
 
 	for (uint32_t i = 0; i < pCallbackData->objectCount; i++) {
 		printf("%llx ", pCallbackData->pObjects[i].objectHandle);
 	}
+	printf("\n");
 
 	return vk::False;
 }
@@ -71,9 +71,8 @@ void VulkanCore::Init(const char* pAppName, GLFWwindow* pWindow) {
 	InitVmaAllocator();
 	CreateSwapChain();
 	CreateCommandPool();
-	m_queue.emplace(m_device, m_swapChain);
-	m_queue.value().Init(m_queueFamily, 0);
-
+	m_queue = std::make_unique<VulkanQueue>(m_device, m_swapChain);
+	m_queue->Init(m_queueFamily, 0);
 }
 
 void VulkanCore::UpdateInstanceVersion() {
@@ -83,7 +82,7 @@ void VulkanCore::UpdateInstanceVersion() {
 	m_instanceVersion.Minor = static_cast<int>(vk::apiVersionMinor(instanceVersion));
 	m_instanceVersion.Patch = static_cast<int>(vk::apiVersionPatch(instanceVersion));
 
-	printf("Vulkan loader supports version %d.%d.%d\n", m_instanceVersion.Major, m_instanceVersion.Minor, m_instanceVersion.Patch);
+	printf("[INFO] Vulkan loader supports version %d.%d.%d\n", m_instanceVersion.Major, m_instanceVersion.Minor, m_instanceVersion.Patch);
 }
 
 void VulkanCore::CreateInstance(const char* pAppName) {
@@ -97,7 +96,7 @@ void VulkanCore::CreateInstance(const char* pAppName) {
 		.apiVersion = vk::makeApiVersion(0, m_instanceVersion.Major, m_instanceVersion.Minor, m_instanceVersion.Patch),
 	};
 
-	std::vector<const char*> validationLayers = {
+	std::vector<const char*> layers = {
 		"VK_LAYER_KHRONOS_validation",
 		"VK_LAYER_LUNARG_monitor"
 	};
@@ -133,7 +132,7 @@ void VulkanCore::CreateInstance(const char* pAppName) {
 	// Get the required instance layers
 	std::vector<char const*> requiredLayers;
 	if (enableValidationLayers) {
-		requiredLayers.assign(validationLayers.begin(), validationLayers.end());
+		requiredLayers.assign(layers.begin(), layers.end());
 	}
 
 	// Check if the required layers are supported by the Vulkan implementation
@@ -156,7 +155,7 @@ void VulkanCore::CreateInstance(const char* pAppName) {
 	};
 
 	m_instance = vk::raii::Instance(m_context, createInfo);
-	std::cout << std::endl;
+	printf("\n[INFO] Instance Created\n");
 }
 
 void VulkanCore::CreateDebugCallback() {
@@ -173,6 +172,7 @@ void VulkanCore::CreateDebugCallback() {
 	};
 
 	m_debugMessenger = m_instance.createDebugUtilsMessengerEXT(msgCreateInfo);
+	printf("[INFO] Debug Messenger Created\n");
 }
 
 void VulkanCore::CreateSurface(GLFWwindow* pWindow) {
@@ -181,11 +181,13 @@ void VulkanCore::CreateSurface(GLFWwindow* pWindow) {
 		throw std::runtime_error("Failed to create window surface!");
 	}
 	m_surface = vk::raii::SurfaceKHR(m_instance, surface);
+	printf("[INFO] Surface created\n");
 }
 
 void VulkanCore::SelectPhysicalDevice() {
 	m_physDevices.Init(m_instance, m_surface);
 	m_queueFamily = m_physDevices.SelectDevice(vk::QueueFlagBits::eGraphics, true);
+	printf("[INFO] Physical Device selected: %s\n", m_physDevices.Selected().m_devProperties2.properties.deviceName.data());
 }
 
 void VulkanCore::CreateLogicalDevice() {
@@ -212,7 +214,7 @@ void VulkanCore::CreateLogicalDevice() {
 	bool deviceSupportsDynamicRendering = m_physDevices.Selected().IsExtensionSupported(vk::KHRDynamicRenderingExtensionName);
 	bool instance_is_1_3_or_more = (m_instanceVersion.Major >= 1) || (m_instanceVersion.Minor >= 3);
 	if (instance_is_1_3_or_more && deviceSupportsDynamicRendering) {
-		printf("The Vulkan instance and device support dynamic rendering as a core feature\n");
+		printf("[INFO] The Vulkan instance and device support dynamic rendering as a core feature\n");
 	}
 	else if (m_instanceVersion.Minor == 2) {
 		if (deviceSupportsDynamicRendering) {
@@ -254,7 +256,7 @@ void VulkanCore::CreateLogicalDevice() {
 
 	m_device = vk::raii::Device(m_physDevices.Selected().m_physDevice, deviceCreateInfo);
 
-	printf("\nDevice created\n");
+	printf("\n[INFO] Device created\n");
 }
 
 void VulkanCore::InitVmaAllocator() {
@@ -306,7 +308,7 @@ void VulkanCore::CreateSwapChain() {
 
 	m_swapChain = vk::raii::SwapchainKHR(m_device, swapChainCreateInfo);
 	m_swapChainImages = m_swapChain.getImages();
-	printf("Swapchain Created\n");
+	printf("[INFO] Swapchain Created\n");
 
 	// image views creation
 	m_swapChainImageViews.clear();
@@ -343,6 +345,7 @@ void VulkanCore::CreateCommandPool() {
 	};
 
 	m_cmdPool = vk::raii::CommandPool(m_device, cmdPoolCreateInfo);
+	printf("[INFO] Command pool created\n");
 }
 
 void VulkanCore::CreateCommandBuffers(uint32_t size, std::vector<vk::raii::CommandBuffer>& cmdBuffs) {
@@ -368,11 +371,15 @@ void VulkanCore::CreateBLAS(vk::raii::CommandBuffer& cmdBuff) {
 	// for each model in the scene
 
 	// test code
-	auto triangleData = vk::AccelerationStructureGeometryDataKHR{
-		.vertexFormat = vk::Format::eR32G32B32A32Sfloat,
+
+	vk::AccelerationStructureGeometryTrianglesDataKHR triangleData = vk::AccelerationStructureGeometryTrianglesDataKHR{
+		.sType = vk::StructureType::eAccelerationStructureGeometryTrianglesDataKHR,
+		.vertexFormat = vk::Format::eR32G32B32Sfloat,
 		.vertexData = &m_vertices,
-		.vertexStride = sizeof(m_vertices),
-		.
+		.vertexStride = sizeof(float) * 3,
+		.maxVertex = 2,
+		.indexType = vk::IndexType::eUint32,
+		.indexData = &m_indices[0]
 	};
 }
 
@@ -381,17 +388,18 @@ void VulkanCore::CreateTLAS(vk::raii::CommandBuffer& cmdBuff) {
 }
 
 void VulkanCore::CreateAccelerationStructure(Scene scene) {
-	vk::CommandBufferAllocateInfo cmdBuffAllocateInfo = {
+	const vk::CommandBufferAllocateInfo cmdBuffAllocateInfo = {
 		.sType = vk::StructureType::eCommandBufferAllocateInfo,
 		.commandPool = m_cmdPool,
 		.level = vk::CommandBufferLevel::ePrimary,
 		.commandBufferCount = 1,
 	};
-	vk::raii::CommandBuffer cmdBuff = std::move(vk::raii::CommandBuffers(m_device, cmdBuffAllocateInfo).front());
+	auto cmdBuffers = vk::raii::CommandBuffers(m_device, cmdBuffAllocateInfo);
+	auto cmdBuff = std::move(cmdBuffers.front());
 
 	CreateBLAS(cmdBuff);
 
-	auto flags = vk::AccessFlagBits::eAccelerationStructureReadKHR | vk::AccessFlagBits::eAccelerationStructureWriteKHR;
+	constexpr auto flags = vk::AccessFlagBits::eAccelerationStructureReadKHR | vk::AccessFlagBits::eAccelerationStructureWriteKHR;
 	vk::MemoryBarrier memoryBarrier = {
 		.sType = vk::StructureType::eMemoryBarrier,
 		.srcAccessMask = flags,

@@ -5,7 +5,7 @@
 
 #define CHECK_VK_RESULT(res, msg) \
 if(res != VK_SUCCESS) { \
-	fprintf(stderr, "Error in %s:%d - %s, code %x", __FILE__, __LINE__, msg, res); \
+	fprintf(stderr, "[ERROR] Error in %s:%d - %s, code %x", __FILE__, __LINE__, msg, res); \
 	throw std::runtime_error(msg); \
 }
 

@@ -18,7 +18,7 @@ const char* GetDebugSeverityStr(vk::DebugUtilsMessageSeverityFlagBitsEXT severit
 		return "Error";
 
 	default:
-		throw std::runtime_error("Invalid severity code");
+		throw std::runtime_error("[ERROR] Invalid severity code");
 	}
 }
 
@@ -35,7 +35,7 @@ const char* GetDebugType(vk::DebugUtilsMessageTypeFlagsEXT type)
 	if (type & vk::DebugUtilsMessageTypeFlagBitsEXT::eDeviceAddressBinding)
 		return "Device address binding";
 #endif
-	throw std::runtime_error("Invalid type code");
+	throw std::runtime_error("[ERROR] Invalid type code");
 }
 
 }
