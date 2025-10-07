@@ -15,4 +15,6 @@ import vulkan_hpp;
 #include <stdexcept>
 #include <optional>
 
+constexpr int MAX_FRAMES_IN_FLIGHT = 2;
+
 #endif

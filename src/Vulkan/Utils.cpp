@@ -1,4 +1,4 @@
-#include "vk_rt_utils.h"
+#include "Utils.h"
 
 namespace PathTracingVK {
 

@@ -25,12 +25,12 @@ private:
 	vk::raii::SwapchainKHR& m_swapChain;
 	vk::raii::Queue m_queue = VK_NULL_HANDLE;
 	std::vector<vk::raii::Semaphore> m_renderFinishedSemaphores;
-	std::vector<vk::raii::Semaphore> m_imgAvailableSemaphores;
-	std::vector<vk::raii::Fence> m_fences;
-	std::vector<vk::Fence> m_imagesInFlight; // for use when swapchain image acquired is out of order
+	std::vector<vk::raii::Semaphore> m_presentFinishedSemaphores;
+	std::vector<vk::raii::Fence> m_inFlightFences;
 
-	uint32_t m_numFrames = 0;
-	uint32_t m_currentFrame = 0;
+	uint32_t m_numSwapchainImgs = 0;
+	uint32_t m_inFlightFrameIndex = 0;
+	uint32_t m_currentImageIndex = 0; // current image acquired by swapchain to get presentation semaphore
 };
 
 }

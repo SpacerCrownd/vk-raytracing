@@ -2,7 +2,7 @@
 #include <algorithm>
 #include <iostream>
 
-#include "vk_rt_utils.h"
+#include "Utils.h"
 #include "../Pathtracer/Scene.h"
 
 namespace PathTracingVK {
@@ -69,7 +69,7 @@ void VulkanCore::Init(const char* pAppName, GLFWwindow* pWindow) {
 	SelectPhysicalDevice();
 	CreateLogicalDevice();
 	InitVmaAllocator();
-	CreateSwapChain();
+	CreateSwapchain();
 	CreateCommandPool();
 	m_queue = std::make_unique<VulkanQueue>(m_device, m_swapChain);
 	m_queue->Init(m_queueFamily, 0);
@@ -276,7 +276,7 @@ void VulkanCore::InitVmaAllocator() {
 	vmaCreateAllocator(&allocatorCreateInfo, &allocator);
 }
 
-void VulkanCore::CreateSwapChain() {
+void VulkanCore::CreateSwapchain() {
 	const vk::SurfaceCapabilitiesKHR& surfaceCaps = m_physDevices.Selected().m_surfaceCapabilities;
 	uint32_t numImages = ChooseNumImages(surfaceCaps);
 
@@ -348,15 +348,15 @@ void VulkanCore::CreateCommandPool() {
 	printf("[INFO] Command pool created\n");
 }
 
-void VulkanCore::CreateCommandBuffers(uint32_t size, std::vector<vk::raii::CommandBuffer>& cmdBuffs) {
+void VulkanCore::CreateCommandBuffers(uint32_t count, std::vector<vk::raii::CommandBuffer>& cmdBuffs) {
 	vk::CommandBufferAllocateInfo cmdBuffAllocateInfo = {
 		.sType = vk::StructureType::eCommandBufferAllocateInfo,
 		.commandPool = m_cmdPool,
 		.level = vk::CommandBufferLevel::ePrimary,
-		.commandBufferCount = size,
+		.commandBufferCount = count,
 	};
 
-	vk::raii::CommandBuffers buffers = vk::raii::CommandBuffers(m_device, cmdBuffAllocateInfo);
+	auto buffers = vk::raii::CommandBuffers(m_device, cmdBuffAllocateInfo);
 
 	for (auto& buffer : buffers) {
 		cmdBuffs.push_back(std::move(buffer));
@@ -372,7 +372,7 @@ void VulkanCore::CreateBLAS(vk::raii::CommandBuffer& cmdBuff) {
 
 	// test code
 
-	vk::AccelerationStructureGeometryTrianglesDataKHR triangleData = vk::AccelerationStructureGeometryTrianglesDataKHR{
+	auto triangleData = vk::AccelerationStructureGeometryTrianglesDataKHR{
 		.sType = vk::StructureType::eAccelerationStructureGeometryTrianglesDataKHR,
 		.vertexFormat = vk::Format::eR32G32B32Sfloat,
 		.vertexData = &m_vertices,

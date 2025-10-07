@@ -1,17 +1,16 @@
 ﻿cmake_minimum_required (VERSION 3.31)
-
 set(CMAKE_CXX_SCAN_FOR_MODULES ON)
 set(CMAKE_CXX_STANDARD 20)
+
 project (vk-raytracing)
+
 include(FetchContent)
 
 # Vulkan
 find_package (Vulkan REQUIRED)
-
 # set up Vulkan C++ module
 add_library(VulkanCppModule)
 add_library(Vulkan::cppm ALIAS VulkanCppModule)
-
 target_compile_definitions(VulkanCppModule PUBLIC
         VULKAN_HPP_DISPATCH_LOADER_DYNAMIC=1
         VULKAN_HPP_NO_STRUCT_CONSTRUCTORS=1
@@ -24,9 +23,7 @@ target_link_libraries(VulkanCppModule
         PUBLIC
         Vulkan::Vulkan
 )
-
 set_target_properties(VulkanCppModule PROPERTIES CXX_STANDARD 20)
-
 target_sources(VulkanCppModule
         PUBLIC
         FILE_SET cxx_modules TYPE CXX_MODULES
@@ -35,7 +32,6 @@ target_sources(VulkanCppModule
         FILES
         "${Vulkan_INCLUDE_DIR}/vulkan/vulkan.cppm"
 )
-
 # Add the vulkan.cppm file directly as a source file
 target_sources(VulkanCppModule
         PRIVATE
@@ -66,7 +62,15 @@ FetchContent_Declare(
 )
 FetchContent_MakeAvailable(assimp)
 
-add_executable(vk-raytracing "src/Pathtracer/Application.cpp" "src/Vulkan/VulkanCore.cpp" "src/Vulkan/vk_rt_utils.cpp" "src/Vulkan/VulkanPhysicalDevices.cpp" "src/Vulkan/vk_mem_alloc.cpp" "src/Vulkan/VulkanQueue.cpp"
+# add_subdirectory(${CMAKE_CURRENT_SOURCE_DIR}/vendor)
+
+add_executable(${PROJECT_NAME}
+        src/Pathtracer/Application.cpp
+        src/Vulkan/VulkanCore.cpp
+        src/Vulkan/Utils.cpp
+        src/Vulkan/VulkanPhysicalDevices.cpp
+        src/Vulkan/Vma.cpp
+        src/Vulkan/VulkanQueue.cpp
         src/Pathtracer/Model.cpp
         src/Pathtracer/Model.h
         src/Vulkan/Shader.cpp
@@ -75,15 +79,12 @@ add_executable(vk-raytracing "src/Pathtracer/Application.cpp" "src/Vulkan/Vulkan
         src/Pathtracer/Scene.h
 )
 
-# Include dirs
-target_include_directories(vk-raytracing PRIVATE "${CMAKE_SOURCE_DIR}/include")
-
 # Libraries
-target_link_libraries(vk-raytracing PRIVATE Vulkan::cppm glfw glm::glm assimp)
+target_link_libraries(${PROJECT_NAME} PRIVATE Vulkan::cppm glfw glm::glm assimp)
 
 add_custom_command(
-        TARGET vk-raytracing POST_BUILD
-        COMMAND ${CMAKE_COMMAND} -E copy_directory ${CMAKE_SOURCE_DIR}/shaders $<TARGET_FILE_DIR:vk-raytracing>/shaders
+        TARGET ${PROJECT_NAME} POST_BUILD
+        COMMAND ${CMAKE_COMMAND} -E copy_directory ${CMAKE_SOURCE_DIR}/shaders $<TARGET_FILE_DIR:${PROJECT_NAME}>/shaders
 )
 
 function(add_slang_shader_target TARGET)

@@ -2,7 +2,7 @@
 #define VULKAN_CORE_H
 
 #include "Vulkan.h"
-#include "vk_mem_alloc.h"
+#include "Vma.h"
 #include "VulkanPhysicalDevices.h"
 #include "VulkanQueue.h"
 #include "../Pathtracer/Scene.h"
@@ -88,7 +88,7 @@ private:
 	void SelectPhysicalDevice();
 	void CreateLogicalDevice();
 	void InitVmaAllocator();
-	void CreateSwapChain();
+	void CreateSwapchain();
 	void CreateCommandPool();
 
 	void CreateBLAS(vk::raii::CommandBuffer &cmdBuff);

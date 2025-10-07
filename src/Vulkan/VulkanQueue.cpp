@@ -4,39 +4,43 @@ namespace PathTracingVK {
 
 void VulkanQueue::Init(const uint32_t queueFamily, const uint32_t queueIndex) {
 	m_queue = m_device.getQueue(queueFamily, queueIndex);
-	m_numFrames = m_swapChain.getImages().size();
-	//printf("Queue acquired\n");
+	m_numSwapchainImgs = m_swapChain.getImages().size();
 	CreateSyncObjs();
 }
 
 void VulkanQueue::CreateSyncObjs() {
-	m_imagesInFlight.resize(m_numFrames, VK_NULL_HANDLE);
-	// for each in-flight frame create semaphores and fences
-	for (int i = 0; i < m_numFrames; i++) {
-		m_imgAvailableSemaphores.emplace_back(m_device, vk::SemaphoreCreateInfo());
+	m_inFlightFences.clear();
+	m_presentFinishedSemaphores.clear();
+	m_renderFinishedSemaphores.clear();
+
+	// create one acquisition semaphore for each swapchain image
+	for (int i = 0; i < m_numSwapchainImgs; i++) {
 		m_renderFinishedSemaphores.emplace_back(m_device, vk::SemaphoreCreateInfo());
-		m_fences.emplace_back(m_device, vk::FenceCreateInfo(vk::StructureType::eFenceCreateInfo, nullptr,
-		                                                    vk::FenceCreateFlags(vk::FenceCreateFlagBits::eSignaled)));
+	}
+
+	// for each in-flight frame create submit semaphores and acquisition fences
+	for (int i = 0; i < MAX_FRAMES_IN_FLIGHT; i++) {
+		m_presentFinishedSemaphores.emplace_back(m_device, vk::SemaphoreCreateInfo());
+		m_inFlightFences.emplace_back(m_device, vk::FenceCreateInfo{.flags = vk::FenceCreateFlagBits::eSignaled});
 	}
 }
 
 uint32_t VulkanQueue::AcquireNextImage() {
-	while (m_device.waitForFences(*m_fences[m_currentFrame], vk::True, UINT64_MAX) == vk::Result::eTimeout);
-	m_device.resetFences(*m_fences[m_currentFrame]);
+	while (m_device.waitForFences(*m_inFlightFences[m_inFlightFrameIndex], vk::True, UINT64_MAX) == vk::Result::eTimeout);
+	m_device.resetFences(*m_inFlightFences[m_inFlightFrameIndex]);
 
-	auto [result, imageIndex] = m_swapChain.acquireNextImage(UINT64_MAX, m_imgAvailableSemaphores[m_currentFrame]);
-	if (static_cast<VkFence>(m_imagesInFlight[imageIndex]) != VK_NULL_HANDLE &&
-		m_imagesInFlight[imageIndex] != *m_fences[imageIndex]) {
-		while (m_device.waitForFences(m_imagesInFlight[imageIndex], vk::True, UINT64_MAX)== vk::Result::eTimeout);
-	}
-
-	m_imagesInFlight[imageIndex] = m_fences[imageIndex];
+	auto [result, imageIndex] = m_swapChain.acquireNextImage(UINT64_MAX, m_presentFinishedSemaphores[m_inFlightFrameIndex]);
+	/**
+	 * render finished semaphore for the current in-flight frame may still be in use by the presentation engine,
+	 * but we know that the render finished semaphore for the currently acquired image is safe to use (present operation has finished)
+	 * so we can reuse that
+	 **/
+	m_currentImageIndex = imageIndex;
 
 	return imageIndex;
 }
 
 void VulkanQueue::SubmitSync(const vk::CommandBuffer &cmdBuff) {
-
 	vk::SubmitInfo submitInfo = {
 		.sType = vk::StructureType::eSubmitInfo,
 		.pNext = nullptr,
@@ -58,15 +62,15 @@ void VulkanQueue::SubmitAsync(const vk::CommandBuffer &cmdBuff) {
 	const vk::SubmitInfo submitInfo = {
 		.sType = vk::StructureType::eSubmitInfo,
 		.waitSemaphoreCount = 1,
-		.pWaitSemaphores = &*m_imgAvailableSemaphores[m_currentFrame],
+		.pWaitSemaphores = &*m_presentFinishedSemaphores[m_inFlightFrameIndex],
 		.pWaitDstStageMask = &waitFlags,
 		.commandBufferCount = 1,
 		.pCommandBuffers = &cmdBuff,
 		.signalSemaphoreCount = 1,
-		.pSignalSemaphores = &*m_renderFinishedSemaphores[m_currentFrame],
+		.pSignalSemaphores = &*m_renderFinishedSemaphores[m_currentImageIndex],
 	};
 
-	m_queue.submit(submitInfo, m_fences[m_currentFrame]);
+	m_queue.submit(submitInfo, m_inFlightFences[m_inFlightFrameIndex]);
 }
 
 void VulkanQueue::Present(uint32_t imgIndex) {
@@ -74,19 +78,20 @@ void VulkanQueue::Present(uint32_t imgIndex) {
 		.sType = vk::StructureType::ePresentInfoKHR,
 		.pNext = nullptr,
 		.waitSemaphoreCount = 1,
-		.pWaitSemaphores = &*m_renderFinishedSemaphores[m_currentFrame],
+		.pWaitSemaphores = &*m_renderFinishedSemaphores[m_currentImageIndex],
 		.swapchainCount = 1,
 		.pSwapchains = &*m_swapChain,
 		.pImageIndices = &imgIndex,
 	};
 
 	auto res = m_queue.presentKHR(presentInfo);
+
 	if (res == vk::Result::eSuboptimalKHR || res == vk::Result::eErrorOutOfDateKHR) {
 
 	}else {
 		vk::detail::resultCheck(res, "vkQueuePresentKHR");
 	}
 
-	m_currentFrame = (m_currentFrame + 1) % m_numFrames;
+	m_inFlightFrameIndex = (m_inFlightFrameIndex + 1) % MAX_FRAMES_IN_FLIGHT;
 }
 }
