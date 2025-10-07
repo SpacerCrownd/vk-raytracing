@@ -1,35 +1,18 @@
 #include "VulkanQueue.h"
 
-namespace PathTracingVK {
+namespace PathTracingVk {
 
-void VulkanQueue::Init(const uint32_t queueFamily, const uint32_t queueIndex) {
+VulkanQueue::VulkanQueue(vk::raii::Device& device, vk::raii::SwapchainKHR& swapchain, const uint32_t queueFamily, const uint32_t queueIndex) : m_device(device), m_swapchain(swapchain) {
 	m_queue = m_device.getQueue(queueFamily, queueIndex);
-	m_numSwapchainImgs = m_swapChain.getImages().size();
+	m_numSwapchainImgs = m_swapchain.getImages().size();
 	CreateSyncObjs();
-}
-
-void VulkanQueue::CreateSyncObjs() {
-	m_inFlightFences.clear();
-	m_presentFinishedSemaphores.clear();
-	m_renderFinishedSemaphores.clear();
-
-	// create one acquisition semaphore for each swapchain image
-	for (int i = 0; i < m_numSwapchainImgs; i++) {
-		m_renderFinishedSemaphores.emplace_back(m_device, vk::SemaphoreCreateInfo());
-	}
-
-	// for each in-flight frame create submit semaphores and acquisition fences
-	for (int i = 0; i < MAX_FRAMES_IN_FLIGHT; i++) {
-		m_presentFinishedSemaphores.emplace_back(m_device, vk::SemaphoreCreateInfo());
-		m_inFlightFences.emplace_back(m_device, vk::FenceCreateInfo{.flags = vk::FenceCreateFlagBits::eSignaled});
-	}
 }
 
 uint32_t VulkanQueue::AcquireNextImage() {
 	while (m_device.waitForFences(*m_inFlightFences[m_inFlightFrameIndex], vk::True, UINT64_MAX) == vk::Result::eTimeout);
 	m_device.resetFences(*m_inFlightFences[m_inFlightFrameIndex]);
 
-	auto [result, imageIndex] = m_swapChain.acquireNextImage(UINT64_MAX, m_presentFinishedSemaphores[m_inFlightFrameIndex]);
+	auto [result, imageIndex] = m_swapchain.acquireNextImage(UINT64_MAX, m_presentFinishedSemaphores[m_inFlightFrameIndex]);
 	/**
 	 * render finished semaphore for the current in-flight frame may still be in use by the presentation engine,
 	 * but we know that the render finished semaphore for the currently acquired image is safe to use (present operation has finished)
@@ -80,7 +63,7 @@ void VulkanQueue::Present(uint32_t imgIndex) {
 		.waitSemaphoreCount = 1,
 		.pWaitSemaphores = &*m_renderFinishedSemaphores[m_currentImageIndex],
 		.swapchainCount = 1,
-		.pSwapchains = &*m_swapChain,
+		.pSwapchains = &*m_swapchain,
 		.pImageIndices = &imgIndex,
 	};
 
@@ -89,9 +72,26 @@ void VulkanQueue::Present(uint32_t imgIndex) {
 	if (res == vk::Result::eSuboptimalKHR || res == vk::Result::eErrorOutOfDateKHR) {
 
 	}else {
-		vk::detail::resultCheck(res, "vkQueuePresentKHR");
+		//vk::detail::resultCheck(res, "vkQueuePresentKHR");
 	}
 
 	m_inFlightFrameIndex = (m_inFlightFrameIndex + 1) % MAX_FRAMES_IN_FLIGHT;
+}
+
+void VulkanQueue::CreateSyncObjs() {
+	m_inFlightFences.clear();
+	m_presentFinishedSemaphores.clear();
+	m_renderFinishedSemaphores.clear();
+
+	// create one acquisition semaphore for each swapchain image
+	for (int i = 0; i < m_numSwapchainImgs; i++) {
+		m_renderFinishedSemaphores.emplace_back(m_device, vk::SemaphoreCreateInfo());
+	}
+
+	// for each in-flight frame create submit semaphores and acquisition fences
+	for (int i = 0; i < MAX_FRAMES_IN_FLIGHT; i++) {
+		m_presentFinishedSemaphores.emplace_back(m_device, vk::SemaphoreCreateInfo());
+		m_inFlightFences.emplace_back(m_device, vk::FenceCreateInfo{.flags = vk::FenceCreateFlagBits::eSignaled});
+	}
 }
 }

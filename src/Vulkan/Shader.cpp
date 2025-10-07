@@ -3,7 +3,7 @@
 #include <filesystem>
 #include <fstream>
 
-namespace PathTracingVK {
+namespace PathTracingVk {
     Shader::Shader(const vk::raii::Device& device, const std::string& fileName) : m_device(device) {
         CreateShaderModule(ReadFile(fileName));
     }

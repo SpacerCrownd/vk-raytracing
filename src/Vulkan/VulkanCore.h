@@ -6,8 +6,9 @@
 #include "VulkanPhysicalDevices.h"
 #include "VulkanQueue.h"
 #include "../Pathtracer/Scene.h"
+#include "Window.h"
 
-namespace PathTracingVK {
+namespace PathTracingVk {
 
 #ifdef NDEBUG
 constexpr bool enableValidationLayers = false;
@@ -18,16 +19,15 @@ constexpr bool enableValidationLayers = true;
 class VulkanCore {
 
 public:
-	VulkanCore();
+	VulkanCore(const char *pAppName, const Window &window);
 	~VulkanCore();
 
-	void Init(const char* pAppName, GLFWwindow* pWindow);
 	void CreateCommandBuffers(uint32_t count, std::vector<vk::raii::CommandBuffer>& cmdBuffs);
 	static void FreeCommandBuffers(std::vector<vk::raii::CommandBuffer> &cmdBuffs);
-	void Destroy();
+	void DeviceWaitIdle();
 
-	int GetNumImages() { return static_cast<int>(m_swapChainImages.size()); }
-	vk::Image GetImage(int n) { return m_swapChainImages[n]; };
+	int GetSwapchainImageCount() { return static_cast<int>(m_swapChainImages.size()); }
+	vk::Image GetSwapchainImage(int n) { return m_swapChainImages[n]; };
 	VulkanQueue* GetQueue() { return m_queue.get(); }
 	[[nodiscard]] uint32_t GetQueueFamily() const { return m_queueFamily; }
 	[[nodiscard]] vk::Format GetSwapChainFormat() const { return m_swapChainSurfaceFormat.format; }
@@ -50,7 +50,9 @@ private:
 
 	VulkanPhysicalDevices m_physDevices; // struct containing all available physical devices
 	uint32_t m_queueFamily = 0; // selected queue family index
+
 	std::unique_ptr<VulkanQueue> m_queue; // vulkan queue abstraction
+
 	vk::raii::CommandPool m_cmdPool = VK_NULL_HANDLE;
 
 	// Raytracing pipeline components

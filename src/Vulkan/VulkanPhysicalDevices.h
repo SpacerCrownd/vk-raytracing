@@ -4,7 +4,7 @@
 #include "Vulkan.h"
 #include <vector>
 
-namespace PathTracingVK {
+namespace PathTracingVk {
 
 struct PhysicalDevice {
 	vk::raii::PhysicalDevice m_physDevice = VK_NULL_HANDLE;

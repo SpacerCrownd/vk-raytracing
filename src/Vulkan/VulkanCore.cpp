@@ -5,7 +5,7 @@
 #include "Utils.h"
 #include "../Pathtracer/Scene.h"
 
-namespace PathTracingVK {
+namespace PathTracingVk {
 
 static VKAPI_ATTR vk::Bool32 VKAPI_CALL DebugCallback(vk::DebugUtilsMessageSeverityFlagBitsEXT severity, vk::DebugUtilsMessageTypeFlagsEXT type,const vk::DebugUtilsMessengerCallbackDataEXT* pCallbackData, void*) {
 	printf("[Debug Callback]\n %s\n", pCallbackData->pMessage);
@@ -56,23 +56,20 @@ static vk::SurfaceFormatKHR ChooseSurfaceFormatAndColorSpace(const std::vector<v
 	return surfaceFormats[0];
 }
 
-VulkanCore::VulkanCore() = default;
-
-VulkanCore::~VulkanCore() {
-	vmaDestroyAllocator(m_allocator);
-}
-
-void VulkanCore::Init(const char* pAppName, GLFWwindow* pWindow) {
+VulkanCore::VulkanCore(const char* pAppName, const Window& window) {
 	CreateInstance(pAppName);
 	if (enableValidationLayers) { CreateDebugCallback(); }
-	CreateSurface(pWindow);
+	CreateSurface(window.GetWindow());
 	SelectPhysicalDevice();
 	CreateLogicalDevice();
 	InitVmaAllocator();
 	CreateSwapchain();
 	CreateCommandPool();
-	m_queue = std::make_unique<VulkanQueue>(m_device, m_swapChain);
-	m_queue->Init(m_queueFamily, 0);
+	m_queue = std::make_unique<VulkanQueue>(m_device, m_swapChain, m_queueFamily, 0);
+};
+
+VulkanCore::~VulkanCore() {
+	vmaDestroyAllocator(m_allocator);
 }
 
 void VulkanCore::UpdateInstanceVersion() {
@@ -420,7 +417,8 @@ void VulkanCore::CreateRaytracingPipeline() {
 
 }
 
-void VulkanCore::Destroy() {
+void VulkanCore::DeviceWaitIdle() {
 	m_device.waitIdle();
 }
+
 }

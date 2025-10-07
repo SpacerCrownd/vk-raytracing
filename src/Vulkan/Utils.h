@@ -9,7 +9,7 @@ if(res != VK_SUCCESS) { \
 	throw std::runtime_error(msg); \
 }
 
-namespace PathTracingVK {
+namespace PathTracingVk {
 
 const char* GetDebugSeverityStr(vk::DebugUtilsMessageSeverityFlagBitsEXT severity);
 

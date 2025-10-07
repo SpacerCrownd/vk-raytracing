@@ -1,7 +1,7 @@
 #include <algorithm>
 #include "VulkanPhysicalDevices.h"
 
-namespace PathTracingVK {
+namespace PathTracingVk {
 
 static void PrintImageUsageFlags(const vk::ImageUsageFlags& flags)
 {

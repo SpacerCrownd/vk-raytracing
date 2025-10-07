@@ -4,7 +4,7 @@
 #include "Vulkan.h"
 #include <vector>
 
-namespace PathTracingVK {
+namespace PathTracingVk {
 
 class Shader {
 public:

@@ -1,6 +1,6 @@
 #include "Utils.h"
 
-namespace PathTracingVK {
+namespace PathTracingVk {
 
 const char* GetDebugSeverityStr(vk::DebugUtilsMessageSeverityFlagBitsEXT severity)
 {

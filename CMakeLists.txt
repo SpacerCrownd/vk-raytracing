@@ -65,7 +65,7 @@ FetchContent_MakeAvailable(assimp)
 # add_subdirectory(${CMAKE_CURRENT_SOURCE_DIR}/vendor)
 
 add_executable(${PROJECT_NAME}
-        src/Pathtracer/Application.cpp
+        src/Pathtracer/VulkanApp.cpp
         src/Vulkan/VulkanCore.cpp
         src/Vulkan/Utils.cpp
         src/Vulkan/VulkanPhysicalDevices.cpp
@@ -77,6 +77,12 @@ add_executable(${PROJECT_NAME}
         src/Vulkan/Shader.h
         src/Pathtracer/Scene.cpp
         src/Pathtracer/Scene.h
+        src/Vulkan/Swapchain.cpp
+        src/Vulkan/Swapchain.h
+        src/Vulkan/Window.cpp
+        src/Vulkan/Window.h
+        src/main.cpp
+        src/Pathtracer/VulkanApp.h
 )
 
 # Libraries
