@@ -6,10 +6,10 @@
 
 namespace PathTracingVk {
 
-class Window {
+class VulkanWindow {
 public:
-    Window(int width, int height, const char* pName);
-    ~Window();
+    VulkanWindow(int width, int height, const char* pName);
+    ~VulkanWindow();
 
     void Run();
     void AddOnKeyChanged(std::function<void(int key, int scancode, int action, int mods)> callback);

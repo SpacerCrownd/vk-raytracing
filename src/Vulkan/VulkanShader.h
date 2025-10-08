@@ -6,10 +6,10 @@
 
 namespace PathTracingVk {
 
-class Shader {
+class VulkanShader {
 public:
-    Shader(const vk::raii::Device& device, const std::string& fileName);
-    ~Shader() = default;
+    VulkanShader(const vk::raii::Device& device, const std::string& fileName);
+    ~VulkanShader() = default;
 
     [[nodiscard]] const vk::raii::ShaderModule& Get() const {
         return m_shader;

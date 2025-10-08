@@ -1,14 +1,14 @@
-﻿#include "Shader.h"
+﻿#include "VulkanShader.h"
 
 #include <filesystem>
 #include <fstream>
 
 namespace PathTracingVk {
-    Shader::Shader(const vk::raii::Device& device, const std::string& fileName) : m_device(device) {
+    VulkanShader::VulkanShader(const vk::raii::Device& device, const std::string& fileName) : m_device(device) {
         CreateShaderModule(ReadFile(fileName));
     }
 
-    std::vector<char> Shader::ReadFile(const std::string &fileName) {
+    std::vector<char> VulkanShader::ReadFile(const std::string &fileName) {
         auto shaderPath = "shaders/" + fileName;
         std::ifstream file(shaderPath, std::ios::ate | std::ios::binary);
         if (!file.is_open()) {
@@ -25,7 +25,7 @@ namespace PathTracingVk {
         return buffer;
     }
 
-    void Shader::CreateShaderModule(const std::vector<char> &code) {
+    void VulkanShader::CreateShaderModule(const std::vector<char> &code) {
         vk::ShaderModuleCreateInfo createInfo{
             .codeSize = code.size() * sizeof(char),
             .pCode = reinterpret_cast<const uint32_t*>(code.data()),
@@ -33,7 +33,7 @@ namespace PathTracingVk {
         m_shader = vk::raii::ShaderModule(m_device, createInfo);
     }
 
-    vk::PipelineShaderStageCreateInfo Shader::CreateShaderStage(const vk::ShaderStageFlagBits stage, const char* pName = "main") const {
+    vk::PipelineShaderStageCreateInfo VulkanShader::CreateShaderStage(const vk::ShaderStageFlagBits stage, const char* pName = "main") const {
         vk::PipelineShaderStageCreateInfo info = {
             .sType = vk::StructureType::ePipelineShaderStageCreateInfo,
             .stage = stage,

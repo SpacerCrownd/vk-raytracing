@@ -65,24 +65,26 @@ FetchContent_MakeAvailable(assimp)
 # add_subdirectory(${CMAKE_CURRENT_SOURCE_DIR}/vendor)
 
 add_executable(${PROJECT_NAME}
-        src/Pathtracer/VulkanApp.cpp
-        src/Vulkan/VulkanCore.cpp
-        src/Vulkan/Utils.cpp
-        src/Vulkan/VulkanPhysicalDevices.cpp
-        src/Vulkan/Vma.cpp
+        src/Pathtracer/Application.cpp
+        src/Vulkan/Renderer.cpp
+        src/Vulkan/VulkanUtils.cpp
+        src/Vulkan/VulkanDevice.cpp
+        src/Vulkan/vk_mem_alloc.cpp
         src/Vulkan/VulkanQueue.cpp
         src/Pathtracer/Model.cpp
         src/Pathtracer/Model.h
-        src/Vulkan/Shader.cpp
-        src/Vulkan/Shader.h
+        src/Vulkan/VulkanShader.cpp
+        src/Vulkan/VulkanShader.h
         src/Pathtracer/Scene.cpp
         src/Pathtracer/Scene.h
-        src/Vulkan/Swapchain.cpp
-        src/Vulkan/Swapchain.h
-        src/Vulkan/Window.cpp
-        src/Vulkan/Window.h
+        src/Vulkan/VulkanSwapchain.cpp
+        src/Vulkan/VulkanSwapchain.h
+        src/Vulkan/VulkanWindow.cpp
+        src/Vulkan/VulkanWindow.h
         src/main.cpp
-        src/Pathtracer/VulkanApp.h
+        src/Pathtracer/Application.h
+        src/Vulkan/VulkanPhysicalDevice.cpp
+        src/Vulkan/VulkanPhysicalDevice.h
 )
 
 # Libraries

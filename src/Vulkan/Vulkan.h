@@ -17,4 +17,10 @@ import vulkan_hpp;
 
 constexpr int MAX_FRAMES_IN_FLIGHT = 2;
 
+#ifdef NDEBUG
+constexpr bool enableDebugging = false;
+#else
+constexpr bool enableDebugging = true;
+#endif
+
 #endif

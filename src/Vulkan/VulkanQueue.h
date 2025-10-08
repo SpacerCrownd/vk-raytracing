@@ -18,6 +18,8 @@ public:
 	void SubmitAsync(const vk::CommandBuffer& cmdBuff);
 	void Present(uint32_t imgIndex);
 
+	[[nodiscard]] uint32_t GetCurrentFrameIndex() const { return m_inFlightFrameIndex; };
+
 private:
 	void CreateSyncObjs();
 

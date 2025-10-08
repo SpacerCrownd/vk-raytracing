@@ -72,7 +72,7 @@ void VulkanQueue::Present(uint32_t imgIndex) {
 	if (res == vk::Result::eSuboptimalKHR || res == vk::Result::eErrorOutOfDateKHR) {
 
 	}else {
-		//vk::detail::resultCheck(res, "vkQueuePresentKHR");
+		vk::detail::resultCheck(res, "vkQueuePresentKHR");
 	}
 
 	m_inFlightFrameIndex = (m_inFlightFrameIndex + 1) % MAX_FRAMES_IN_FLIGHT;
