@@ -1,80 +1,59 @@
-﻿#include "Application.h"
+﻿#include "Renderer.h"
 
 #include <iostream>
 
 namespace PathTracingVk {
-Application::Application(int width, int height, const char *pAppName) : width(width), height(height) {
+Renderer::Renderer(int width, int height, const char *pAppName) : width(width), height(height) {
     m_mainWindow = std::make_unique<VulkanWindow>(width, height, pAppName);
-    m_vkCore = std::make_unique<Renderer>(pAppName, *m_mainWindow);
-    m_queue = m_vkCore->GetQueue();
-    m_swapchain = m_vkCore->GetSwapchain();
-    m_device = m_vkCore->GetDevice();
-    m_swapchainImageCount = m_swapchain->GetSwapchainImageCount();
-    CreateCommandBuffers();
-    CreateSyncObjs();
+    m_renderer = std::make_unique<VulkanCore>(pAppName, *m_mainWindow);
 }
 
-Application::~Application() {
-    if (m_vkCore)
-        m_vkCore->DeviceWaitIdle();
+Renderer::~Renderer() {
+    if (m_renderer)
+        m_renderer->DeviceWaitIdle();
 }
 
-void Application::Run() {
+void Renderer::Run() {
     MainLoop();
 }
 
-void Application::CreateCommandBuffers() {
-    m_cmdBuffs.reserve(MAX_FRAMES_IN_FLIGHT);
-    m_vkCore->CreateCommandBuffers(MAX_FRAMES_IN_FLIGHT, m_cmdBuffs);
-}
-
-void Application::RecordCommandBuffer(uint32_t imgIndex) {
-    Clear(imgIndex);
-}
-
-void Application::CreateSyncObjs() {
-    m_inFlightFences.clear();
-    m_presentFinishedSemaphores.clear();
-    m_renderFinishedSemaphores.clear();
-
-    // create one acquisition semaphore for each swapchain image
-    for (int i = 0; i < m_swapchainImageCount; i++) {
-        m_renderFinishedSemaphores.emplace_back(m_device->GetDevice(), vk::SemaphoreCreateInfo());
-    }
-
-    // for each in-flight frame create submit semaphores and acquisition fences
-    for (int i = 0; i < MAX_FRAMES_IN_FLIGHT; i++) {
-        m_presentFinishedSemaphores.emplace_back(m_device->GetDevice(), vk::SemaphoreCreateInfo());
-        m_inFlightFences.emplace_back(m_device->GetDevice(), vk::FenceCreateInfo{.flags = vk::FenceCreateFlagBits::eSignaled});
-    }
-}
-
-void Application::MainLoop() {
+void Renderer::MainLoop() {
     /*
     auto curTime = static_cast<float>(glfwGetTime());
     int frames = 0;
     float fpsTime = 0.0f;
     */
     while (!glfwWindowShouldClose(m_mainWindow->GetWindow())) {
-        RenderFrame();
+        Draw();
         glfwPollEvents();
     }
 }
 
-void Application::RenderFrame() {
+void Renderer::Draw() {
+    // TODO transfer fence waiting and presenting to command buffer submission in vulkan_core, only record commands here
+    // The core exposes the current command buffer
+    // One buffer per frame in flight, per queue type
+    /** Command pool/buffer lifecycle
+     * Begin
+     *  Take existing buffer and pool for the specified queue type
+     *  flush pool
+     * Record commands
+     * Submit commands
+     *  synchronization
+     */
     while (m_device->GetDevice().waitForFences(*m_inFlightFences[m_inFlightFrameIndex], vk::True, UINT64_MAX) == vk::Result::eTimeout);
     m_device->GetDevice().resetFences(*m_inFlightFences[m_inFlightFrameIndex]);
 
     uint32_t imgIndex;
     vk::Result res = m_swapchain->AcquireNextImage(m_presentFinishedSemaphores[m_inFlightFrameIndex], imgIndex);
 
-    m_vkCore->ResetCommandPool(m_inFlightFrameIndex);
+    ResetCommandPool(m_inFlightFrameIndex);
     RecordCommandBuffer(imgIndex);
     m_queue->SubmitAsync(*m_cmdBuffs[m_queue->GetCurrentFrameIndex()]);
     m_queue->Present(imgIndex);
 }
 
-void Application::Clear(uint32_t imgIndex) {
+void Renderer::Clear(uint32_t imgIndex) {
     constexpr vk::ClearColorValue clearColor = {1.0f, .0f, .0f, .0f};
 
     constexpr vk::ImageSubresourceRange imageRange = {
@@ -122,7 +101,7 @@ void Application::Clear(uint32_t imgIndex) {
                                       {},
                                       {presentToClearBarrier});
 
-    m_cmdBuffs[currentFrame].clearColorImage(m_vkCore->GetSwapchainImage(static_cast<int>(imgIndex)),
+    m_cmdBuffs[currentFrame].clearColorImage(m_renderer->GetSwapchainImage(static_cast<int>(imgIndex)),
                                       vk::ImageLayout::eTransferDstOptimal, clearColor, imageRange);
 
     m_cmdBuffs[currentFrame].pipelineBarrier(vk::PipelineStageFlagBits::eTransfer,
@@ -134,5 +113,4 @@ void Application::Clear(uint32_t imgIndex) {
 
     m_cmdBuffs[currentFrame].end();
 }
-
 }

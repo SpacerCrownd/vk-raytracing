@@ -13,10 +13,11 @@ public:
     VulkanSwapchain(VulkanDevice& device, vk::Extent2D extent, vk::raii::SurfaceKHR& surface);
     ~VulkanSwapchain();
 
-    int GetSwapchainImageCount() const { return static_cast<int>(m_swapchainImages.size()); }
-    vk::Image GetSwapchainImage(int n) const { return m_swapchainImages[n]; };
-    [[nodiscard]] vk::Format GetSwapChainFormat() const { return m_swapchainSurfaceFormat.format; }
-    [[nodiscard]] vk::Result AcquireNextImage(vk::raii::Semaphore& presentCompleteSemaphore, uint32_t& imageIndex) const;
+    [[nodiscard]] vk::raii::SwapchainKHR& GetSwapchain() { return m_swapchain; }
+    [[nodiscard]] int GetSwapchainImageCount() const { return static_cast<int>(m_swapchainImages.size()); }
+    [[nodiscard]] vk::Image GetSwapchainImage(int n) const { return m_swapchainImages[n]; };
+    [[nodiscard]] vk::Format GetSwapchainFormat() const { return m_swapchainSurfaceFormat.format; }
+    [[nodiscard]] vk::Result AcquireNextImage(const vk::raii::Semaphore& renderSemaphore, uint32_t& imageIndex) const;
 
 private:
     vk::raii::SwapchainKHR m_swapchain = VK_NULL_HANDLE;

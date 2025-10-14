@@ -1,13 +1,13 @@
 ﻿#include <iostream>
 
-#include "Pathtracer/Application.h"
+#include "Pathtracer/Renderer.h"
 
 constexpr uint32_t WINDOW_WIDTH = 1240;
 constexpr uint32_t WINDOW_HEIGHT = 720;
 constexpr auto APP_NAME = "vk-raytracing";
 
 int main() {
-	auto app = PathTracingVk::Application(WINDOW_WIDTH, WINDOW_HEIGHT, APP_NAME);
+	auto app = PathTracingVk::Renderer(WINDOW_WIDTH, WINDOW_HEIGHT, APP_NAME);
 
 	try {
 		app.Run();

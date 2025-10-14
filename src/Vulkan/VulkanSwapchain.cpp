@@ -101,8 +101,8 @@ VulkanSwapchain::~VulkanSwapchain() {
 	m_swapchainImageViews.clear();
 }
 
-vk::Result VulkanSwapchain::AcquireNextImage(vk::raii::Semaphore &presentCompleteSemaphore, uint32_t &imageIndex) const {
-	auto [result, index] = m_swapchain.acquireNextImage(UINT64_MAX, presentCompleteSemaphore);
+vk::Result VulkanSwapchain::AcquireNextImage(const vk::raii::Semaphore &renderSemaphore, uint32_t &imageIndex) const {
+	auto [result, index] = m_swapchain.acquireNextImage(UINT64_MAX, renderSemaphore);
 	imageIndex = index;
 	return result;
 }

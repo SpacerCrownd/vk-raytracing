@@ -1,4 +1,4 @@
-#include "Renderer.h"
+#include "VulkanCore.h"
 #include "VulkanUtils.h"
 
 #include <algorithm>
@@ -20,7 +20,7 @@ static VKAPI_ATTR vk::Bool32 VKAPI_CALL DebugCallback(vk::DebugUtilsMessageSever
 	return vk::False;
 }
 
-Renderer::Renderer(const char* appName, const VulkanWindow& window) : m_window(window) {
+VulkanCore::VulkanCore(const char* appName, const VulkanWindow& window) : m_window(window) {
 	CreateInstance(appName);
 	if (enableDebugging) { CreateDebugCallback(); }
 	CreateSurface(window.GetWindow());
@@ -28,15 +28,15 @@ Renderer::Renderer(const char* appName, const VulkanWindow& window) : m_window(w
 	CreateLogicalDevice();
 	InitVmaAllocator();
 	CreateSwapchain();
-	CreateCommandPools();
+	CreateCommandObjects();
 	//m_queue = std::make_unique<VulkanQueue>(m_device, m_swapchain, m_queueFamily, 0);
 };
 
-Renderer::~Renderer() {
+VulkanCore::~VulkanCore() {
 	vmaDestroyAllocator(m_allocator);
 }
 
-void Renderer::UpdateInstanceVersion() {
+void VulkanCore::UpdateInstanceVersion() {
 	uint32_t instanceVersion = m_context.enumerateInstanceVersion();
 
 	m_instanceVersion.Major = static_cast<int>(vk::apiVersionMajor(instanceVersion));
@@ -46,7 +46,7 @@ void Renderer::UpdateInstanceVersion() {
 	printf("[INFO] Vulkan loader supports version %d.%d.%d\n", m_instanceVersion.Major, m_instanceVersion.Minor, m_instanceVersion.Patch);
 }
 
-void Renderer::CreateInstance(const char* appName) {
+void VulkanCore::CreateInstance(const char* appName) {
 	UpdateInstanceVersion();
 
 	vk::ApplicationInfo appInfo{
@@ -117,7 +117,7 @@ void Renderer::CreateInstance(const char* appName) {
 	printf("\n[INFO] Instance Created\n");
 }
 
-void Renderer::CreateDebugCallback() {
+void VulkanCore::CreateDebugCallback() {
 	vk::DebugUtilsMessengerCreateInfoEXT msgCreateInfo{
 		.messageSeverity = vk::DebugUtilsMessageSeverityFlagBitsEXT::eVerbose |
 						   vk::DebugUtilsMessageSeverityFlagBitsEXT::eInfo |
@@ -134,7 +134,7 @@ void Renderer::CreateDebugCallback() {
 	printf("[INFO] Debug Messenger Created\n");
 }
 
-void Renderer::CreateSurface(GLFWwindow* window) {
+void VulkanCore::CreateSurface(GLFWwindow* window) {
 	VkSurfaceKHR surface;
 	if (glfwCreateWindowSurface(*m_instance, window, nullptr, &surface) != 0) {
 		throw std::runtime_error("Failed to create window surface!");
@@ -143,7 +143,7 @@ void Renderer::CreateSurface(GLFWwindow* window) {
 	printf("[INFO] Surface created\n");
 }
 
-void Renderer::InitVmaAllocator() {
+void VulkanCore::InitVmaAllocator() {
 	VmaVulkanFunctions vulkanFunctions = {
 		.vkGetInstanceProcAddr = &vkGetInstanceProcAddr,
 		.vkGetDeviceProcAddr = &vkGetDeviceProcAddr,
@@ -161,7 +161,7 @@ void Renderer::InitVmaAllocator() {
 	vmaCreateAllocator(&allocatorCreateInfo, &m_allocator);
 }
 
-void Renderer::SelectPhysicalDevice() {
+void VulkanCore::SelectPhysicalDevice() {
 	auto vkPhysicalDevices = m_instance.enumeratePhysicalDevices();
 	std::vector<VulkanPhysicalDevice> physicalDevices;
 	physicalDevices.resize(vkPhysicalDevices.size());
@@ -331,7 +331,7 @@ void Renderer::SelectPhysicalDevice() {
 	printf("[INFO] Physical Device selected: %s\n", m_physDevice->m_devProperties2.properties.deviceName.data());
 }
 
-void Renderer::CreateLogicalDevice() {
+void VulkanCore::CreateLogicalDevice() {
 	std::vector<const char *> devExtensions = {
 		vk::KHRShaderDrawParametersExtensionName,
 		vk::KHRSwapchainExtensionName,
@@ -365,11 +365,11 @@ void Renderer::CreateLogicalDevice() {
 	m_queue = vk::raii::Queue(m_device->GetDevice(), m_device->queueFamilyIndices.graphics, 0);
 }
 
-void Renderer::CreateSwapchain() {
+void VulkanCore::CreateSwapchain() {
 	m_swapchain = std::make_unique<VulkanSwapchain>(*m_device, m_window.GetExtent(), m_surface);
 }
 
-void Renderer::RecreateSwapchain() {
+void VulkanCore::RecreateSwapchain() {
 	int width = 0, height = 0;
 	glfwGetFramebufferSize(m_window.GetWindow(), &width, &height);
 	while (width == 0 || height == 0) {
@@ -383,53 +383,104 @@ void Renderer::RecreateSwapchain() {
 	CreateSwapchain();
 }
 
-void Renderer::CreateCommandPools() {
-	auto poolCreateInfo = vk::CommandPoolCreateInfo{
-		.sType = vk::StructureType::eCommandPoolCreateInfo,
-		.queueFamilyIndex = m_device->queueFamilyIndices.graphics,
-	};
+void VulkanCore::CreateSyncObjects() {
+	m_inFlightFences.clear();
+	m_renderSemaphores.clear();
+	m_presentSemaphores.clear();
+
+	// create one acquisition semaphore for each swapchain image
+	for (int i = 0; i < m_swapchain->GetSwapchainImageCount(); i++) {
+		m_presentSemaphores.emplace_back(m_device->GetDevice(), vk::SemaphoreCreateInfo());
+	}
+
+	// for each in-flight frame create submit semaphores and acquisition fences
+	for (int i = 0; i < MAX_FRAMES_IN_FLIGHT; i++) {
+		m_renderSemaphores.emplace_back(m_device->GetDevice(), vk::SemaphoreCreateInfo());
+		m_inFlightFences.emplace_back(m_device->GetDevice(), vk::FenceCreateInfo{.flags = vk::FenceCreateFlagBits::eSignaled});
+	}
+}
+
+void VulkanCore::CreateCommandObjects() {
+	m_cmdPools.clear();
+	m_cmdBuffs.clear();
+
+	m_cmdPools.resize(MAX_FRAMES_IN_FLIGHT);
+	m_cmdBuffs.resize(MAX_FRAMES_IN_FLIGHT);
 
 	for (int i = 0; i < MAX_FRAMES_IN_FLIGHT; i++) {
-		m_cmdPools[i] = vk::raii::CommandPool(m_device->GetDevice(), poolCreateInfo);
+		m_cmdPools[i] = vk::raii::CommandPool(m_device->GetDevice(), vk::CommandPoolCreateInfo{.queueFamilyIndex = m_device->queueFamilyIndices.graphics});
+		m_cmdBuffs[i] = std::move(vk::raii::CommandBuffers(m_device->GetDevice(), vk::CommandBufferAllocateInfo{.commandPool = m_cmdPools[i],
+			                                                   .level = vk::CommandBufferLevel::ePrimary,
+			                                                   .commandBufferCount = 1}).front());
 	}
-	printf("[INFO] Command pools created\n");
+
+	printf("[INFO] Command pools and buffers created\n");
 }
 
-void Renderer::ResetCommandPool(uint32_t i) {
-	m_cmdPools[i].reset();
+vk::raii::CommandBuffer& VulkanCore::PrepareFrame() {
+	while (m_device->GetDevice().waitForFences(*m_inFlightFences[m_currentFrameIndex], vk::True, UINT64_MAX) == vk::Result::eTimeout);
+	m_device->GetDevice().resetFences(*m_inFlightFences[m_currentFrameIndex]);
+
+	auto res = m_swapchain->AcquireNextImage(m_renderSemaphores[m_currentFrameIndex], m_currentImageIndex);
+	vk::detail::resultCheck(res, "Swapchain Acquire Next image");
+	return BeginCommandBuffer();
 }
 
-void Renderer::CreateCommandBuffer() {
-
+void VulkanCore::SubmitFrame() {
+	SubmitAsync(m_cmdBuffs[m_currentFrameIndex]);
+	Present();
 }
 
-void Renderer::FlushCommandBuffer() {
-
+// could be renamed in the future, right now it's very specific to drawing to swapchain
+vk::raii::CommandBuffer& VulkanCore::BeginCommandBuffer() {
+	m_cmdPools[m_currentFrameIndex].reset();
+	m_cmdBuffs[m_currentFrameIndex].begin(vk::CommandBufferBeginInfo{.flags = vk::CommandBufferUsageFlagBits::eOneTimeSubmit});
+	return m_cmdBuffs[m_currentFrameIndex];
 }
 
-void Renderer::CreateCommandBuffers(uint32_t count, std::vector<vk::raii::CommandBuffer>& cmdBuffs) {
-	vk::CommandBufferAllocateInfo cmdBuffAllocateInfo = {
-		.sType = vk::StructureType::eCommandBufferAllocateInfo,
-		.level = vk::CommandBufferLevel::ePrimary,
-		.commandBufferCount = count,
+void VulkanCore::SubmitAsync(const vk::CommandBuffer &cmdBuff) {
+	vk::PipelineStageFlags waitFlags = vk::PipelineStageFlagBits::eColorAttachmentOutput;
+
+	const vk::SubmitInfo submitInfo = {
+		.sType = vk::StructureType::eSubmitInfo,
+		.waitSemaphoreCount = 1,
+		.pWaitSemaphores = &*m_renderSemaphores[m_currentFrameIndex],
+		.pWaitDstStageMask = &waitFlags,
+		.commandBufferCount = 1,
+		.pCommandBuffers = &cmdBuff,
+		.signalSemaphoreCount = 1,
+		.pSignalSemaphores = &*m_presentSemaphores[m_currentImageIndex],
 	};
 
-	for (const auto & m_cmdPool : m_cmdPools) {
-		cmdBuffAllocateInfo.commandPool = m_cmdPool;
-
-		auto buffers = vk::raii::CommandBuffers(m_device->GetDevice(), cmdBuffAllocateInfo);
-
-		for (auto& buffer : buffers) {
-			cmdBuffs.push_back(std::move(buffer));
-		}
-	}
+	m_queue.submit(submitInfo, m_inFlightFences[m_currentFrameIndex]);
 }
 
-void Renderer::CreateBLAS(vk::raii::CommandBuffer& cmdBuff) {
+void VulkanCore::Present() {
+	const vk::PresentInfoKHR presentInfo = {
+		.sType = vk::StructureType::ePresentInfoKHR,
+		.pNext = nullptr,
+		.waitSemaphoreCount = 1,
+		.pWaitSemaphores = &*m_presentSemaphores[m_currentImageIndex],
+		.swapchainCount = 1,
+		.pSwapchains = &*m_swapchain->GetSwapchain(),
+		.pImageIndices = &m_currentImageIndex,
+	};
+
+	auto res = m_queue.presentKHR(presentInfo);
+
+	if (res == vk::Result::eSuboptimalKHR || res == vk::Result::eErrorOutOfDateKHR) {
+
+	}else {
+		vk::detail::resultCheck(res, "vkQueuePresentKHR");
+	}
+
+	m_currentFrameIndex = (m_currentFrameIndex + 1) % MAX_FRAMES_IN_FLIGHT;
+}
+
+void VulkanCore::CreateBLAS(vk::raii::CommandBuffer& cmdBuff) {
 	// for each model in the scene
 
 	// test code
-
 	auto triangleData = vk::AccelerationStructureGeometryTrianglesDataKHR{
 		.sType = vk::StructureType::eAccelerationStructureGeometryTrianglesDataKHR,
 		.vertexFormat = vk::Format::eR32G32B32Sfloat,
@@ -441,11 +492,11 @@ void Renderer::CreateBLAS(vk::raii::CommandBuffer& cmdBuff) {
 	};
 }
 
-void Renderer::CreateTLAS(vk::raii::CommandBuffer& cmdBuff) {
+void VulkanCore::CreateTLAS(vk::raii::CommandBuffer& cmdBuff) {
 
 }
 
-void Renderer::CreateAccelerationStructure(Scene scene) {
+void VulkanCore::CreateAccelerationStructure(Scene scene) {
 	const vk::CommandBufferAllocateInfo cmdBuffAllocateInfo = {
 		.sType = vk::StructureType::eCommandBufferAllocateInfo,
 		.commandPool = m_cmdPools[0],
@@ -470,17 +521,15 @@ void Renderer::CreateAccelerationStructure(Scene scene) {
 	CreateTLAS(cmdBuff);
 }
 
-void Renderer::CreateSBT() {
+void VulkanCore::CreateSBT() {
 
 }
 
-void Renderer::CreateRaytracingPipeline() {
+void VulkanCore::CreateRaytracingPipeline() {
 
 }
 
-void Renderer::DeviceWaitIdle() {
+void VulkanCore::DeviceWaitIdle() {
 	m_device->GetDevice().waitIdle();
 }
-
-
 }
