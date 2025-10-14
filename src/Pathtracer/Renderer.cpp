@@ -1,16 +1,14 @@
 ﻿#include "Renderer.h"
 
-#include <iostream>
-
 namespace PathTracingVk {
 Renderer::Renderer(int width, int height, const char *pAppName) : width(width), height(height) {
     m_mainWindow = std::make_unique<VulkanWindow>(width, height, pAppName);
-    m_renderer = std::make_unique<VulkanCore>(pAppName, *m_mainWindow);
+    m_vkCore = std::make_unique<VulkanCore>(pAppName, *m_mainWindow);
 }
 
 Renderer::~Renderer() {
-    if (m_renderer)
-        m_renderer->DeviceWaitIdle();
+    if (m_vkCore)
+        m_vkCore->DeviceWaitIdle();
 }
 
 void Renderer::Run() {
@@ -30,30 +28,12 @@ void Renderer::MainLoop() {
 }
 
 void Renderer::Draw() {
-    // TODO transfer fence waiting and presenting to command buffer submission in vulkan_core, only record commands here
-    // The core exposes the current command buffer
-    // One buffer per frame in flight, per queue type
-    /** Command pool/buffer lifecycle
-     * Begin
-     *  Take existing buffer and pool for the specified queue type
-     *  flush pool
-     * Record commands
-     * Submit commands
-     *  synchronization
-     */
-    while (m_device->GetDevice().waitForFences(*m_inFlightFences[m_inFlightFrameIndex], vk::True, UINT64_MAX) == vk::Result::eTimeout);
-    m_device->GetDevice().resetFences(*m_inFlightFences[m_inFlightFrameIndex]);
-
-    uint32_t imgIndex;
-    vk::Result res = m_swapchain->AcquireNextImage(m_presentFinishedSemaphores[m_inFlightFrameIndex], imgIndex);
-
-    ResetCommandPool(m_inFlightFrameIndex);
-    RecordCommandBuffer(imgIndex);
-    m_queue->SubmitAsync(*m_cmdBuffs[m_queue->GetCurrentFrameIndex()]);
-    m_queue->Present(imgIndex);
+    auto& cmdBuffer = m_vkCore->PrepareFrame();
+    Clear(cmdBuffer);
+    m_vkCore->SubmitFrame();
 }
 
-void Renderer::Clear(uint32_t imgIndex) {
+void Renderer::Clear(vk::raii::CommandBuffer &cmdBuffer) {
     constexpr vk::ClearColorValue clearColor = {1.0f, .0f, .0f, .0f};
 
     constexpr vk::ImageSubresourceRange imageRange = {
@@ -87,30 +67,26 @@ void Renderer::Clear(uint32_t imgIndex) {
         .dstQueueFamilyIndex = vk::QueueFamilyIgnored,
         .subresourceRange = imageRange,
     };
+    uint32_t imgIndex = m_vkCore->GetCurrentImageIndex();
+    uint32_t currentFrame = m_vkCore->GetCurrentFrameIndex();
+    presentToClearBarrier.image = m_vkCore->GetSwapchain()->GetSwapchainImage(static_cast<int>(imgIndex));
+    clearToPresentBarrier.image = m_vkCore->GetSwapchain()->GetSwapchainImage(static_cast<int>(imgIndex));
 
-    uint32_t currentFrame = m_queue->GetCurrentFrameIndex();
-    presentToClearBarrier.image = m_swapchain->GetSwapchainImage(static_cast<int>(imgIndex));
-    clearToPresentBarrier.image = m_swapchain->GetSwapchainImage(static_cast<int>(imgIndex));
-
-    m_cmdBuffs[currentFrame].begin({vk::StructureType::eCommandBufferBeginInfo, nullptr});
-
-    m_cmdBuffs[currentFrame].pipelineBarrier(vk::PipelineStageFlagBits::eTransfer,
+    cmdBuffer.pipelineBarrier(vk::PipelineStageFlagBits::eTransfer,
                                       vk::PipelineStageFlagBits::eTransfer,
                                       vk::DependencyFlags{},
                                       {},
                                       {},
                                       {presentToClearBarrier});
 
-    m_cmdBuffs[currentFrame].clearColorImage(m_renderer->GetSwapchainImage(static_cast<int>(imgIndex)),
+    cmdBuffer.clearColorImage(m_vkCore->GetSwapchain()->GetSwapchainImage(static_cast<int>(imgIndex)),
                                       vk::ImageLayout::eTransferDstOptimal, clearColor, imageRange);
 
-    m_cmdBuffs[currentFrame].pipelineBarrier(vk::PipelineStageFlagBits::eTransfer,
+    cmdBuffer.pipelineBarrier(vk::PipelineStageFlagBits::eTransfer,
                                       vk::PipelineStageFlagBits::eBottomOfPipe,
                                       vk::DependencyFlags{},
                                       {},
                                       {},
                                       {clearToPresentBarrier});
-
-    m_cmdBuffs[currentFrame].end();
 }
 }

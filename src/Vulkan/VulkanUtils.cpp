@@ -37,7 +37,7 @@ const char* GetDebugType(vk::DebugUtilsMessageTypeFlagsEXT type)
 	throw std::runtime_error("[ERROR] Invalid type code");
 }
 
-static void PrintImageUsageFlags(const vk::ImageUsageFlags &flags) {
+void PrintImageUsageFlags(const vk::ImageUsageFlags &flags) {
 	if (flags & vk::ImageUsageFlagBits::eTransferSrc) {
 		printf("	Image usage transfer src is supported\n");
 	}
@@ -67,7 +67,7 @@ static void PrintImageUsageFlags(const vk::ImageUsageFlags &flags) {
 	}
 }
 
-static void PrintMemoryProperty(const vk::Flags<vk::MemoryPropertyFlagBits> &flags) {
+void PrintMemoryProperty(const vk::Flags<vk::MemoryPropertyFlagBits> &flags) {
 	if (flags & vk::MemoryPropertyFlagBits::eDeviceLocal) {
 		printf("DEVICE LOCAL ");
 	}
@@ -93,7 +93,7 @@ static void PrintMemoryProperty(const vk::Flags<vk::MemoryPropertyFlagBits> &fla
 	}
 }
 
-static vk::Format FindSupportedFormat(const vk::raii::PhysicalDevice &device, const std::vector<vk::Format> &candidates,
+vk::Format FindSupportedFormat(const vk::raii::PhysicalDevice &device, const std::vector<vk::Format> &candidates,
 									  const vk::ImageTiling tiling, const vk::FormatFeatureFlags features) {
 	for (const auto format: candidates) {
 		vk::FormatProperties props = device.getFormatProperties(format);
@@ -110,7 +110,7 @@ static vk::Format FindSupportedFormat(const vk::raii::PhysicalDevice &device, co
 	throw std::runtime_error("failed to find supporting format!");
 }
 
-static vk::Format FindDepthFormat(const vk::raii::PhysicalDevice &device) {
+vk::Format FindDepthFormat(const vk::raii::PhysicalDevice &device) {
 	std::vector Candidates = {
 		vk::Format::eD32Sfloat,
 		vk::Format::eD32SfloatS8Uint,

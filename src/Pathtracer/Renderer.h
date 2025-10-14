@@ -19,12 +19,12 @@ public:
 
 private:
 	std::unique_ptr<VulkanWindow> m_mainWindow;
-	std::unique_ptr<VulkanCore> m_renderer;
+	std::unique_ptr<VulkanCore> m_vkCore;
 	std::unique_ptr<Scene> m_scene;
 
 	void MainLoop();
 	void Draw();
-	void Clear(); // rasterization only
+	void Clear(vk::raii::CommandBuffer& cmdBuffer); // rasterization only
 };
 }
 

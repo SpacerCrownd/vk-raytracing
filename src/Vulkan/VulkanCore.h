@@ -8,7 +8,6 @@
 #include "../Pathtracer/Scene.h"
 #include "VulkanWindow.h"
 #include "VulkanPhysicalDevice.h"
-#include "vulkan/vulkan_raii.hpp"
 
 namespace PathTracingVk {
 
@@ -23,16 +22,17 @@ public:
 	vk::raii::CommandBuffer& BeginCommandBuffer();
 	void SubmitAsync(const vk::CommandBuffer &cmdBuff);
 
-	void Present();
-
 	[[nodiscard]] vk::Format GetDepthFormat() const { return m_physDevice->m_depthFormat; }
 	[[nodiscard]] vk::raii::Queue* GetQueue() { return &m_queue; }
 	[[nodiscard]] const VulkanSwapchain* GetSwapchain() const { return m_swapchain.get(); }
 	[[nodiscard]] const VulkanDevice* GetDevice() const { return m_device.get(); }
 
+	[[nodiscard]] vk::raii::CommandBuffer &PrepareFrame();
+	void SubmitFrame();
+	uint32_t GetCurrentFrameIndex() { return m_currentFrameIndex; }
+	uint32_t GetCurrentImageIndex() { return m_currentImageIndex; }
+
 private:
-
-
 	const VulkanWindow& m_window;
 	vk::raii::Context m_context;
 	vk::raii::Instance m_instance = VK_NULL_HANDLE;
@@ -96,9 +96,6 @@ private:
 	void CreateSyncObjects();
 	void CreateCommandObjects();
 
-	vk::raii::CommandBuffer &PrepareFrame();
-
-	void SubmitFrame();
 
 	void CreateBLAS(vk::raii::CommandBuffer &cmdBuff);
 	void CreateTLAS(vk::raii::CommandBuffer &cmdBuff);
@@ -107,6 +104,8 @@ private:
 	void CreateRaytracingPipeline();
 
 	void UpdateInstanceVersion();
+
+	void Present();
 };
 
 }

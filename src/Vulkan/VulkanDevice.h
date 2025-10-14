@@ -20,13 +20,13 @@ public:
 		uint32_t graphics;
 		uint32_t compute;
 		uint32_t transfer;
-	} queueFamilyIndices;
+	} queueFamilyIndices{};
 
 private:
 	std::unique_ptr<vk::raii::Device> m_device;
 	VulkanPhysicalDevice& m_physicalDevice;
 
-	uint32_t GetQueueFamilyIndex(vk::QueueFlags flags) const;
+	[[nodiscard]] uint32_t GetQueueFamilyIndex(vk::QueueFlags flags) const;
 };
 
 }

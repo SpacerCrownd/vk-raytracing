@@ -31,7 +31,7 @@ VulkanDevice::VulkanDevice(VulkanPhysicalDevice &device, std::vector<const char*
             .pQueuePriorities = &defaultQueuePriority
         };
         queueCreateInfos.push_back(queueCreateInfo);
-    }else {
+    } else {
         // else use same queue
         queueFamilyIndices.compute = queueFamilyIndices.graphics;
     }
@@ -132,8 +132,10 @@ uint32_t VulkanDevice::GetQueueFamilyIndex(vk::QueueFlags flags) const {
             }
         }
     }
-
     // For other queue types or if no separate compute queue is present, return the first one to support the requested flags
+
+    printf("Check %d\n", static_cast<int>(m_physicalDevice.m_qFamilyProperties.size()));
+
     for (uint32_t i = 0; i < static_cast<uint32_t>(m_physicalDevice.m_qFamilyProperties.size()); i++)
     {
         if (m_physicalDevice.m_qFamilyProperties[i].queueFlags & flags)

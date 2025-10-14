@@ -28,6 +28,7 @@ VulkanCore::VulkanCore(const char* appName, const VulkanWindow& window) : m_wind
 	CreateLogicalDevice();
 	InitVmaAllocator();
 	CreateSwapchain();
+	CreateSyncObjects();
 	CreateCommandObjects();
 	//m_queue = std::make_unique<VulkanQueue>(m_device, m_swapchain, m_queueFamily, 0);
 };
@@ -151,14 +152,15 @@ void VulkanCore::InitVmaAllocator() {
 
 	VmaAllocatorCreateInfo allocatorCreateInfo = {
 		.flags = VMA_ALLOCATOR_CREATE_EXT_MEMORY_BUDGET_BIT,
-		.vulkanApiVersion = VK_API_VERSION_1_3,
 		.physicalDevice = static_cast<VkPhysicalDevice>(*m_physDevice->m_physDevice),
 		.device = static_cast<VkDevice>(*m_device->GetDevice()),
-		.instance = static_cast<VkInstance>(*m_instance),
 		.pVulkanFunctions = &vulkanFunctions,
+		.instance = static_cast<VkInstance>(*m_instance),
+		.vulkanApiVersion = VK_API_VERSION_1_3,
 	};
 
 	vmaCreateAllocator(&allocatorCreateInfo, &m_allocator);
+	printf("[INFO] VMA Allocator Created\n");
 }
 
 void VulkanCore::SelectPhysicalDevice() {
@@ -324,11 +326,12 @@ void VulkanCore::SelectPhysicalDevice() {
             physicalDevice.m_physDevice.getProperties2<vk::PhysicalDeviceProperties2, vk::PhysicalDeviceRayTracingPipelinePropertiesKHR>()
                 .get<vk::PhysicalDeviceRayTracingPipelinePropertiesKHR>();
 
-		m_physDevice.reset(&physicalDevice);
+		m_physDevice = std::make_unique<VulkanPhysicalDevice>(physicalDevice);
+		printf("[INFO] Physical Device selected: %s\n", m_physDevice->m_devProperties2.properties.deviceName.data());
+		return;
     }
 
     throw std::runtime_error("No physical device with required queue type and ray tracing capabilities found");
-	printf("[INFO] Physical Device selected: %s\n", m_physDevice->m_devProperties2.properties.deviceName.data());
 }
 
 void VulkanCore::CreateLogicalDevice() {
@@ -360,8 +363,8 @@ void VulkanCore::CreateLogicalDevice() {
 	featureChain.get<vk::PhysicalDeviceFeatures2>().features.geometryShader = vk::True;
 	featureChain.get<vk::PhysicalDeviceFeatures2>().features.tessellationShader = vk::True;
 	auto& features = featureChain.get<vk::PhysicalDeviceFeatures2>();
+	printf("%d", m_physDevice->m_qFamilyProperties.size());
 	m_device = std::make_unique<VulkanDevice>(*m_physDevice, devExtensions, vk::QueueFlagBits::eGraphics, features);
-
 	m_queue = vk::raii::Queue(m_device->GetDevice(), m_device->queueFamilyIndices.graphics, 0);
 }
 
@@ -398,20 +401,19 @@ void VulkanCore::CreateSyncObjects() {
 		m_renderSemaphores.emplace_back(m_device->GetDevice(), vk::SemaphoreCreateInfo());
 		m_inFlightFences.emplace_back(m_device->GetDevice(), vk::FenceCreateInfo{.flags = vk::FenceCreateFlagBits::eSignaled});
 	}
+
+	printf("[INFO] Sync Objects Created\n");
 }
 
 void VulkanCore::CreateCommandObjects() {
 	m_cmdPools.clear();
 	m_cmdBuffs.clear();
 
-	m_cmdPools.resize(MAX_FRAMES_IN_FLIGHT);
-	m_cmdBuffs.resize(MAX_FRAMES_IN_FLIGHT);
-
 	for (int i = 0; i < MAX_FRAMES_IN_FLIGHT; i++) {
-		m_cmdPools[i] = vk::raii::CommandPool(m_device->GetDevice(), vk::CommandPoolCreateInfo{.queueFamilyIndex = m_device->queueFamilyIndices.graphics});
-		m_cmdBuffs[i] = std::move(vk::raii::CommandBuffers(m_device->GetDevice(), vk::CommandBufferAllocateInfo{.commandPool = m_cmdPools[i],
+		m_cmdPools.emplace_back(m_device->GetDevice(), vk::CommandPoolCreateInfo{.queueFamilyIndex = m_device->queueFamilyIndices.graphics});
+		m_cmdBuffs.push_back(std::move(vk::raii::CommandBuffers(m_device->GetDevice(), vk::CommandBufferAllocateInfo{.commandPool = m_cmdPools[i],
 			                                                   .level = vk::CommandBufferLevel::ePrimary,
-			                                                   .commandBufferCount = 1}).front());
+			                                                   .commandBufferCount = 1}).front()));
 	}
 
 	printf("[INFO] Command pools and buffers created\n");
@@ -422,11 +424,12 @@ vk::raii::CommandBuffer& VulkanCore::PrepareFrame() {
 	m_device->GetDevice().resetFences(*m_inFlightFences[m_currentFrameIndex]);
 
 	auto res = m_swapchain->AcquireNextImage(m_renderSemaphores[m_currentFrameIndex], m_currentImageIndex);
-	vk::detail::resultCheck(res, "Swapchain Acquire Next image");
+	//vk::detail::resultCheck(res, "[ERROR] Swapchain Acquire Next image");
 	return BeginCommandBuffer();
 }
 
 void VulkanCore::SubmitFrame() {
+	m_cmdBuffs[m_currentFrameIndex].end();
 	SubmitAsync(m_cmdBuffs[m_currentFrameIndex]);
 	Present();
 }

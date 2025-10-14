@@ -70,7 +70,6 @@ add_executable(${PROJECT_NAME}
         src/Vulkan/VulkanUtils.cpp
         src/Vulkan/VulkanDevice.cpp
         src/Vulkan/vk_mem_alloc.cpp
-        src/Vulkan/VulkanQueue.cpp
         src/Pathtracer/Model.cpp
         src/Pathtracer/Model.h
         src/Vulkan/VulkanShader.cpp

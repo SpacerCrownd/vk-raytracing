@@ -10,12 +10,14 @@ if(res != VK_SUCCESS) { \
 	throw std::runtime_error(msg); \
 }
 
-namespace PathTracingVk {
+namespace PathTracingVk
+{
 const char* GetDebugSeverityStr(vk::DebugUtilsMessageSeverityFlagBitsEXT severity);
 const char* GetDebugType(vk::DebugUtilsMessageTypeFlagsEXT type);
-static void PrintImageUsageFlags(const vk::ImageUsageFlags &flags);
-static void PrintMemoryProperty(const vk::Flags<vk::MemoryPropertyFlagBits> &flags);
-static vk::Format FindSupportedFormat(const vk::raii::PhysicalDevice &device, const std::vector<vk::Format> &candidates, vk::ImageTiling tiling, vk::FormatFeatureFlags features);
-static vk::Format FindDepthFormat(const vk::raii::PhysicalDevice &device);
+void PrintImageUsageFlags(const vk::ImageUsageFlags& flags);
+void PrintMemoryProperty(const vk::Flags<vk::MemoryPropertyFlagBits>& flags);
+vk::Format FindSupportedFormat(const vk::raii::PhysicalDevice& device, const std::vector<vk::Format>& candidates,
+                               vk::ImageTiling tiling, vk::FormatFeatureFlags features);
+vk::Format FindDepthFormat(const vk::raii::PhysicalDevice& device);
 }
 #endif
