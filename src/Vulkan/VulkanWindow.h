@@ -20,8 +20,6 @@ public:
     [[nodiscard]] GLFWwindow* GetWindow() const {
         return m_window;
     }
-
-    [[nodiscard]] vk::Extent2D GetExtent() const;
 private:
     GLFWwindow* m_window{};
     int m_width{};

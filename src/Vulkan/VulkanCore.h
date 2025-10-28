@@ -26,11 +26,12 @@ public:
 	[[nodiscard]] vk::raii::Queue* GetQueue() { return &m_queue; }
 	[[nodiscard]] const VulkanSwapchain* GetSwapchain() const { return m_swapchain.get(); }
 	[[nodiscard]] const VulkanDevice* GetDevice() const { return m_device.get(); }
+	[[nodiscard]] uint32_t GetCurrentFrameIndex() const { return m_currentFrameIndex; }
+	[[nodiscard]] uint32_t GetCurrentImageIndex() const { return m_currentImageIndex; }
 
-	[[nodiscard]] vk::raii::CommandBuffer &PrepareFrame();
+	[[nodiscard]] void PrepareFrame();
+
 	void SubmitFrame();
-	uint32_t GetCurrentFrameIndex() { return m_currentFrameIndex; }
-	uint32_t GetCurrentImageIndex() { return m_currentImageIndex; }
 
 private:
 	const VulkanWindow& m_window;
@@ -96,6 +97,7 @@ private:
 	void CreateSyncObjects();
 	void CreateCommandObjects();
 
+	vk::Extent2D ChooseSwapExtent(const vk::SurfaceCapabilitiesKHR& capabilities);
 
 	void CreateBLAS(vk::raii::CommandBuffer &cmdBuff);
 	void CreateTLAS(vk::raii::CommandBuffer &cmdBuff);

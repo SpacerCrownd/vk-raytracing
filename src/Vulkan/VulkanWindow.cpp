@@ -1,7 +1,13 @@
 ﻿#include "VulkanWindow.h"
+#include "../Pathtracer/Renderer.h"
 #include <iostream>
 
 namespace PathTracingVk {
+static void FrameBufferResizeCallback(GLFWwindow* window, int width, int height)
+{
+    // explicit resize
+}
+
 void VulkanWindow::GlfwErrorCallback(const int error, const char* const description)
 {
     std::cerr << "[ERROR] GLFW: " << description << " (code: " << error << ")" << std::endl;
@@ -57,12 +63,5 @@ VulkanWindow::~VulkanWindow() {
     glfwDestroyWindow(m_window);
     glfwTerminate();
 }
-
-vk::Extent2D VulkanWindow::GetExtent() const {
-    int width, height;
-    glfwGetWindowSize(m_window, &width, &height);
-    return vk::Extent2D{static_cast<uint32_t>(width), static_cast<uint32_t>(height)};
-}
-
 
 }

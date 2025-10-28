@@ -24,7 +24,7 @@ private:
 
 	void MainLoop();
 	void Draw();
-	void Clear(vk::raii::CommandBuffer& cmdBuffer); // rasterization only
+	void ClearCmd(vk::raii::CommandBuffer& cmdBuffer); // rasterization only
 };
 }
 

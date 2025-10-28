@@ -369,16 +369,20 @@ void VulkanCore::CreateLogicalDevice() {
 }
 
 void VulkanCore::CreateSwapchain() {
-	m_swapchain = std::make_unique<VulkanSwapchain>(*m_device, m_window.GetExtent(), m_surface);
+	m_swapchain = std::make_unique<VulkanSwapchain>(*m_device, ChooseSwapExtent(m_physDevice->m_surfaceCapabilities), m_surface);
 }
 
 void VulkanCore::RecreateSwapchain() {
+	printf("[INFO] Recreating Swapchain");
 	int width = 0, height = 0;
 	glfwGetFramebufferSize(m_window.GetWindow(), &width, &height);
 	while (width == 0 || height == 0) {
 		glfwGetFramebufferSize(m_window.GetWindow(), &width, &height);
 		glfwWaitEvents();
 	}
+
+	// update surface capabilities
+	m_physDevice->m_surfaceCapabilities = m_physDevice->m_physDevice.getSurfaceCapabilitiesKHR(m_surface);
 
 	m_device->GetDevice().waitIdle();
 	m_swapchain = nullptr;
@@ -419,13 +423,20 @@ void VulkanCore::CreateCommandObjects() {
 	printf("[INFO] Command pools and buffers created\n");
 }
 
-vk::raii::CommandBuffer& VulkanCore::PrepareFrame() {
+void VulkanCore::PrepareFrame() {
 	while (m_device->GetDevice().waitForFences(*m_inFlightFences[m_currentFrameIndex], vk::True, UINT64_MAX) == vk::Result::eTimeout);
 	m_device->GetDevice().resetFences(*m_inFlightFences[m_currentFrameIndex]);
 
 	auto res = m_swapchain->AcquireNextImage(m_renderSemaphores[m_currentFrameIndex], m_currentImageIndex);
-	//vk::detail::resultCheck(res, "[ERROR] Swapchain Acquire Next image");
-	return BeginCommandBuffer();
+	if (res == vk::Result::eErrorOutOfDateKHR)
+	{
+		RecreateSwapchain();
+		return;
+	}
+	if (res != vk::Result::eSuccess && res != vk::Result::eSuboptimalKHR)
+	{
+		throw std::runtime_error("[ERROR] Failed to acquire next swapchain image");
+	}
 }
 
 void VulkanCore::SubmitFrame() {
@@ -468,13 +479,22 @@ void VulkanCore::Present() {
 		.pSwapchains = &*m_swapchain->GetSwapchain(),
 		.pImageIndices = &m_currentImageIndex,
 	};
+	try
+	{
+		auto res = m_queue.presentKHR(presentInfo);
 
-	auto res = m_queue.presentKHR(presentInfo);
-
-	if (res == vk::Result::eSuboptimalKHR || res == vk::Result::eErrorOutOfDateKHR) {
-
-	}else {
-		vk::detail::resultCheck(res, "vkQueuePresentKHR");
+		if (res == vk::Result::eSuboptimalKHR || res == vk::Result::eErrorOutOfDateKHR) {
+			RecreateSwapchain();
+		}else if (res != vk::Result::eSuccess) {
+			throw std::runtime_error("[ERROR] Failed to present");
+		}
+	}catch (const vk::SystemError& e){
+		if (e.code().value() == static_cast<int>(vk::Result::eErrorOutOfDateKHR)) {
+			RecreateSwapchain();
+			return;
+		} else {
+			throw;
+		}
 	}
 
 	m_currentFrameIndex = (m_currentFrameIndex + 1) % MAX_FRAMES_IN_FLIGHT;
@@ -535,4 +555,19 @@ void VulkanCore::CreateRaytracingPipeline() {
 void VulkanCore::DeviceWaitIdle() {
 	m_device->GetDevice().waitIdle();
 }
+
+vk::Extent2D VulkanCore::ChooseSwapExtent(const vk::SurfaceCapabilitiesKHR& capabilities) {
+	if (capabilities.currentExtent.width != 0xFFFFFFFF) {
+		//printf("%d\n", capabilities.currentExtent);
+		return capabilities.currentExtent;
+	}
+	int width, height;
+	glfwGetFramebufferSize(m_window.GetWindow(), &width, &height);
+	printf("%d\n", capabilities.maxImageExtent.width);
+	return {
+		std::clamp<uint32_t>(width, capabilities.minImageExtent.width, capabilities.maxImageExtent.width),
+		std::clamp<uint32_t>(height, capabilities.minImageExtent.height, capabilities.maxImageExtent.height)
+	};
+}
+
 }

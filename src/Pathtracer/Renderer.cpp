@@ -28,12 +28,13 @@ void Renderer::MainLoop() {
 }
 
 void Renderer::Draw() {
-    auto& cmdBuffer = m_vkCore->PrepareFrame();
-    Clear(cmdBuffer);
+    m_vkCore->PrepareFrame();
+    auto& cmdBuffer = m_vkCore->BeginCommandBuffer();
+    ClearCmd(cmdBuffer);
     m_vkCore->SubmitFrame();
 }
 
-void Renderer::Clear(vk::raii::CommandBuffer &cmdBuffer) {
+void Renderer::ClearCmd(vk::raii::CommandBuffer &cmdBuffer) {
     constexpr vk::ClearColorValue clearColor = {1.0f, .0f, .0f, .0f};
 
     constexpr vk::ImageSubresourceRange imageRange = {

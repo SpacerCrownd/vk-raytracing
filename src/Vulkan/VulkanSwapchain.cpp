@@ -99,6 +99,7 @@ VulkanSwapchain::VulkanSwapchain(VulkanDevice& device, vk::Extent2D extent, vk::
 
 VulkanSwapchain::~VulkanSwapchain() {
 	m_swapchainImageViews.clear();
+	printf("[INFO] Swapchain Destroyed\n");
 }
 
 vk::Result VulkanSwapchain::AcquireNextImage(const vk::raii::Semaphore &renderSemaphore, uint32_t &imageIndex) const {
