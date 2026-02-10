@@ -40,6 +40,22 @@ void VulkanWindow::GlfwScrollCallback(GLFWwindow* window, const double xoffset, 
         callback(xoffset, yoffset);
 }
 
+void VulkanWindow::AddOnKeyChanged(std::function<void(int key, int scancode, int action, int mods)> callback) {
+    onKeyChanged.push_back(std::move(callback));
+}
+
+void VulkanWindow::AddOnCursorPositionChanged(std::function<void(double xpos, double ypos)> callback) {
+    onCursorPositionChanged.push_back(std::move(callback));
+}
+
+void VulkanWindow::AddOnMouseButtonChanged(std::function<void(int button, int action, int mods)> callback) {
+    onMouseButtonChanged.push_back(std::move(callback));
+}
+
+void VulkanWindow::AddOnScrollChanged(std::function<void(double xoffset, double yoffset)> callback) {
+    onScrollChanged.push_back(std::move(callback));
+}
+
 VulkanWindow::VulkanWindow(int width, int height, const char* pName) : m_width(width), m_height(height), m_pName(pName) {
     glfwSetErrorCallback(GlfwErrorCallback);
 
@@ -52,11 +68,15 @@ VulkanWindow::VulkanWindow(int width, int height, const char* pName) : m_width(w
     }
 
     glfwWindowHint(GLFW_CLIENT_API, GLFW_NO_API);
-    //glfwWindowHint(GLFW_RESIZABLE, GLFW_FALSE);
 
     m_window = glfwCreateWindow(width, height, pName, nullptr, nullptr);
 
     glfwSetWindowUserPointer(m_window, this);
+
+    glfwSetCursorPosCallback(m_window, GlfwCursorPositionCallback);
+    glfwSetMouseButtonCallback(m_window, GlfwMouseButtonCallback);
+    glfwSetScrollCallback(m_window, GlfwScrollCallback);
+    glfwSetKeyCallback(m_window, GlfwKeyCallback);
 };
 
 VulkanWindow::~VulkanWindow() {
