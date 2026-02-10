@@ -3,7 +3,7 @@
 #include <vector>
 
 namespace PathTracingVk {
-VulkanDevice::VulkanDevice(VulkanPhysicalDevice &device, std::vector<const char*> devExtensions, vk::QueueFlags requestedQueueTypes, vk::PhysicalDeviceFeatures2 &features) : m_physicalDevice(device) {
+VulkanDevice::VulkanDevice(VulkanPhysicalDevice &device, std::vector<const char*> devExtensions, vk::QueueFlags requestedQueueTypes, vk::PhysicalDeviceFeatures2 &features, InstanceVersion instanceVersion) : m_physicalDevice(device) {
     std::vector<vk::DeviceQueueCreateInfo> queueCreateInfos;
 
     constexpr float defaultQueuePriority(0.0f);
@@ -49,13 +49,12 @@ VulkanDevice::VulkanDevice(VulkanPhysicalDevice &device, std::vector<const char*
         queueFamilyIndices.transfer = queueFamilyIndices.graphics;
     }
 
-    /*
-    bool deviceSupportsDynamicRendering = m_physDevices.Selected().IsExtensionSupported(vk::KHRDynamicRenderingExtensionName);
-    bool instance_is_1_3_or_more = (m_instanceVersion.Major >= 1) || (m_instanceVersion.Minor >= 3);
+    bool deviceSupportsDynamicRendering = m_physicalDevice.IsExtensionSupported(vk::KHRDynamicRenderingExtensionName);
+    bool instance_is_1_3_or_more = (instanceVersion.Major >= 1) || (instanceVersion.Minor >= 3);
     if (instance_is_1_3_or_more && deviceSupportsDynamicRendering) {
         printf("[INFO] The Vulkan instance and device support dynamic rendering as a core feature\n");
     }
-    else if (m_instanceVersion.Minor == 2) {
+    else if (instanceVersion.Minor == 2) {
         if (deviceSupportsDynamicRendering) {
             devExtensions.push_back(vk::KHRDynamicRenderingExtensionName);
         }
@@ -66,7 +65,6 @@ VulkanDevice::VulkanDevice(VulkanPhysicalDevice &device, std::vector<const char*
     else {
         throw std::runtime_error("The system doesn't support dynamic rendering");
     }
-    */
 
     vk::DeviceCreateInfo deviceCreateInfo = {
         .pNext = &features,

@@ -9,7 +9,7 @@ namespace PathTracingVk {
 class VulkanDevice {
 
 public:
-	VulkanDevice(VulkanPhysicalDevice &device, std::vector<const char*> devExtensions, vk::QueueFlags requestedQueueTypes, vk::PhysicalDeviceFeatures2 &features);
+	VulkanDevice(VulkanPhysicalDevice &device, std::vector<const char*> devExtensions, vk::QueueFlags requestedQueueTypes, vk::PhysicalDeviceFeatures2 &features, InstanceVersion instanceVersion);
 	~VulkanDevice() = default;
 
 	[[nodiscard]] const vk::raii::Device& GetDevice() const { return *m_device; }

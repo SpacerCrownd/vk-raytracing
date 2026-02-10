@@ -55,7 +55,7 @@ void VulkanCore::CreateInstance(const char* appName) {
 		.applicationVersion = vk::makeVersion(0, 1, 0),
 		.pEngineName = appName,
 		.engineVersion = vk::makeVersion(0, 1, 0),
-		.apiVersion = vk::makeApiVersion(0, m_instanceVersion.Major, m_instanceVersion.Minor, m_instanceVersion.Patch),
+		.apiVersion = VK_API_VERSION_1_3,
 	};
 
 	std::vector<const char*> layers = {
@@ -151,11 +151,11 @@ void VulkanCore::InitVmaAllocator() {
 	};
 
 	VmaAllocatorCreateInfo allocatorCreateInfo = {
-		.flags = VMA_ALLOCATOR_CREATE_EXT_MEMORY_BUDGET_BIT,
-		.physicalDevice = static_cast<VkPhysicalDevice>(*m_physDevice->m_physDevice),
-		.device = static_cast<VkDevice>(*m_device->GetDevice()),
+		.flags = VMA_ALLOCATOR_CREATE_EXT_MEMORY_BUDGET_BIT, //| VMA_ALLOCATOR_CREATE_BUFFER_DEVICE_ADDRESS_BIT,
+		.physicalDevice = *m_physDevice->m_physDevice,
+		.device = *m_device->GetDevice(),
 		.pVulkanFunctions = &vulkanFunctions,
-		.instance = static_cast<VkInstance>(*m_instance),
+		.instance = *m_instance,
 		.vulkanApiVersion = VK_API_VERSION_1_3,
 	};
 
@@ -348,13 +348,23 @@ void VulkanCore::CreateLogicalDevice() {
 
 	vk::StructureChain<
 		vk::PhysicalDeviceFeatures2,
+		vk::PhysicalDeviceVulkan12Features,
 		vk::PhysicalDeviceVulkan13Features,
 		vk::PhysicalDeviceExtendedDynamicStateFeaturesEXT,
 		vk::PhysicalDeviceRayTracingPipelineFeaturesKHR,
 		vk::PhysicalDeviceAccelerationStructureFeaturesKHR
 	> featureChain = {
 		{},
-		{.dynamicRendering = true},
+		{
+			.descriptorIndexing = true,
+			.descriptorBindingVariableDescriptorCount = true,
+			.runtimeDescriptorArray = true,
+			.bufferDeviceAddress = true
+		},
+		{
+			.synchronization2 = true,
+			.dynamicRendering = true,
+		},
 		{.extendedDynamicState = true},
 		{.rayTracingPipeline = true},
 		{.accelerationStructure = true},
@@ -362,9 +372,10 @@ void VulkanCore::CreateLogicalDevice() {
 
 	featureChain.get<vk::PhysicalDeviceFeatures2>().features.geometryShader = vk::True;
 	featureChain.get<vk::PhysicalDeviceFeatures2>().features.tessellationShader = vk::True;
+	featureChain.get<vk::PhysicalDeviceFeatures2>().features.samplerAnisotropy = vk::True;
 	auto& features = featureChain.get<vk::PhysicalDeviceFeatures2>();
-	printf("%d", m_physDevice->m_qFamilyProperties.size());
-	m_device = std::make_unique<VulkanDevice>(*m_physDevice, devExtensions, vk::QueueFlagBits::eGraphics, features);
+	printf("Queue family properties size%llu", m_physDevice->m_qFamilyProperties.size());
+	m_device = std::make_unique<VulkanDevice>(*m_physDevice, devExtensions, vk::QueueFlagBits::eGraphics, features, m_instanceVersion);
 	m_queue = vk::raii::Queue(m_device->GetDevice(), m_device->queueFamilyIndices.graphics, 0);
 }
 
@@ -424,7 +435,8 @@ void VulkanCore::CreateCommandObjects() {
 }
 
 void VulkanCore::PrepareFrame() {
-	while (m_device->GetDevice().waitForFences(*m_inFlightFences[m_currentFrameIndex], vk::True, UINT64_MAX) == vk::Result::eTimeout);
+	auto fenceResult = m_device->GetDevice().waitForFences(*m_inFlightFences[m_currentFrameIndex], vk::True, UINT64_MAX);
+	VK_CHECK_RESULT(fenceResult, "Failed waiting for frame fence");
 	m_device->GetDevice().resetFences(*m_inFlightFences[m_currentFrameIndex]);
 
 	auto res = m_swapchain->AcquireNextImage(m_renderSemaphores[m_currentFrameIndex], m_currentImageIndex);
@@ -441,18 +453,6 @@ void VulkanCore::PrepareFrame() {
 
 void VulkanCore::SubmitFrame() {
 	m_cmdBuffs[m_currentFrameIndex].end();
-	SubmitAsync(m_cmdBuffs[m_currentFrameIndex]);
-	Present();
-}
-
-// could be renamed in the future, right now it's very specific to drawing to swapchain
-vk::raii::CommandBuffer& VulkanCore::BeginCommandBuffer() {
-	m_cmdPools[m_currentFrameIndex].reset();
-	m_cmdBuffs[m_currentFrameIndex].begin(vk::CommandBufferBeginInfo{.flags = vk::CommandBufferUsageFlagBits::eOneTimeSubmit});
-	return m_cmdBuffs[m_currentFrameIndex];
-}
-
-void VulkanCore::SubmitAsync(const vk::CommandBuffer &cmdBuff) {
 	vk::PipelineStageFlags waitFlags = vk::PipelineStageFlagBits::eColorAttachmentOutput;
 
 	const vk::SubmitInfo submitInfo = {
@@ -461,7 +461,7 @@ void VulkanCore::SubmitAsync(const vk::CommandBuffer &cmdBuff) {
 		.pWaitSemaphores = &*m_renderSemaphores[m_currentFrameIndex],
 		.pWaitDstStageMask = &waitFlags,
 		.commandBufferCount = 1,
-		.pCommandBuffers = &cmdBuff,
+		.pCommandBuffers = &*m_cmdBuffs[m_currentFrameIndex],
 		.signalSemaphoreCount = 1,
 		.pSignalSemaphores = &*m_presentSemaphores[m_currentImageIndex],
 	};
@@ -469,7 +469,13 @@ void VulkanCore::SubmitAsync(const vk::CommandBuffer &cmdBuff) {
 	m_queue.submit(submitInfo, m_inFlightFences[m_currentFrameIndex]);
 }
 
-void VulkanCore::Present() {
+vk::raii::CommandBuffer& VulkanCore::BeginCommandRecording() {
+	m_cmdPools[m_currentFrameIndex].reset();
+	m_cmdBuffs[m_currentFrameIndex].begin(vk::CommandBufferBeginInfo{.flags = vk::CommandBufferUsageFlagBits::eOneTimeSubmit});
+	return m_cmdBuffs[m_currentFrameIndex];
+}
+
+void VulkanCore::PresentFrame() {
 	const vk::PresentInfoKHR presentInfo = {
 		.sType = vk::StructureType::ePresentInfoKHR,
 		.pNext = nullptr,
@@ -558,12 +564,12 @@ void VulkanCore::DeviceWaitIdle() {
 
 vk::Extent2D VulkanCore::ChooseSwapExtent(const vk::SurfaceCapabilitiesKHR& capabilities) {
 	if (capabilities.currentExtent.width != 0xFFFFFFFF) {
-		//printf("%d\n", capabilities.currentExtent);
+		printf("Current image extent: %d x %d\n", capabilities.currentExtent.width, capabilities.currentExtent.height);
 		return capabilities.currentExtent;
 	}
 	int width, height;
 	glfwGetFramebufferSize(m_window.GetWindow(), &width, &height);
-	printf("%d\n", capabilities.maxImageExtent.width);
+	printf("Max image extent: %d\n", capabilities.maxImageExtent.width);
 	return {
 		std::clamp<uint32_t>(width, capabilities.minImageExtent.width, capabilities.maxImageExtent.width),
 		std::clamp<uint32_t>(height, capabilities.minImageExtent.height, capabilities.maxImageExtent.height)

@@ -19,9 +19,6 @@ public:
 	void DeviceWaitIdle();
 	void RecreateSwapchain();
 
-	vk::raii::CommandBuffer& BeginCommandBuffer();
-	void SubmitAsync(const vk::CommandBuffer &cmdBuff);
-
 	[[nodiscard]] vk::Format GetDepthFormat() const { return m_physDevice->m_depthFormat; }
 	[[nodiscard]] vk::raii::Queue* GetQueue() { return &m_queue; }
 	[[nodiscard]] const VulkanSwapchain* GetSwapchain() const { return m_swapchain.get(); }
@@ -29,9 +26,10 @@ public:
 	[[nodiscard]] uint32_t GetCurrentFrameIndex() const { return m_currentFrameIndex; }
 	[[nodiscard]] uint32_t GetCurrentImageIndex() const { return m_currentImageIndex; }
 
-	[[nodiscard]] void PrepareFrame();
-
+	vk::raii::CommandBuffer& BeginCommandRecording();
+	void PrepareFrame();
 	void SubmitFrame();
+	void PresentFrame();
 
 private:
 	const VulkanWindow& m_window;
@@ -72,6 +70,8 @@ private:
 	vk::StridedDeviceAddressRegionKHR m_hitRegion{};
 	vk::StridedDeviceAddressRegionKHR m_callableRegion{}; // callable shader region
 
+	vk::raii::CommandPool m_transientCmdPool{VK_NULL_HANDLE};
+
 	// Scene data
 	const float m_vertices[9] = {
 		0.25f, 0.25f, 0.0f,
@@ -81,11 +81,7 @@ private:
 
 	const uint32_t m_indices[3] = { 0, 1, 2 };
 
-	struct {
-		int Major = 0;
-		int Minor = 0;
-		int Patch = 0;
-	} m_instanceVersion;
+	InstanceVersion m_instanceVersion;
 
 	void CreateInstance(const char* appName);
 	void CreateDebugCallback();
@@ -107,7 +103,7 @@ private:
 
 	void UpdateInstanceVersion();
 
-	void Present();
+
 };
 
 }

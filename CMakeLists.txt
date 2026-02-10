@@ -8,21 +8,13 @@ include(FetchContent)
 
 # Vulkan
 find_package (Vulkan REQUIRED)
+
 # set up Vulkan C++ module
 add_library(VulkanCppModule)
 add_library(Vulkan::cppm ALIAS VulkanCppModule)
-target_compile_definitions(VulkanCppModule PUBLIC
-        VULKAN_HPP_DISPATCH_LOADER_DYNAMIC=1
-        VULKAN_HPP_NO_STRUCT_CONSTRUCTORS=1
-)
-target_include_directories(VulkanCppModule
-        PRIVATE
-        "${Vulkan_INCLUDE_DIR}"
-)
-target_link_libraries(VulkanCppModule
-        PUBLIC
-        Vulkan::Vulkan
-)
+target_compile_definitions(VulkanCppModule PUBLIC VULKAN_HPP_DISPATCH_LOADER_DYNAMIC=1 VULKAN_HPP_NO_STRUCT_CONSTRUCTORS=1)
+target_include_directories(VulkanCppModule PRIVATE "${Vulkan_INCLUDE_DIR}")
+target_link_libraries(VulkanCppModule PUBLIC Vulkan::Vulkan)
 set_target_properties(VulkanCppModule PROPERTIES CXX_STANDARD 20)
 target_sources(VulkanCppModule
         PUBLIC
@@ -32,11 +24,9 @@ target_sources(VulkanCppModule
         FILES
         "${Vulkan_INCLUDE_DIR}/vulkan/vulkan.cppm"
 )
+
 # Add the vulkan.cppm file directly as a source file
-target_sources(VulkanCppModule
-        PRIVATE
-        "${Vulkan_INCLUDE_DIR}/vulkan/vulkan.cppm"
-)
+target_sources(VulkanCppModule PRIVATE "${Vulkan_INCLUDE_DIR}/vulkan/vulkan.cppm")
 
 # GLFW
 FetchContent_Declare(
@@ -62,8 +52,6 @@ FetchContent_Declare(
 )
 FetchContent_MakeAvailable(assimp)
 
-# add_subdirectory(${CMAKE_CURRENT_SOURCE_DIR}/vendor)
-
 add_executable(${PROJECT_NAME}
         src/Pathtracer/Renderer.cpp
         src/Vulkan/VulkanCore.cpp
@@ -84,10 +72,23 @@ add_executable(${PROJECT_NAME}
         src/Pathtracer/Renderer.h
         src/Vulkan/VulkanPhysicalDevice.cpp
         src/Vulkan/VulkanPhysicalDevice.h
+        src/Pathtracer/Camera.cpp
+        src/Pathtracer/Camera.h
+        src/Vulkan/Commands.cpp
+        src/Vulkan/Commands.h
+        src/Vulkan/Resources.cpp
+        src/Vulkan/Resources.h
+        vendor/Tinyobjloader/tiny_obj_loader.h
+        src/Vulkan/ResourceAllocator.cpp
+        src/Vulkan/ResourceAllocator.h
 )
+
+target_include_directories(${PROJECT_NAME} PRIVATE "./vendor")
 
 # Libraries
 target_link_libraries(${PROJECT_NAME} PRIVATE Vulkan::cppm glfw glm::glm assimp)
+
+
 
 add_custom_command(
         TARGET ${PROJECT_NAME} POST_BUILD

@@ -1,10 +1,19 @@
 ﻿#ifndef VK_RAYTRACING_APPLICATION_H
 #define VK_RAYTRACING_APPLICATION_H
 
+#define TINYOBJLOADER_IMPLEMENTATION
+
 #include "../Vulkan/VulkanCore.h"
 #include "Scene.h"
+#include "Camera.h"
 
 namespace PathTracingVk {
+
+struct CameraData {
+	glm::mat4 projection;
+	glm::mat4 view;
+	glm::mat3 position;
+};
 
 class Renderer {
 public:
@@ -21,10 +30,11 @@ private:
 	std::unique_ptr<VulkanWindow> m_mainWindow;
 	std::unique_ptr<VulkanCore> m_vkCore;
 	std::unique_ptr<Scene> m_scene;
+	std::unique_ptr<Camera> m_camera;
 
 	void MainLoop();
 	void Draw();
-	void ClearCmd(vk::raii::CommandBuffer& cmdBuffer); // rasterization only
+	void PrepareFrameData();
 };
 }
 

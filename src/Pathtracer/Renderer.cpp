@@ -3,6 +3,15 @@
 namespace PathTracingVk {
 Renderer::Renderer(int width, int height, const char *pAppName) : width(width), height(height) {
     m_mainWindow = std::make_unique<VulkanWindow>(width, height, pAppName);
+
+    m_camera = std::make_unique<Camera>();
+    m_mainWindow->AddOnKeyChanged(
+    [cam = m_camera.get()](int key, int scancode, int action, int mods)
+    {
+        cam->OnKeyChanged(key, scancode, action, mods);
+    }
+);
+
     m_vkCore = std::make_unique<VulkanCore>(pAppName, *m_mainWindow);
 }
 
@@ -29,12 +38,8 @@ void Renderer::MainLoop() {
 
 void Renderer::Draw() {
     m_vkCore->PrepareFrame();
-    auto& cmdBuffer = m_vkCore->BeginCommandBuffer();
-    ClearCmd(cmdBuffer);
-    m_vkCore->SubmitFrame();
-}
 
-void Renderer::ClearCmd(vk::raii::CommandBuffer &cmdBuffer) {
+    auto& cmdBuffer = m_vkCore->BeginCommandRecording();
     constexpr vk::ClearColorValue clearColor = {1.0f, .0f, .0f, .0f};
 
     constexpr vk::ImageSubresourceRange imageRange = {
@@ -45,11 +50,11 @@ void Renderer::ClearCmd(vk::raii::CommandBuffer &cmdBuffer) {
         .layerCount = 1,
     };
 
-    vk::ImageMemoryBarrier presentToClearBarrier = {
-        .sType = vk::StructureType::eImageMemoryBarrier,
-        .pNext = nullptr,
-        .srcAccessMask = vk::AccessFlagBits::eMemoryRead,
-        .dstAccessMask = vk::AccessFlagBits::eTransferWrite,
+    vk::ImageMemoryBarrier2 presentToWriteBarrier = {
+        .srcStageMask = vk::PipelineStageFlagBits2::eTransfer,
+        .srcAccessMask = vk::AccessFlagBits2::eMemoryRead,
+        .dstStageMask = vk::PipelineStageFlagBits2::eTransfer,
+        .dstAccessMask = vk::AccessFlagBits2::eTransferWrite,
         .oldLayout = vk::ImageLayout::eUndefined,
         .newLayout = vk::ImageLayout::eTransferDstOptimal,
         .srcQueueFamilyIndex = vk::QueueFamilyIgnored,
@@ -57,37 +62,46 @@ void Renderer::ClearCmd(vk::raii::CommandBuffer &cmdBuffer) {
         .subresourceRange = imageRange,
     };
 
-    vk::ImageMemoryBarrier clearToPresentBarrier = {
-        .sType = vk::StructureType::eImageMemoryBarrier,
-        .pNext = nullptr,
-        .srcAccessMask = vk::AccessFlagBits::eTransferWrite,
-        .dstAccessMask = vk::AccessFlagBits::eMemoryRead,
+    vk::ImageMemoryBarrier2 writeToPresentBarrier = {
+        .srcStageMask = vk::PipelineStageFlagBits2::eTransfer,
+        .srcAccessMask = vk::AccessFlagBits2::eTransferWrite,
+        .dstStageMask = vk::PipelineStageFlagBits2::eNone,
+        .dstAccessMask = vk::AccessFlagBits2::eMemoryRead,
         .oldLayout = vk::ImageLayout::eTransferDstOptimal,
         .newLayout = vk::ImageLayout::ePresentSrcKHR,
         .srcQueueFamilyIndex = vk::QueueFamilyIgnored,
         .dstQueueFamilyIndex = vk::QueueFamilyIgnored,
         .subresourceRange = imageRange,
     };
-    uint32_t imgIndex = m_vkCore->GetCurrentImageIndex();
-    uint32_t currentFrame = m_vkCore->GetCurrentFrameIndex();
-    presentToClearBarrier.image = m_vkCore->GetSwapchain()->GetSwapchainImage(static_cast<int>(imgIndex));
-    clearToPresentBarrier.image = m_vkCore->GetSwapchain()->GetSwapchainImage(static_cast<int>(imgIndex));
 
-    cmdBuffer.pipelineBarrier(vk::PipelineStageFlagBits::eTransfer,
-                                      vk::PipelineStageFlagBits::eTransfer,
-                                      vk::DependencyFlags{},
-                                      {},
-                                      {},
-                                      {presentToClearBarrier});
+    uint32_t imgIndex = m_vkCore->GetCurrentImageIndex();
+    presentToWriteBarrier.image = m_vkCore->GetSwapchain()->GetSwapchainImage(static_cast<int>(imgIndex));
+    writeToPresentBarrier.image = m_vkCore->GetSwapchain()->GetSwapchainImage(static_cast<int>(imgIndex));
+
+    vk::DependencyInfoKHR dependencyInfo = {
+        .dependencyFlags = {},
+        .imageMemoryBarrierCount = 1,
+        .pImageMemoryBarriers = &presentToWriteBarrier,
+    };
+
+    cmdBuffer.pipelineBarrier2(dependencyInfo);
 
     cmdBuffer.clearColorImage(m_vkCore->GetSwapchain()->GetSwapchainImage(static_cast<int>(imgIndex)),
                                       vk::ImageLayout::eTransferDstOptimal, clearColor, imageRange);
 
-    cmdBuffer.pipelineBarrier(vk::PipelineStageFlagBits::eTransfer,
-                                      vk::PipelineStageFlagBits::eBottomOfPipe,
-                                      vk::DependencyFlags{},
-                                      {},
-                                      {},
-                                      {clearToPresentBarrier});
+    dependencyInfo = {
+        .dependencyFlags = {},
+        .imageMemoryBarrierCount = 1,
+        .pImageMemoryBarriers = &writeToPresentBarrier,
+    };
+
+    cmdBuffer.pipelineBarrier2(dependencyInfo);
+
+    m_vkCore->SubmitFrame();
+    m_vkCore->PresentFrame();
+}
+
+void Renderer::PrepareFrameData() {
+
 }
 }
