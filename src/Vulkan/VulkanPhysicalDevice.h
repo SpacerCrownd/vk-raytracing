@@ -33,4 +33,4 @@ struct VulkanPhysicalDevice {
 };
 
 
-#endif //VK_RAYTRACING_PHYSICALDEVICE_H
+#endif //VK_RAYTRACING_PHYSICAL_DEVICE_H

@@ -4,8 +4,14 @@
 #include "Vulkan.h"
 #include <vector>
 
-#define CHECK_VK_RESULT(res, msg) \
-if(res != VK_SUCCESS) { \
+#define VK_FAIL_RETURN(res, msg) \
+if(res != vk::Result::eSuccess) { \
+	fprintf(stderr, "[ERROR] Error in %s:%d - %s, code %x", __FILE__, __LINE__, msg, res); \
+	return res; \
+}
+
+#define VK_CHECK_RESULT(res, msg) \
+if(res != vk::Result::eSuccess) { \
 	fprintf(stderr, "[ERROR] Error in %s:%d - %s, code %x", __FILE__, __LINE__, msg, res); \
 	throw std::runtime_error(msg); \
 }
