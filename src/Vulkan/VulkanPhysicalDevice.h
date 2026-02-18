@@ -2,7 +2,6 @@
 #define VK_RAYTRACING_PHYSICAL_DEVICE_H
 
 #include "Vulkan.h"
-
 #include <vector>
 
 struct VulkanPhysicalDevice {

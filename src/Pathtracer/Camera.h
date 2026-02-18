@@ -3,6 +3,7 @@
 
 #define GLM_ENABLE_EXPERIMENTAL
 #include <glm/glm.hpp>
+
 namespace PathTracingVk {
 class Camera {
 public:

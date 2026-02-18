@@ -1,19 +1,14 @@
 #ifndef VULKAN_H
 #define VULKAN_H
 
-import vulkan_hpp;
-#include <memory>
+#include <vulkan/vulkan_raii.hpp>
 
-#define GLFW_INCLUDE_VULKAN
 #include <GLFW/glfw3.h>
-
+#define GLFW_INCLUDE_VULKAN
 #define GLM_FORCE_RADIANS
 #define GLM_FORCE_DEPTH_ZERO_TO_ONE
 
-#include <stdexcept>
-#include <optional>
-
-constexpr int MAX_FRAMES_IN_FLIGHT = 2;
+constexpr uint32_t MAX_FRAMES_IN_FLIGHT = 2;
 
 #ifdef NDEBUG
 constexpr bool enableDebugging = false;

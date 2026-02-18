@@ -1,11 +1,10 @@
 ﻿#ifndef VK_RAYTRACING_APPLICATION_H
 #define VK_RAYTRACING_APPLICATION_H
 
-#define TINYOBJLOADER_IMPLEMENTATION
-
 #include "../Vulkan/VulkanCore.h"
-#include "Scene.h"
+#include "../Vulkan/Scene.h"
 #include "Camera.h"
+#include "../Vulkan/Model.h"
 
 namespace PathTracingVk {
 
@@ -29,10 +28,14 @@ public:
 private:
 	std::unique_ptr<VulkanWindow> m_mainWindow;
 	std::unique_ptr<VulkanCore> m_vkCore;
-	std::unique_ptr<Scene> m_scene;
+	// TODO: std::unique_ptr<Scene> m_scene;
+	std::vector<Model> m_models{};
 	std::unique_ptr<Camera> m_camera;
 
 	void MainLoop();
+
+	void LoadScene();
+
 	void Draw();
 	void PrepareFrameData();
 };

@@ -1,4 +1,11 @@
-﻿#include "Renderer.h"
+﻿#ifndef TINYOBJLOADER_IMPLEMENTATION
+#define TINYOBJLOADER_IMPLEMENTATION
+#include <tinyobjloader/tiny_obj_loader.h>
+#endif
+
+#include <iostream>
+
+#include "Renderer.h"
 
 namespace PathTracingVk {
 Renderer::Renderer(int width, int height, const char *pAppName) : width(width), height(height) {
@@ -21,6 +28,7 @@ Renderer::~Renderer() {
 }
 
 void Renderer::Run() {
+    LoadScene();
     MainLoop();
 }
 
@@ -34,6 +42,48 @@ void Renderer::MainLoop() {
         Draw();
         glfwPollEvents();
     }
+}
+
+void Renderer::LoadScene() {
+    m_models.clear();
+
+    // Mesh data
+    tinyobj::attrib_t attrib;
+    std::vector<tinyobj::shape_t> shapes;
+    std::vector<tinyobj::material_t> materials;
+    if (!tinyobj::LoadObj(&attrib, &shapes, &materials, nullptr, nullptr, "assets/statue.obj")) {
+        std::cerr << "Failed to load obj file" << std::endl;
+    }
+
+    std::vector<Vertex> vertices{};
+    std::vector<uint16_t> indices{};
+    // Load vertex and index data
+    for (auto& index : shapes[0].mesh.indices) {
+        Vertex v{
+            .pos = { attrib.vertices[index.vertex_index * 3], -attrib.vertices[index.vertex_index * 3 + 1], attrib.vertices[index.vertex_index * 3 + 2] },
+            .normal = { attrib.normals[index.normal_index * 3], -attrib.normals[index.normal_index * 3 + 1], attrib.normals[index.normal_index * 3 + 2] },
+            .uv = { attrib.texcoords[index.texcoord_index * 2], 1.0 - attrib.texcoords[index.texcoord_index * 2 + 1] }
+        };
+        vertices.push_back(v);
+        indices.push_back(indices.size());
+    }
+
+    vk::DeviceSize vertexBufferSize = sizeof(Vertex) * vertices.size();
+    vk::DeviceSize indexBufferSize = sizeof(uint16_t) * indices.size();
+    vk::BufferCreateInfo bufferCreateInfo {
+        .size = vertexBufferSize + indexBufferSize,
+        .usage = vk::BufferUsageFlagBits::eVertexBuffer
+            | vk::BufferUsageFlagBits::eIndexBuffer
+            | vk::BufferUsageFlagBits::eStorageBuffer
+            | vk::BufferUsageFlagBits::eAccelerationStructureBuildInputReadOnlyKHR,
+    };
+    VmaAllocationCreateInfo vmaAllocInfo{
+        .flags = VMA_ALLOCATION_CREATE_HOST_ACCESS_SEQUENTIAL_WRITE_BIT
+            | VMA_ALLOCATION_CREATE_HOST_ACCESS_ALLOW_TRANSFER_INSTEAD_BIT
+            | VMA_ALLOCATION_CREATE_MAPPED_BIT,
+        .usage = VMA_MEMORY_USAGE_AUTO
+    };
+    Buffer modelBuffer = m_vkCore->GetResourceAllocator().CreateBuffer(bufferCreateInfo, vmaAllocInfo);
 }
 
 void Renderer::Draw() {
@@ -102,6 +152,6 @@ void Renderer::Draw() {
 }
 
 void Renderer::PrepareFrameData() {
-
+    return;
 }
 }

@@ -4,9 +4,13 @@
 #include <algorithm>
 #include <iostream>
 
-namespace PathTracingVk {
+#include "Commands.h"
 
-static VKAPI_ATTR vk::Bool32 VKAPI_CALL DebugCallback(vk::DebugUtilsMessageSeverityFlagBitsEXT severity, vk::DebugUtilsMessageTypeFlagsEXT type,const vk::DebugUtilsMessengerCallbackDataEXT* pCallbackData, void*) {
+namespace PathTracingVk {
+static VKAPI_ATTR vk::Bool32 VKAPI_CALL DebugCallback(vk::DebugUtilsMessageSeverityFlagBitsEXT severity,
+	vk::DebugUtilsMessageTypeFlagsEXT type,
+	const vk::DebugUtilsMessengerCallbackDataEXT* pCallbackData,
+	void*) {
 	printf("[Debug Callback]\n %s\n", pCallbackData->pMessage);
 	printf("\tSeverity: %s\n", GetDebugSeverityStr(severity));
 	printf("\tType: %s", GetDebugType(type));
@@ -26,16 +30,12 @@ VulkanCore::VulkanCore(const char* appName, const VulkanWindow& window) : m_wind
 	CreateSurface(window.GetWindow());
 	SelectPhysicalDevice();
 	CreateLogicalDevice();
-	InitVmaAllocator();
+	InitResourceAllocator();
 	CreateSwapchain();
 	CreateSyncObjects();
 	CreateCommandObjects();
 	//m_queue = std::make_unique<VulkanQueue>(m_device, m_swapchain, m_queueFamily, 0);
 };
-
-VulkanCore::~VulkanCore() {
-	vmaDestroyAllocator(m_allocator);
-}
 
 void VulkanCore::UpdateInstanceVersion() {
 	uint32_t instanceVersion = m_context.enumerateInstanceVersion();
@@ -144,14 +144,14 @@ void VulkanCore::CreateSurface(GLFWwindow* window) {
 	printf("[INFO] Surface created\n");
 }
 
-void VulkanCore::InitVmaAllocator() {
+void VulkanCore::InitResourceAllocator() {
 	VmaVulkanFunctions vulkanFunctions = {
-		.vkGetInstanceProcAddr = &vkGetInstanceProcAddr,
-		.vkGetDeviceProcAddr = &vkGetDeviceProcAddr,
+		.vkGetInstanceProcAddr = m_instance.getDispatcher()->vkGetInstanceProcAddr,
+		.vkGetDeviceProcAddr = m_device->GetDevice().getDispatcher()->vkGetDeviceProcAddr,
 	};
 
 	VmaAllocatorCreateInfo allocatorCreateInfo = {
-		.flags = VMA_ALLOCATOR_CREATE_EXT_MEMORY_BUDGET_BIT, //| VMA_ALLOCATOR_CREATE_BUFFER_DEVICE_ADDRESS_BIT,
+		.flags = VMA_ALLOCATOR_CREATE_EXT_MEMORY_BUDGET_BIT | VMA_ALLOCATOR_CREATE_BUFFER_DEVICE_ADDRESS_BIT,
 		.physicalDevice = *m_physDevice->m_physDevice,
 		.device = *m_device->GetDevice(),
 		.pVulkanFunctions = &vulkanFunctions,
@@ -159,7 +159,7 @@ void VulkanCore::InitVmaAllocator() {
 		.vulkanApiVersion = VK_API_VERSION_1_3,
 	};
 
-	vmaCreateAllocator(&allocatorCreateInfo, &m_allocator);
+	m_resourceAllocator = std::make_unique<ResourceAllocator>(allocatorCreateInfo, &*m_device);
 	printf("[INFO] VMA Allocator Created\n");
 }
 
@@ -170,168 +170,168 @@ void VulkanCore::SelectPhysicalDevice() {
 
 	// populate physical devices
 	for (uint32_t i = 0; i < vkPhysicalDevices.size(); i++) {
-        auto device = vkPhysicalDevices[i];
+		auto device = vkPhysicalDevices[i];
 
-        // Properties
-        physicalDevices[i].m_physDevice = std::move(device);
-        physicalDevices[i].m_devProperties2 = physicalDevices[i].m_physDevice.getProperties2();
+		// Properties
+		physicalDevices[i].m_physDevice = std::move(device);
+		physicalDevices[i].m_devProperties2 = physicalDevices[i].m_physDevice.getProperties2();
 
-        printf("\nDevice name: %s\n", physicalDevices[i].m_devProperties2.properties.deviceName.data());
+		printf("\nDevice name: %s\n", physicalDevices[i].m_devProperties2.properties.deviceName.data());
 
-        physicalDevices[i].m_features2 = physicalDevices[i].m_physDevice.getFeatures2();
+		physicalDevices[i].m_features2 = physicalDevices[i].m_physDevice.getFeatures2();
 
-        // API version
-        uint32_t apiVersion = physicalDevices[i].m_devProperties2.properties.apiVersion;
-        printf("	API version: %d.%d.%d.%d\n",
-               vk::apiVersionVariant(apiVersion),
-               vk::apiVersionMajor(apiVersion),
-               vk::apiVersionMinor(apiVersion),
-               vk::apiVersionPatch(apiVersion)
-        );
+		// API version
+		uint32_t apiVersion = physicalDevices[i].m_devProperties2.properties.apiVersion;
+		printf("	API version: %d.%d.%d.%d\n",
+			   vk::apiVersionVariant(apiVersion),
+			   vk::apiVersionMajor(apiVersion),
+			   vk::apiVersionMinor(apiVersion),
+			   vk::apiVersionPatch(apiVersion)
+		);
 
-        if (apiVersion < vk::ApiVersion13) {
-            throw std::runtime_error("API version lower than 1.3");
-        }
+		if (apiVersion < vk::ApiVersion13) {
+			throw std::runtime_error("API version lower than 1.3");
+		}
 
-        // Queue Families
-        physicalDevices[i].m_qFamilyProperties = physicalDevices[i].m_physDevice.getQueueFamilyProperties();
-        size_t numQFamilies = physicalDevices[i].m_qFamilyProperties.size();
-        physicalDevices[i].m_qSupportsPresent.resize(numQFamilies);
-        printf("	Number of Queue families: %d\n", static_cast<int>(numQFamilies));
+		// Queue Families
+		physicalDevices[i].m_qFamilyProperties = physicalDevices[i].m_physDevice.getQueueFamilyProperties();
+		size_t numQFamilies = physicalDevices[i].m_qFamilyProperties.size();
+		physicalDevices[i].m_qSupportsPresent.resize(numQFamilies);
+		printf("	Number of Queue families: %d\n", static_cast<int>(numQFamilies));
 
-        for (uint32_t j = 0; j < numQFamilies; j++) {
-            auto queueFamProperty = physicalDevices[i].m_qFamilyProperties[j];
-            printf("	Family %d Num queues %d", j, queueFamProperty.queueCount);
+		for (uint32_t j = 0; j < numQFamilies; j++) {
+			auto queueFamProperty = physicalDevices[i].m_qFamilyProperties[j];
+			printf("	Family %d Num queues %d", j, queueFamProperty.queueCount);
 
-            vk::QueueFlags flags = queueFamProperty.queueFlags;
-            printf("	Graphics %s, Compute %s, Transfer %s, Sparse binding %s\n",
-                   (flags & vk::QueueFlagBits::eGraphics) ? "Yes" : "No",
-                   (flags & vk::QueueFlagBits::eCompute) ? "Yes" : "No",
-                   (flags & vk::QueueFlagBits::eTransfer) ? "Yes" : "No",
-                   (flags & vk::QueueFlagBits::eSparseBinding) ? "Yes" : "No"
-            );
+			vk::QueueFlags flags = queueFamProperty.queueFlags;
+			printf("	Graphics %s, Compute %s, Transfer %s, Sparse binding %s\n",
+				   (flags & vk::QueueFlagBits::eGraphics) ? "Yes" : "No",
+				   (flags & vk::QueueFlagBits::eCompute) ? "Yes" : "No",
+				   (flags & vk::QueueFlagBits::eTransfer) ? "Yes" : "No",
+				   (flags & vk::QueueFlagBits::eSparseBinding) ? "Yes" : "No"
+			);
 
-            physicalDevices[i].m_qSupportsPresent[j] = physicalDevices[i].m_physDevice.getSurfaceSupportKHR(j, m_surface);
-        }
-        printf("\n	Surface Stuff\n");
-        // Formats
-        physicalDevices[i].m_surfaceFormats = physicalDevices[i].m_physDevice.getSurfaceFormatsKHR(m_surface);
+			physicalDevices[i].m_qSupportsPresent[j] = physicalDevices[i].m_physDevice.getSurfaceSupportKHR(j, m_surface);
+		}
+		printf("\n	Surface Stuff\n");
+		// Formats
+		physicalDevices[i].m_surfaceFormats = physicalDevices[i].m_physDevice.getSurfaceFormatsKHR(m_surface);
 
-        for (const auto [format, colorSpace]: physicalDevices[i].m_surfaceFormats) {
-            printf("	Format %d color space %d\n", format, colorSpace);
-        }
+		for (const auto [format, colorSpace]: physicalDevices[i].m_surfaceFormats) {
+			printf("	Format %d color space %d\n", format, colorSpace);
+		}
 
-        // Capabilities
-        physicalDevices[i].m_surfaceCapabilities = physicalDevices[i].m_physDevice.getSurfaceCapabilitiesKHR(m_surface);
-        PrintImageUsageFlags(physicalDevices[i].m_surfaceCapabilities.supportedUsageFlags);
-        printf("	minImageCount = %d maxImageCount = %d\n", physicalDevices[i].m_surfaceCapabilities.minImageCount,
-               physicalDevices[i].m_surfaceCapabilities.maxImageCount);
-        printf("	currentExtent = %d x %d\n", physicalDevices[i].m_surfaceCapabilities.currentExtent.width,
-               physicalDevices[i].m_surfaceCapabilities.currentExtent.height);
-        printf("	maxImageExtent = %d x %d\n", physicalDevices[i].m_surfaceCapabilities.maxImageExtent.width,
-               physicalDevices[i].m_surfaceCapabilities.maxImageExtent.height);
-        printf("	minImageExtent = %d x %d\n", physicalDevices[i].m_surfaceCapabilities.minImageExtent.width,
-               physicalDevices[i].m_surfaceCapabilities.minImageExtent.height);
+		// Capabilities
+		physicalDevices[i].m_surfaceCapabilities = physicalDevices[i].m_physDevice.getSurfaceCapabilitiesKHR(m_surface);
+		PrintImageUsageFlags(physicalDevices[i].m_surfaceCapabilities.supportedUsageFlags);
+		printf("	minImageCount = %d maxImageCount = %d\n", physicalDevices[i].m_surfaceCapabilities.minImageCount,
+			   physicalDevices[i].m_surfaceCapabilities.maxImageCount);
+		printf("	currentExtent = %d x %d\n", physicalDevices[i].m_surfaceCapabilities.currentExtent.width,
+			   physicalDevices[i].m_surfaceCapabilities.currentExtent.height);
+		printf("	maxImageExtent = %d x %d\n", physicalDevices[i].m_surfaceCapabilities.maxImageExtent.width,
+			   physicalDevices[i].m_surfaceCapabilities.maxImageExtent.height);
+		printf("	minImageExtent = %d x %d\n", physicalDevices[i].m_surfaceCapabilities.minImageExtent.width,
+			   physicalDevices[i].m_surfaceCapabilities.minImageExtent.height);
 
-        // Present modes
-        physicalDevices[i].m_presentModes = physicalDevices[i].m_physDevice.getSurfacePresentModesKHR(m_surface);
+		// Present modes
+		physicalDevices[i].m_presentModes = physicalDevices[i].m_physDevice.getSurfacePresentModesKHR(m_surface);
 
-        printf("	Present modes: %d\n", static_cast<int>(physicalDevices[i].m_presentModes.size()));
+		printf("	Present modes: %d\n", static_cast<int>(physicalDevices[i].m_presentModes.size()));
 
-        for (const vk::PresentModeKHR presentMode: physicalDevices[i].m_presentModes) {
-            auto name = "";
+		for (const vk::PresentModeKHR presentMode: physicalDevices[i].m_presentModes) {
+			auto name = "";
 
-            switch (presentMode) {
-                case vk::PresentModeKHR::eImmediate:
-                    name = "IMMEDIATE";
-                    break;
-                case vk::PresentModeKHR::eMailbox:
-                    name = "MAILBOX";
-                    break;
-                case vk::PresentModeKHR::eFifo:
-                    name = "FIFO";
-                    break;
-                case vk::PresentModeKHR::eFifoRelaxed:
-                    name = "FIFO_RELAXED";
-                    break;
-                default: name = "UNKNOWN";
-                    break;
-            }
+			switch (presentMode) {
+				case vk::PresentModeKHR::eImmediate:
+					name = "IMMEDIATE";
+					break;
+				case vk::PresentModeKHR::eMailbox:
+					name = "MAILBOX";
+					break;
+				case vk::PresentModeKHR::eFifo:
+					name = "FIFO";
+					break;
+				case vk::PresentModeKHR::eFifoRelaxed:
+					name = "FIFO_RELAXED";
+					break;
+				default: name = "UNKNOWN";
+					break;
+			}
 
-            printf("	Present mode %s supported\n", name);
-        }
+			printf("	Present mode %s supported\n", name);
+		}
 
-        // Memory properties
-        physicalDevices[i].m_memProperties = physicalDevices[i].m_physDevice.getMemoryProperties();
-        printf("Memory types: %d\n", physicalDevices[i].m_memProperties.memoryTypeCount);
+		// Memory properties
+		physicalDevices[i].m_memProperties = physicalDevices[i].m_physDevice.getMemoryProperties();
+		printf("Memory types: %d\n", physicalDevices[i].m_memProperties.memoryTypeCount);
 
-        for (uint32_t j = 0; j < physicalDevices[i].m_memProperties.memoryTypeCount; j++) {
-            printf("%d: flags %x, heap %d ",
-                   j,
-                   static_cast<uint32_t>(physicalDevices[i].m_memProperties.memoryTypes[j].propertyFlags),
-                   physicalDevices[i].m_memProperties.memoryTypes[j].heapIndex
-            );
+		for (uint32_t j = 0; j < physicalDevices[i].m_memProperties.memoryTypeCount; j++) {
+			printf("%d: flags %x, heap %d ",
+				   j,
+				   static_cast<uint32_t>(physicalDevices[i].m_memProperties.memoryTypes[j].propertyFlags),
+				   physicalDevices[i].m_memProperties.memoryTypes[j].heapIndex
+			);
 
-            PrintMemoryProperty(physicalDevices[i].m_memProperties.memoryTypes[j].propertyFlags);
-            printf("\n");
-        }
-        printf("Heap Types %d\n", physicalDevices[i].m_memProperties.memoryHeapCount);
+			PrintMemoryProperty(physicalDevices[i].m_memProperties.memoryTypes[j].propertyFlags);
+			printf("\n");
+		}
+		printf("Heap Types %d\n", physicalDevices[i].m_memProperties.memoryHeapCount);
 
-        //extensions
-        physicalDevices[i].m_extensions = physicalDevices[i].m_physDevice.enumerateDeviceExtensionProperties();
+		//extensions
+		physicalDevices[i].m_extensions = physicalDevices[i].m_physDevice.enumerateDeviceExtensionProperties();
 
-        physicalDevices[i].m_depthFormat = FindDepthFormat(physicalDevices[i].m_physDevice);
+		physicalDevices[i].m_depthFormat = FindDepthFormat(physicalDevices[i].m_physDevice);
 
-        /*printf("Available extensions:\n");
-        std::cout << "Extension count: " << m_devices[i].m_extensions.size() << "\n";
-        for (const auto& ext : m_devices[i].m_extensions) {
-            std::cout << std::string(ext.extensionName.data()) << "\n";
-        }*/
-    }
+		/*printf("Available extensions:\n");
+		std::cout << "Extension count: " << m_devices[i].m_extensions.size() << "\n";
+		for (const auto& ext : m_devices[i].m_extensions) {
+			std::cout << std::string(ext.extensionName.data()) << "\n";
+		}*/
+	}
 
 	for (auto & physicalDevice : physicalDevices) {
-        // Check device extensions
-        bool missingRequiredExtensions = false;
+		// Check device extensions
+		bool missingRequiredExtensions = false;
 
-        std::vector<const char *> requiredExtensions = {
-            vk::KHRRayTracingPipelineExtensionName,
-            vk::KHRAccelerationStructureExtensionName,
-            vk::KHRDeferredHostOperationsExtensionName
-        };
+		std::vector<const char *> requiredExtensions = {
+			vk::KHRRayTracingPipelineExtensionName,
+			vk::KHRAccelerationStructureExtensionName,
+			vk::KHRDeferredHostOperationsExtensionName
+		};
 
-        for (auto reqExtension: requiredExtensions) {
-            if (!physicalDevice.IsExtensionSupported(reqExtension)) {
-                missingRequiredExtensions = true;
-                break;
-            }
-        }
+		for (auto reqExtension: requiredExtensions) {
+			if (!physicalDevice.IsExtensionSupported(reqExtension)) {
+				missingRequiredExtensions = true;
+				break;
+			}
+		}
 
-        if (missingRequiredExtensions)
-            continue;
+		if (missingRequiredExtensions)
+			continue;
 
-        // Check device features
-        if (physicalDevice.m_features2.features.geometryShader == vk::False) {
-            continue;
-        }
+		// Check device features
+		if (physicalDevice.m_features2.features.geometryShader == vk::False) {
+			continue;
+		}
 
-        if (physicalDevice.m_features2.features.tessellationShader == vk::False) {
-            continue;
-        }
+		if (physicalDevice.m_features2.features.tessellationShader == vk::False) {
+			continue;
+		}
 
-        physicalDevice.m_asProperties =
-            physicalDevice.m_physDevice.getProperties2<vk::PhysicalDeviceProperties2, vk::PhysicalDeviceAccelerationStructurePropertiesKHR>()
-                .get<vk::PhysicalDeviceAccelerationStructurePropertiesKHR>();
+		physicalDevice.m_asProperties =
+			physicalDevice.m_physDevice.getProperties2<vk::PhysicalDeviceProperties2, vk::PhysicalDeviceAccelerationStructurePropertiesKHR>()
+				.get<vk::PhysicalDeviceAccelerationStructurePropertiesKHR>();
 
-        physicalDevice.m_rtProperties =
-            physicalDevice.m_physDevice.getProperties2<vk::PhysicalDeviceProperties2, vk::PhysicalDeviceRayTracingPipelinePropertiesKHR>()
-                .get<vk::PhysicalDeviceRayTracingPipelinePropertiesKHR>();
+		physicalDevice.m_rtProperties =
+			physicalDevice.m_physDevice.getProperties2<vk::PhysicalDeviceProperties2, vk::PhysicalDeviceRayTracingPipelinePropertiesKHR>()
+				.get<vk::PhysicalDeviceRayTracingPipelinePropertiesKHR>();
 
 		m_physDevice = std::make_unique<VulkanPhysicalDevice>(physicalDevice);
 		printf("[INFO] Physical Device selected: %s\n", m_physDevice->m_devProperties2.properties.deviceName.data());
 		return;
-    }
+	}
 
-    throw std::runtime_error("No physical device with required queue type and ray tracing capabilities found");
+	throw std::runtime_error("No physical device with required queue type and ray tracing capabilities found");
 }
 
 void VulkanCore::CreateLogicalDevice() {
@@ -423,12 +423,15 @@ void VulkanCore::CreateSyncObjects() {
 void VulkanCore::CreateCommandObjects() {
 	m_cmdPools.clear();
 	m_cmdBuffs.clear();
+	m_transientCmdPool.clear();
+
+	m_transientCmdPool = CreateTransientCommandPool(m_device->GetDevice(), m_device->queueFamilyIndices.graphics);
 
 	for (int i = 0; i < MAX_FRAMES_IN_FLIGHT; i++) {
 		m_cmdPools.emplace_back(m_device->GetDevice(), vk::CommandPoolCreateInfo{.queueFamilyIndex = m_device->queueFamilyIndices.graphics});
 		m_cmdBuffs.push_back(std::move(vk::raii::CommandBuffers(m_device->GetDevice(), vk::CommandBufferAllocateInfo{.commandPool = m_cmdPools[i],
-			                                                   .level = vk::CommandBufferLevel::ePrimary,
-			                                                   .commandBufferCount = 1}).front()));
+															   .level = vk::CommandBufferLevel::ePrimary,
+															   .commandBufferCount = 1}).front()));
 	}
 
 	printf("[INFO] Command pools and buffers created\n");
@@ -506,10 +509,14 @@ void VulkanCore::PresentFrame() {
 	m_currentFrameIndex = (m_currentFrameIndex + 1) % MAX_FRAMES_IN_FLIGHT;
 }
 
-void VulkanCore::CreateBLAS(vk::raii::CommandBuffer& cmdBuff) {
-	// for each model in the scene
+// TODO: Load scene
+// void VulkanCore::LoadScene(Scene scene) {}
 
-	// test code
+void VulkanCore::CreateBLAS(vk::raii::CommandBuffer& cmdBuff) {
+	// TODO: after model and scene loading -> create blas for each model in the scene
+
+	// TEST GEOMETRY LOADING
+
 	auto triangleData = vk::AccelerationStructureGeometryTrianglesDataKHR{
 		.sType = vk::StructureType::eAccelerationStructureGeometryTrianglesDataKHR,
 		.vertexFormat = vk::Format::eR32G32B32Sfloat,

@@ -12,8 +12,8 @@ public:
 	VulkanDevice(VulkanPhysicalDevice &device, std::vector<const char*> devExtensions, vk::QueueFlags requestedQueueTypes, vk::PhysicalDeviceFeatures2 &features, InstanceVersion instanceVersion);
 	~VulkanDevice() = default;
 
-	[[nodiscard]] const vk::raii::Device& GetDevice() const { return *m_device; }
-	[[nodiscard]] const VulkanPhysicalDevice& GetPhysicalDevice() const { return m_physicalDevice; }
+	[[nodiscard]] vk::raii::Device& GetDevice() const { return *m_device; }
+	[[nodiscard]] VulkanPhysicalDevice& GetPhysicalDevice() const { return m_physicalDevice; }
 	[[nodiscard]] uint32_t GetMemoryType(uint32_t typeBits, vk::MemoryPropertyFlags properties, vk::Bool32& memTypeFound) const;
 
 	struct {

@@ -1,7 +1,7 @@
 ﻿#include "Commands.h"
 
 namespace PathTracingVk {
-vk::raii::CommandPool CreateTransientCommandPool(vk::raii::Device& device, uint32_t queueFamilyIndex) {
+vk::raii::CommandPool CreateTransientCommandPool(vk::raii::Device &device, uint32_t queueFamilyIndex) {
     return vk::raii::CommandPool(device, {
         .flags            = vk::CommandPoolCreateFlagBits::eTransient,
         .queueFamilyIndex = queueFamilyIndex,

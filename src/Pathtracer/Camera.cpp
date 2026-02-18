@@ -77,9 +77,9 @@ void Camera::OnCursorPositionChanged(double xpos, double ypos) {
     lastY = ypos;
 
     // apply drag to camera
-    float sensitivity{0.1};
-    yaw   += dx * sensitivity;
-    pitch += dy * sensitivity;
+    double sensitivity{0.1};
+    yaw   += static_cast<float>(dx) * static_cast<float>(sensitivity);
+    pitch += static_cast<float>(dy) * static_cast<float>(sensitivity);
 
     // optional clamp
     pitch = std::clamp(pitch, -89.0f, 89.0f);

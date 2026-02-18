@@ -1,6 +1,5 @@
-﻿cmake_minimum_required (VERSION 3.31)
-set(CMAKE_CXX_SCAN_FOR_MODULES ON)
-set(CMAKE_CXX_STANDARD 20)
+﻿cmake_minimum_required (VERSION 3.14 FATAL_ERROR)
+set(CMAKE_CXX_STANDARD 23)
 
 project (vk-raytracing)
 
@@ -8,25 +7,11 @@ include(FetchContent)
 
 # Vulkan
 find_package (Vulkan REQUIRED)
-
-# set up Vulkan C++ module
-add_library(VulkanCppModule)
-add_library(Vulkan::cppm ALIAS VulkanCppModule)
-target_compile_definitions(VulkanCppModule PUBLIC VULKAN_HPP_DISPATCH_LOADER_DYNAMIC=1 VULKAN_HPP_NO_STRUCT_CONSTRUCTORS=1)
-target_include_directories(VulkanCppModule PRIVATE "${Vulkan_INCLUDE_DIR}")
-target_link_libraries(VulkanCppModule PUBLIC Vulkan::Vulkan)
-set_target_properties(VulkanCppModule PROPERTIES CXX_STANDARD 20)
-target_sources(VulkanCppModule
-        PUBLIC
-        FILE_SET cxx_modules TYPE CXX_MODULES
-        BASE_DIRS
-        "${Vulkan_INCLUDE_DIR}"
-        FILES
-        "${Vulkan_INCLUDE_DIR}/vulkan/vulkan.cppm"
+add_compile_definitions(
+        VULKAN_HPP_DISPATCH_LOADER_DYNAMIC=1
+        VULKAN_HPP_NO_STRUCT_CONSTRUCTORS=1
+        VULKAN_HPP_NO_MODULE
 )
-
-# Add the vulkan.cppm file directly as a source file
-target_sources(VulkanCppModule PRIVATE "${Vulkan_INCLUDE_DIR}/vulkan/vulkan.cppm")
 
 # GLFW
 FetchContent_Declare(
@@ -44,26 +29,18 @@ FetchContent_Declare(
 )
 FetchContent_MakeAvailable(glm)
 
-# assimp
-FetchContent_Declare(
-    assimp
-    GIT_REPOSITORY https://github.com/assimp/assimp.git
-    GIT_TAG v6.0.2
-)
-FetchContent_MakeAvailable(assimp)
-
 add_executable(${PROJECT_NAME}
         src/Pathtracer/Renderer.cpp
         src/Vulkan/VulkanCore.cpp
         src/Vulkan/VulkanUtils.cpp
         src/Vulkan/VulkanDevice.cpp
         src/Vulkan/vk_mem_alloc.cpp
-        src/Pathtracer/Model.cpp
-        src/Pathtracer/Model.h
+        src/Vulkan/Model.cpp
+        src/Vulkan/Model.h
         src/Vulkan/VulkanShader.cpp
         src/Vulkan/VulkanShader.h
-        src/Pathtracer/Scene.cpp
-        src/Pathtracer/Scene.h
+        src/Vulkan/Scene.cpp
+        src/Vulkan/Scene.h
         src/Vulkan/VulkanSwapchain.cpp
         src/Vulkan/VulkanSwapchain.h
         src/Vulkan/VulkanWindow.cpp
@@ -76,19 +53,20 @@ add_executable(${PROJECT_NAME}
         src/Pathtracer/Camera.h
         src/Vulkan/Commands.cpp
         src/Vulkan/Commands.h
-        src/Vulkan/Resources.cpp
         src/Vulkan/Resources.h
         vendor/Tinyobjloader/tiny_obj_loader.h
         src/Vulkan/ResourceAllocator.cpp
         src/Vulkan/ResourceAllocator.h
 )
 
+# Libraries
+target_link_libraries(${PROJECT_NAME} PRIVATE Vulkan::Vulkan glfw glm::glm ${Slang_LIBRARY})
+
 target_include_directories(${PROJECT_NAME} PRIVATE "./vendor")
 
-# Libraries
-target_link_libraries(${PROJECT_NAME} PRIVATE Vulkan::cppm glfw glm::glm assimp)
+add_custom_target(copy_assets COMMAND ${CMAKE_COMMAND} -P ${CMAKE_CURRENT_LIST_DIR}/copy_assets.cmake)
 
-
+add_dependencies(${PROJECT_NAME} copy_assets)
 
 add_custom_command(
         TARGET ${PROJECT_NAME} POST_BUILD

@@ -1,7 +1,5 @@
 #include "VulkanDevice.h"
 
-#include <vector>
-
 namespace PathTracingVk {
 VulkanDevice::VulkanDevice(VulkanPhysicalDevice &device, std::vector<const char*> devExtensions, vk::QueueFlags requestedQueueTypes, vk::PhysicalDeviceFeatures2 &features, InstanceVersion instanceVersion) : m_physicalDevice(device) {
     std::vector<vk::DeviceQueueCreateInfo> queueCreateInfos;

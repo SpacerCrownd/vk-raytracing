@@ -4,12 +4,13 @@
 #include "vk_mem_alloc.h"
 #include "Vulkan.h"
 
-namespace PathTracerVk {
+namespace PathTracingVk {
 struct Buffer {
     vk::raii::Buffer buffer{VK_NULL_HANDLE};
     vk::DeviceSize bufferSize{};
-    vk::DeviceAddress address{};
+    vk::DeviceAddress address{}; // buffer address in shader (Buffer Device Address extension)
     VmaAllocation allocation{};
+    void* mapping{};
 };
 
 struct Image {
@@ -21,8 +22,9 @@ struct Image {
 };
 
 struct AccelerationStructure {
-    vk::AccelerationStructureKHR as{};
-    vk::DeviceAddress device{};
+    vk::AccelerationStructureKHR accel{};
+    vk::DeviceAddress address{};
+    Buffer buffer{};
 };
 }
 
