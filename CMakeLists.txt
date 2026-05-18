@@ -5,6 +5,8 @@ project (vk-raytracing)
 
 include(FetchContent)
 
+find_program(SLANGC_EXECUTABLE slangc REQUIRED)
+
 # Vulkan
 find_package (Vulkan REQUIRED)
 add_compile_definitions(
@@ -30,49 +32,23 @@ FetchContent_Declare(
 FetchContent_MakeAvailable(glm)
 
 add_executable(${PROJECT_NAME}
-        src/Pathtracer/Renderer.cpp
-        src/Vulkan/VulkanCore.cpp
-        src/Vulkan/VulkanUtils.cpp
-        src/Vulkan/VulkanDevice.cpp
-        src/Vulkan/vk_mem_alloc.cpp
-        src/Vulkan/Model.cpp
-        src/Vulkan/Model.h
-        src/Vulkan/VulkanShader.cpp
-        src/Vulkan/VulkanShader.h
-        src/Vulkan/Scene.cpp
-        src/Vulkan/Scene.h
-        src/Vulkan/VulkanSwapchain.cpp
-        src/Vulkan/VulkanSwapchain.h
-        src/Vulkan/VulkanWindow.cpp
-        src/Vulkan/VulkanWindow.h
+        src/vulkan/Core.cpp
+        src/vulkan/Utils.cpp
+        src/vulkan/Commands.cpp
+        src/vulkan/Device.cpp
+        src/vulkan/Shader.cpp
+        src/vulkan/Swapchain.cpp
+        src/vulkan/Window.cpp
+        src/vulkan/PhysicalDevice.cpp
+        src/vulkan/ResourceAllocator.cpp
         src/main.cpp
-        src/Pathtracer/Renderer.h
-        src/Vulkan/VulkanPhysicalDevice.cpp
-        src/Vulkan/VulkanPhysicalDevice.h
-        src/Pathtracer/Camera.cpp
-        src/Pathtracer/Camera.h
-        src/Vulkan/Commands.cpp
-        src/Vulkan/Commands.h
-        src/Vulkan/Resources.h
-        vendor/Tinyobjloader/tiny_obj_loader.h
-        src/Vulkan/ResourceAllocator.cpp
-        src/Vulkan/ResourceAllocator.h
+        src/Renderer.cpp
+        src/Camera.cpp
+        src/GltfUtils.cpp
+        src/GltfScene.cpp
 )
 
-# Libraries
-target_link_libraries(${PROJECT_NAME} PRIVATE Vulkan::Vulkan glfw glm::glm ${Slang_LIBRARY})
-
-target_include_directories(${PROJECT_NAME} PRIVATE "./vendor")
-
-add_custom_target(copy_assets COMMAND ${CMAKE_COMMAND} -P ${CMAKE_CURRENT_LIST_DIR}/copy_assets.cmake)
-
-add_dependencies(${PROJECT_NAME} copy_assets)
-
-add_custom_command(
-        TARGET ${PROJECT_NAME} POST_BUILD
-        COMMAND ${CMAKE_COMMAND} -E copy_directory ${CMAKE_SOURCE_DIR}/shaders $<TARGET_FILE_DIR:${PROJECT_NAME}>/shaders
-)
-
+# Shaders
 function(add_slang_shader_target TARGET)
     cmake_parse_arguments(SHADER "" "PROFILE" "SOURCES;ENTRIES" ${ARGN})
 
@@ -90,13 +66,15 @@ function(add_slang_shader_target TARGET)
 
     set(SHADER_OUTPUTS "")
 
+    set(SHADER_OUTPUT_DIR ${CMAKE_CURRENT_BINARY_DIR}/shaders)
+
     foreach(SHADER_FILE ${SHADER_SOURCES})
         get_filename_component(FILE_NAME ${SHADER_FILE} NAME_WE)
-        set(OUTPUT_FILE ${CMAKE_CURRENT_BINARY_DIR}/${FILE_NAME}.spv)
+        set(OUTPUT_FILE ${SHADER_OUTPUT_DIR}/${FILE_NAME}.spv)
 
         add_custom_command(
                 OUTPUT ${OUTPUT_FILE}
-                COMMAND ${CMAKE_COMMAND} -E make_directory ${CMAKE_CURRENT_BINARY_DIR}
+                COMMAND ${CMAKE_COMMAND} -E make_directory ${SHADER_OUTPUT_DIR}
                 COMMAND ${SLANGC_EXECUTABLE} ${SHADER_FILE}
                 -target spirv
                 -profile ${SHADER_PROFILE}
@@ -114,3 +92,34 @@ function(add_slang_shader_target TARGET)
 
     add_custom_target(${TARGET} DEPENDS ${SHADER_OUTPUTS})
 endfunction()
+
+set(SHADER_SOURCES
+        ${CMAKE_CURRENT_SOURCE_DIR}/src/shaders/testRaster.slang
+)
+
+add_slang_shader_target(
+        ${PROJECT_NAME}_shaders
+
+        SOURCES
+            ${SHADER_SOURCES}
+
+        ENTRIES
+            -entry vertMain
+            -entry fragMain
+
+        PROFILE
+            spirv_1_4
+)
+
+target_include_directories(${PROJECT_NAME} PRIVATE "./vendor")
+
+add_custom_command(TARGET ${PROJECT_NAME} POST_BUILD
+        COMMAND ${CMAKE_COMMAND} -E copy_directory
+        ${CMAKE_SOURCE_DIR}/assets
+        ${CMAKE_CURRENT_BINARY_DIR}/assets
+)
+
+add_dependencies(${PROJECT_NAME} ${PROJECT_NAME}_shaders)
+
+# Libraries
+target_link_libraries(${PROJECT_NAME} PRIVATE Vulkan::Vulkan glfw glm::glm)

@@ -366,3 +366,4 @@ FodyWeavers.xsd
 build/
 
 .idea/
+/assets
