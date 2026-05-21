@@ -16,6 +16,7 @@ public:
 	Renderer(int width, int height, const char* pAppName);
 	~Renderer();
 
+
 	void Run();
 
 private:
@@ -28,13 +29,13 @@ private:
 	std::optional<ptvk::Shader> m_rtShader;
 
 	void MainLoop();
+	void PrepareFrameData();
+	void Draw();
 
 	void CreateScene();
+
 	void LoadShaders();
-
-	void Draw();
-	void PrepareFrameData();
-
+	void CreateGraphicsPipeline();
 };
 }
 

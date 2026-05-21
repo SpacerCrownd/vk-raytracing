@@ -1,12 +1,14 @@
 #ifndef VULKAN_CORE_H
 #define VULKAN_CORE_H
 
-#include "ResourceAllocator.h"
 #include "Vulkan.h"
+#include "ResourceAllocator.h"
 #include "Device.h"
 #include "Swapchain.h"
 #include "Window.h"
 #include "PhysicalDevice.h"
+#include "Shader.h"
+#include "GraphicsPipeline.h"
 
 namespace ptvk {
 
@@ -27,9 +29,12 @@ public:
 	[[nodiscard]] const ResourceAllocator& GetResourceAllocator() const { return *m_resourceAllocator; }
 
 	vk::raii::CommandBuffer& BeginCommandRecording();
+
 	void PrepareFrame();
 	void SubmitFrame();
 	void PresentFrame();
+
+	void CreateGraphicsPipeline(Shader rasterShader);
 
 private:
 	const Window& m_window;
@@ -40,9 +45,10 @@ private:
 
 	std::unique_ptr<PhysicalDevice> m_physDevice{};
 	std::unique_ptr<Device> m_device{};
+	std::unique_ptr<Swapchain> m_swapchain{};
 
 	vk::raii::Queue m_queue{VK_NULL_HANDLE}; // graphics queue
-	std::unique_ptr<Swapchain> m_swapchain{};
+
 	std::vector<vk::raii::CommandPool> m_cmdPools{};
 	std::vector<vk::raii::CommandBuffer> m_cmdBuffs{};
 
@@ -53,7 +59,8 @@ private:
 	uint32_t m_currentFrameIndex{0};
 	uint32_t m_currentImageIndex{0};
 
-	//std::array<>
+	// Rasterization
+	std::unique_ptr<GraphicsPipeline> m_graphicsPipeline;
 
 	// Raytracing pipeline components
 	vk::raii::Pipeline m_rtPipeline{VK_NULL_HANDLE};

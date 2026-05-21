@@ -24,7 +24,8 @@ static VKAPI_ATTR vk::Bool32 VKAPI_CALL DebugCallback(vk::DebugUtilsMessageSever
 	return vk::False;
 }
 
-Core::Core(const char* appName, const Window& window) : m_window(window) {
+Core::Core(const char* appName, const Window& window) : m_window(window)
+{
 	CreateInstance(appName);
 	if (enableDebugging) { CreateDebugCallback(); }
 	CreateSurface(window.GetWindow());
@@ -59,7 +60,7 @@ void Core::CreateInstance(const char* appName) {
 	};
 
 	std::vector<const char*> layers = {
-		"VK_LAYER_LUNARG_monitor",
+		"VK_LAYER_LUNARG_monitor"
 	};
 
 	if (enableDebugging) {
@@ -509,8 +510,12 @@ void Core::PresentFrame() {
 	m_currentFrameIndex = (m_currentFrameIndex + 1) % MAX_FRAMES_IN_FLIGHT;
 }
 
+void Core::CreateGraphicsPipeline(Shader rasterShader) {
+
+}
+
 // TODO: Load scene
-// void VulkanCore::LoadScene(Scene scene) {}
+// void Core::LoadScene(Scene scene) {}
 
 void Core::CreateBLAS(vk::raii::CommandBuffer& cmdBuff) {
 	// TODO: after model and scene loading -> create blas for each model in the scene
@@ -554,10 +559,6 @@ void Core::CreateRaytracingPipeline() {
 
 }
 
-void Core::DeviceWaitIdle() {
-	m_device->GetVkDevice().waitIdle();
-}
-
 vk::Extent2D Core::ChooseSwapExtent(const vk::SurfaceCapabilitiesKHR& capabilities) {
 	if (capabilities.currentExtent.width != 0xFFFFFFFF) {
 		printf("Current image extent: %d x %d\n", capabilities.currentExtent.width, capabilities.currentExtent.height);
@@ -570,6 +571,10 @@ vk::Extent2D Core::ChooseSwapExtent(const vk::SurfaceCapabilitiesKHR& capabiliti
 		std::clamp<uint32_t>(width, capabilities.minImageExtent.width, capabilities.maxImageExtent.width),
 		std::clamp<uint32_t>(height, capabilities.minImageExtent.height, capabilities.maxImageExtent.height)
 	};
+}
+
+void Core::DeviceWaitIdle() {
+	m_device->GetVkDevice().waitIdle();
 }
 
 }

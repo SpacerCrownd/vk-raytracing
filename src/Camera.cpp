@@ -1,7 +1,6 @@
 ﻿#include "Camera.h"
 
 #include <algorithm>
-#include <iostream>
 #include <ostream>
 
 #include "glm/gtc/matrix_transform.hpp"
@@ -37,7 +36,7 @@ void Camera::OnKeyChanged(int key, int scan, int action, int mods) {
     }
 
     if (action == GLFW_RELEASE) {
-        printf("Released Key code: %d\n", key);
+        //printf("Released Key code: %d\n", key);
         if (key == GLFW_KEY_W) {
             velocity.z = 0;
         }

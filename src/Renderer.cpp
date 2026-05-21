@@ -30,6 +30,7 @@ Renderer::~Renderer() {
 void Renderer::Run() {
     CreateScene();
     LoadShaders();
+    CreateGraphicsPipeline();
     MainLoop();
 }
 
@@ -55,6 +56,10 @@ void Renderer::LoadShaders() {
     m_rasterShader.emplace(m_vkCore.GetDevice().GetVkDevice(), "testRaster.spv");
     // m_rtShader.emplace(m_vkCore.GetDevice().GetVkDevice(), "raytracing.spv");
     printf("[INFO] Shaders Loaded\n");
+}
+
+void Renderer::CreateGraphicsPipeline() {
+    
 }
 
 void Renderer::Draw() {

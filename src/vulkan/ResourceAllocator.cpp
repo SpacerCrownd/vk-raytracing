@@ -62,7 +62,7 @@ Image ResourceAllocator::CreateImage(const vk::ImageCreateInfo& imageInfo, const
      vk::ImageViewCreateInfo viewInfoTmp = viewInfo;
      viewInfoTmp.image = image.image;
      viewInfoTmp.format = image.format;
-     image.view = vk::raii::ImageView(m_device->GetVkDevice(), viewInfoTmp, nullptr);
+     image.view = vk::raii::ImageView(m_device->GetVkDevice(), viewInfoTmp);
 
      return image;
 }

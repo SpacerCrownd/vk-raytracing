@@ -11,7 +11,7 @@ class Camera {
 public:
     Camera(glm::vec3 pos);
 
-    glm::vec3 velocity;
+    glm::vec3 velocity {0.f, 0.f, 0.f};
     glm::vec3 position;
     float pitch { 0.f };
     float yaw { 0.f };
