@@ -49,7 +49,7 @@ void GltfScene::ImportGltfData(const tinygltf::Model& model, const ptvk::Core& c
 
     for (const auto &mesh: model.meshes) {
         for (const auto &primitive : mesh.primitives) {
-            assert(primitive.mode == TINYGLTF_PRIMITIVE_TRIANGLE && "Only glTF triangle primitives are supported");
+            assert(primitive.mode == TINYGLTF_MODE_TRIANGLES && "Only glTF triangle primitives are supported");
 
         }
     }
@@ -57,9 +57,10 @@ void GltfScene::ImportGltfData(const tinygltf::Model& model, const ptvk::Core& c
     vk::BufferCreateInfo bufferCreateInfo {
         .size = std::span(model.buffers[0].data).size_bytes(),
         .usage = vk::BufferUsageFlagBits::eVertexBuffer
-            | vk::BufferUsageFlagBits::eIndexBuffer
-            | vk::BufferUsageFlagBits::eStorageBuffer
-            | vk::BufferUsageFlagBits::eAccelerationStructureBuildInputReadOnlyKHR,
+        | vk::BufferUsageFlagBits::eIndexBuffer
+        | vk::BufferUsageFlagBits::eStorageBuffer
+        |vk::BufferUsageFlagBits::eAccelerationStructureBuildInputReadOnlyKHR
+        | vk::BufferUsageFlagBits::eShaderDeviceAddress,
     };
     VmaAllocationCreateInfo vmaAllocInfo{
         .flags = VMA_ALLOCATION_CREATE_HOST_ACCESS_SEQUENTIAL_WRITE_BIT

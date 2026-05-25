@@ -22,7 +22,7 @@ Buffer ResourceAllocator::CreateBuffer(const vk::BufferCreateInfo& buffInfo, con
 
      vmaCreateBufferWithAlignment(m_allocator, &*buffInfo, &allocCreateInfo, minAlignment, &bufferRawHandle, &buffer.allocation, &vmaAllocInfo);
 
-     buffer.buffer = vk::raii::Buffer(m_device->GetVkDevice(), bufferRawHandle);
+     buffer.buffer = bufferRawHandle;
      buffer.bufferSize = buffInfo.size;
      buffer.mapping = static_cast<uint8_t *>(vmaAllocInfo.pMappedData);
 
@@ -31,11 +31,13 @@ Buffer ResourceAllocator::CreateBuffer(const vk::BufferCreateInfo& buffInfo, con
      };
      buffer.address = m_device->GetVkDevice().getBufferAddress(buffDeviceAddrInfo);
 
+     buffer.allocator = m_allocator;
+
      return buffer;
 }
 
 void ResourceAllocator::DestroyBuffer(Buffer &buffer) const {
-     vmaDestroyBuffer(m_allocator, *buffer.buffer, buffer.allocation);
+     vmaDestroyBuffer(m_allocator, buffer.buffer, buffer.allocation);
      buffer = {};
 }
 
