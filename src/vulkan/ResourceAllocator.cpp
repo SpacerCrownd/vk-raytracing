@@ -20,7 +20,11 @@ Buffer ResourceAllocator::CreateBuffer(const vk::BufferCreateInfo& buffInfo, con
      VmaAllocationInfo vmaAllocInfo{};
      VkBuffer bufferRawHandle{};
 
-     vmaCreateBufferWithAlignment(m_allocator, &*buffInfo, &allocCreateInfo, minAlignment, &bufferRawHandle, &buffer.allocation, &vmaAllocInfo);
+     auto result = vmaCreateBufferWithAlignment(m_allocator, &*buffInfo, &allocCreateInfo, minAlignment, &bufferRawHandle, &buffer.allocation, &vmaAllocInfo);
+
+     if (result != VK_SUCCESS) {
+          throw std::runtime_error("Failed to create buffer");
+     }
 
      buffer.buffer = bufferRawHandle;
      buffer.bufferSize = buffInfo.size;
@@ -33,7 +37,7 @@ Buffer ResourceAllocator::CreateBuffer(const vk::BufferCreateInfo& buffInfo, con
 
      buffer.allocator = m_allocator;
 
-     return buffer;
+     return std::move(buffer);
 }
 
 void ResourceAllocator::DestroyBuffer(Buffer &buffer) const {
@@ -46,31 +50,30 @@ Image ResourceAllocator::CreateImage(const vk::ImageCreateInfo& imageInfo, const
      VmaAllocationInfo allocInfo{};
      VkImage imageRawHandle{};
 
-     vmaCreateImage(m_allocator, &*imageInfo, &allocCreateInfo, &imageRawHandle, &image.allocation, &allocInfo);
-     image.image = vk::raii::Image(m_device->GetVkDevice(), imageRawHandle);
+     auto result = vmaCreateImage(m_allocator, &*imageInfo, &allocCreateInfo, &imageRawHandle, &image.allocation, &allocInfo);
+
+     if (result != VK_SUCCESS) {
+          throw std::runtime_error("Failed to create image");
+     }
+
+     image.image = vk::Image(imageRawHandle);
      image.extent = imageInfo.extent;
      image.format = imageInfo.format;
      image.mipLevels = imageInfo.mipLevels;
      image.arrayLayers = imageInfo.arrayLayers;
+     image.allocator = m_allocator;
 
-     return image;
+     return std::move(image);
 }
 
 Image ResourceAllocator::CreateImage(const vk::ImageCreateInfo& imageInfo, const vk::ImageViewCreateInfo& viewInfo, const VmaAllocationCreateInfo &allocCreateInfo) const {
-     Image image{};
-     image = CreateImage(imageInfo, allocCreateInfo);
+     Image image = CreateImage(imageInfo, allocCreateInfo);
 
      // Create image view
      vk::ImageViewCreateInfo viewInfoTmp = viewInfo;
      viewInfoTmp.image = image.image;
      viewInfoTmp.format = image.format;
-     image.view = vk::raii::ImageView(m_device->GetVkDevice(), viewInfoTmp);
-
+     image.view = m_device->GetVkDevice().createImageView(viewInfoTmp);
      return image;
-}
-
-void ResourceAllocator::DestroyImage(Image &image) const {
-     vmaDestroyImage(m_allocator, *image.image, image.allocation);
-     image = {};
 }
 }

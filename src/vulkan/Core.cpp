@@ -381,7 +381,43 @@ void Core::CreateLogicalDevice() {
 }
 
 void Core::CreateSwapchain() {
-	m_swapchain = std::make_unique<Swapchain>(*m_device, ChooseSwapExtent(m_physDevice->m_surfaceCapabilities), m_surface);
+	vk::Extent2D extent = ChooseSwapExtent(m_physDevice->m_surfaceCapabilities);
+	m_swapchain = std::make_unique<Swapchain>(*m_device, extent, m_surface);
+
+	// create separate draw image
+	vk::Extent3D drawImageExtent = {extent.width, extent.height, 1};
+
+	vk::ImageUsageFlags imageUsageFlags =
+		vk::ImageUsageFlagBits::eColorAttachment
+	  | vk::ImageUsageFlagBits::eTransferSrc
+	| vk::ImageUsageFlagBits::eTransferDst
+	| vk::ImageUsageFlagBits::eStorage;
+
+	vk::ImageCreateInfo imageCreateInfo = {
+		.imageType = vk::ImageType::e2D,
+		.format = vk::Format::eR16G16B16A16Sfloat,
+		.extent = drawImageExtent,
+		.mipLevels = 1,
+		.arrayLayers = 1,
+		.tiling = vk::ImageTiling::eOptimal,
+		.usage = imageUsageFlags,
+	};
+
+	VmaAllocationCreateInfo allocationCreateInfo = {
+		.usage = VMA_MEMORY_USAGE_GPU_ONLY,
+		.requiredFlags = static_cast<VkMemoryPropertyFlags>(VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT),
+	};
+
+	vk::ImageViewCreateInfo viewCreateInfo = {
+		.viewType = vk::ImageViewType::e2D,
+		.subresourceRange = {
+			.aspectMask = vk::ImageAspectFlagBits::eColor,
+			.levelCount = 1,
+			.layerCount = 1,
+		}
+	};
+
+	m_drawImage = m_resourceAllocator->CreateImage(imageCreateInfo, viewCreateInfo, allocationCreateInfo);
 }
 
 void Core::RecreateSwapchain() {
@@ -444,13 +480,11 @@ void Core::PrepareFrame() {
 	m_device->GetVkDevice().resetFences(*m_inFlightFences[m_currentFrameIndex]);
 
 	auto res = m_swapchain->AcquireNextImage(m_renderSemaphores[m_currentFrameIndex], m_currentImageIndex);
-	if (res == vk::Result::eErrorOutOfDateKHR)
-	{
+	if (res == vk::Result::eErrorOutOfDateKHR) {
 		RecreateSwapchain();
 		return;
 	}
-	if (res != vk::Result::eSuccess && res != vk::Result::eSuboptimalKHR)
-	{
+	if (res != vk::Result::eSuccess && res != vk::Result::eSuboptimalKHR) {
 		throw std::runtime_error("[ERROR] Failed to acquire next swapchain image");
 	}
 }
@@ -508,10 +542,6 @@ void Core::PresentFrame() {
 	}
 
 	m_currentFrameIndex = (m_currentFrameIndex + 1) % MAX_FRAMES_IN_FLIGHT;
-}
-
-void Core::CreateGraphicsPipeline(Shader rasterShader) {
-
 }
 
 // TODO: Load scene

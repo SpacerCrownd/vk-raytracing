@@ -18,12 +18,14 @@ public:
     [[nodiscard]] vk::Image GetSwapchainImage(int n) const { return m_swapchainImages[n]; };
     [[nodiscard]] vk::Format GetSwapchainFormat() const { return m_swapchainSurfaceFormat.format; }
     [[nodiscard]] vk::Result AcquireNextImage(const vk::raii::Semaphore& renderSemaphore, uint32_t& imageIndex) const;
+    [[nodiscard]] vk::Extent2D GetExtent() const { return m_swapchainExtent; }
 
 private:
     vk::raii::SwapchainKHR m_swapchain = VK_NULL_HANDLE;
     Device& m_device;
     vk::raii::SurfaceKHR& m_surface;
 
+    vk::Extent2D m_swapchainExtent;
     vk::SurfaceFormatKHR m_swapchainSurfaceFormat{};
     std::vector<vk::Image> m_swapchainImages;
     std::vector<vk::raii::ImageView> m_swapchainImageViews;

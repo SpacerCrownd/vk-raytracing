@@ -15,18 +15,23 @@ struct Buffer {
 
     Buffer() = default;
 
+    ~Buffer() {
+        cleanup();
+    }
+
     Buffer(const Buffer&) = delete;
     Buffer& operator=(const Buffer&) = delete;
 
-    Buffer(Buffer&& other) noexcept
-        : buffer(std::move(other.buffer)),
-          bufferSize(other.bufferSize),
-          address(other.address),
-          allocation(other.allocation),
-          allocator(other.allocator),
-          mapping(other.mapping)
-    {
-        other.allocation = nullptr;
+    Buffer(Buffer&& other) noexcept {
+        buffer = other.buffer;
+        bufferSize = other.bufferSize;
+        address = other.address;
+        allocation = other.allocation;
+        allocator = other.allocator;
+        mapping = other.mapping;
+
+        other.buffer = VK_NULL_HANDLE;
+        other.allocation = VK_NULL_HANDLE;
         other.mapping = nullptr;
     }
 
@@ -34,41 +39,90 @@ struct Buffer {
         if (this != &other) {
             cleanup();
 
-            buffer = std::move(other.buffer);
+            buffer = other.buffer;
             bufferSize = other.bufferSize;
             address = other.address;
             allocation = other.allocation;
             allocator = other.allocator;
             mapping = other.mapping;
 
-            other.allocation = nullptr;
+            other.buffer = VK_NULL_HANDLE;
+            other.allocation = VK_NULL_HANDLE;
             other.mapping = nullptr;
         }
         return *this;
-    }
-
-    ~Buffer() {
-        cleanup();
     }
 
 private:
     void cleanup() {
         if (allocation) {
             vmaDestroyBuffer(allocator, buffer, allocation);
-
-            allocation = nullptr;
         }
     }
 };
 
 struct Image {
-    vk::raii::Image image{VK_NULL_HANDLE};
-    vk::raii::ImageView view{VK_NULL_HANDLE};
+    vk::Image image{VK_NULL_HANDLE};
+    vk::ImageView view{VK_NULL_HANDLE};
     vk::Extent3D extent{};
     vk::Format format{};
     uint32_t mipLevels{};
     uint32_t arrayLayers{};
     VmaAllocation allocation{};
+    VmaAllocator allocator{};
+
+    Image() = default;
+
+    ~Image() {
+        cleanup();
+    }
+
+    Image(const Image&) = delete;
+    Image& operator=(const Image&) = delete;
+
+    Image(Image&& other) noexcept {
+        image = other.image;
+        view = other.view;
+        extent = other.extent;
+        format = other.format;
+        mipLevels = other.mipLevels;
+        arrayLayers = other.arrayLayers;
+        allocation = other.allocation;
+        allocator = other.allocator;
+
+        // invalidate source
+        other.image = VK_NULL_HANDLE;
+        other.view = VK_NULL_HANDLE;
+        other.allocation = VK_NULL_HANDLE;
+    }
+
+    Image& operator=(Image&& other) noexcept {
+        if (this != &other) {
+            cleanup();
+
+            image = other.image;
+            view = other.view;
+            extent = other.extent;
+            format = other.format;
+            mipLevels = other.mipLevels;
+            arrayLayers = other.arrayLayers;
+            allocation = other.allocation;
+            allocator = other.allocator;
+
+            // invalidate source
+            other.image = VK_NULL_HANDLE;
+            other.view = VK_NULL_HANDLE;
+            other.allocation = VK_NULL_HANDLE;
+        }
+        return *this;
+    }
+
+private:
+    void cleanup() {
+        if (allocation) {
+            vmaDestroyImage(allocator, image, allocation);
+        }
+    }
 };
 
 struct AccelerationStructure {

@@ -5,6 +5,7 @@
 #include "Camera.h"
 #include "GltfScene.h"
 #include "vulkan/Shader.h"
+#include "vulkan/GraphicsPipeline.h"
 
 namespace app {
 class Renderer {
@@ -16,12 +17,13 @@ public:
 	Renderer(int width, int height, const char* pAppName);
 	~Renderer();
 
-
 	void Run();
 
 private:
-	ptvk::Window m_mainWindow;
+	ptvk::Window m_window;
 	ptvk::Core m_vkCore;
+	std::optional<ptvk::GraphicsPipeline> m_graphicsPipeline;
+
 	GltfScene m_scene;
 	Camera m_camera;
 

@@ -27,14 +27,13 @@ public:
 	[[nodiscard]] uint32_t GetCurrentFrameIndex() const { return m_currentFrameIndex; }
 	[[nodiscard]] uint32_t GetCurrentImageIndex() const { return m_currentImageIndex; }
 	[[nodiscard]] const ResourceAllocator& GetResourceAllocator() const { return *m_resourceAllocator; }
+	[[nodiscard]] const Image& GetDrawImage() const { return m_drawImage; }
 
 	vk::raii::CommandBuffer& BeginCommandRecording();
 
 	void PrepareFrame();
 	void SubmitFrame();
 	void PresentFrame();
-
-	void CreateGraphicsPipeline(Shader rasterShader);
 
 private:
 	const Window& m_window;
@@ -46,6 +45,10 @@ private:
 	std::unique_ptr<PhysicalDevice> m_physDevice{};
 	std::unique_ptr<Device> m_device{};
 	std::unique_ptr<Swapchain> m_swapchain{};
+	std::unique_ptr<ResourceAllocator> m_resourceAllocator{};
+
+	Image m_drawImage;
+	vk::Extent2D m_drawExtent;
 
 	vk::raii::Queue m_queue{VK_NULL_HANDLE}; // graphics queue
 
@@ -59,8 +62,9 @@ private:
 	uint32_t m_currentFrameIndex{0};
 	uint32_t m_currentImageIndex{0};
 
-	// Rasterization
-	std::unique_ptr<GraphicsPipeline> m_graphicsPipeline;
+	// Shaders
+	std::optional<Shader> m_rasterShader;
+	std::optional<Shader> m_rtShader;
 
 	// Raytracing pipeline components
 	vk::raii::Pipeline m_rtPipeline{VK_NULL_HANDLE};
@@ -77,8 +81,6 @@ private:
 	vk::StridedDeviceAddressRegionKHR m_callableRegion{}; // callable shader region
 
 	vk::raii::CommandPool m_transientCmdPool{VK_NULL_HANDLE};
-
-	std::unique_ptr<ResourceAllocator> m_resourceAllocator{};
 
 	InstanceVersion m_instanceVersion;
 

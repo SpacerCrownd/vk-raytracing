@@ -3,7 +3,6 @@
 
 #include "Vulkan.h"
 #include <vector>
-#include <fstream>
 
 #define VK_FAIL_RETURN(res, msg) \
 if(res != vk::Result::eSuccess) { \
@@ -28,5 +27,9 @@ vk::Format FindSupportedFormat(const vk::raii::PhysicalDevice& device, const std
 vk::Format FindDepthFormat(const vk::raii::PhysicalDevice& device);
 
 void PrintMemoryPropertyFlags(const VkMemoryPropertyFlags &flags);
+
+void TransitionImage(vk::raii::CommandBuffer& cmd, vk::Image image, vk::ImageLayout currentLayout, vk::ImageLayout newLayout); // generic inefficient transition memory barriers
+
+void CopyImage(vk::raii::CommandBuffer& cmd, vk::Image source, vk::Image destination, vk::Extent2D srcSize, vk::Extent2D dstSize);
 }
 #endif

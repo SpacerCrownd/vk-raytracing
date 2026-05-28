@@ -33,13 +33,11 @@ namespace ptvk {
     }
 
     vk::PipelineShaderStageCreateInfo Shader::CreateShaderStage(const vk::ShaderStageFlagBits stage, const char* pName = "main") const {
-        vk::PipelineShaderStageCreateInfo info = {
+        return vk::PipelineShaderStageCreateInfo {
             .sType = vk::StructureType::ePipelineShaderStageCreateInfo,
             .stage = stage,
             .module = m_shader,
             .pName = pName
         };
-
-        return info;
     }
 }

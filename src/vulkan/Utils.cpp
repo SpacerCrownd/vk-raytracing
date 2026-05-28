@@ -163,4 +163,64 @@ void PrintMemoryPropertyFlags(VkMemoryPropertyFlags flags) {
 
 	std::cout << std::endl;
 }
+
+void TransitionImage(vk::raii::CommandBuffer& cmd, vk::Image image, vk::ImageLayout currentLayout, vk::ImageLayout newLayout) {
+	vk::ImageMemoryBarrier2 imageBarrier {
+		.srcStageMask = vk::PipelineStageFlagBits2::eAllCommands,
+		.srcAccessMask =  vk::AccessFlagBits2::eMemoryWrite,
+		.dstStageMask = vk::PipelineStageFlagBits2::eAllCommands,
+		.dstAccessMask = vk::AccessFlagBits2::eMemoryWrite | vk::AccessFlagBits2::eMemoryRead,
+		.oldLayout = currentLayout,
+		.newLayout = newLayout,
+	};
+
+	vk::ImageAspectFlags aspectMask = (newLayout == vk::ImageLayout::eDepthAttachmentOptimal) ? vk::ImageAspectFlags::BitsType::eDepth : vk::ImageAspectFlags::BitsType::eColor;
+	imageBarrier.subresourceRange = {
+		.aspectMask = aspectMask,
+		.baseMipLevel = 0,
+		.levelCount = vk::RemainingMipLevels,
+		.baseArrayLayer = 0,
+		.layerCount = vk::RemainingArrayLayers,
+	};
+	imageBarrier.image = image;
+
+	vk::DependencyInfo depInfo {
+		.imageMemoryBarrierCount = 1,
+		.pImageMemoryBarriers = &imageBarrier,
+	};
+
+	cmd.pipelineBarrier2(depInfo);
+}
+
+void CopyImage(vk::raii::CommandBuffer& cmd, vk::Image source, vk::Image destination, vk::Extent2D srcSize, vk::Extent2D dstSize) {
+	vk::ImageBlit2 blitRegion{
+		.srcSubresource = {
+			.aspectMask = vk::ImageAspectFlagBits::eColor,
+			.mipLevel = 0,
+			.baseArrayLayer = 0,
+			.layerCount = 1,
+		},
+		.dstSubresource = {
+			.aspectMask = vk::ImageAspectFlagBits::eColor,
+			.mipLevel = 0,
+			.baseArrayLayer = 0,
+			.layerCount = 1
+		},
+	};
+	blitRegion.srcOffsets[0] = vk::Offset3D(0, 0, 0);
+	blitRegion.srcOffsets[1] = vk::Offset3D(srcSize.width, srcSize.height, 1);
+	blitRegion.dstOffsets[0] = vk::Offset3D(0, 0, 0);
+	blitRegion.dstOffsets[1] = vk::Offset3D(dstSize.width, dstSize.height, 1);
+
+	vk::BlitImageInfo2 blitInfo{
+		.srcImage = source,
+		.srcImageLayout = vk::ImageLayout::eTransferSrcOptimal,
+		.dstImage = destination,
+		.dstImageLayout = vk::ImageLayout::eTransferDstOptimal,
+		.regionCount = 1,
+		.pRegions = &blitRegion,
+		.filter = vk::Filter::eLinear,
+	};
+	cmd.blitImage2(blitInfo);
+}
 }
