@@ -2,16 +2,19 @@
 #define GRAPHICS_PIPELINE_H
 
 #include "Vulkan.h"
+#include "Shader.h"
 
 namespace ptvk {
 class GraphicsPipeline {
 public:
-    GraphicsPipeline(const vk::raii::Device& device,
-        const GLFWwindow* window,
-        const vk::raii::ShaderModule& shader,
-        int numImages,
-        vk::Format colorFormat,
-        vk::Format depthFormat);
+    GraphicsPipeline(
+        vk::raii::Device& device,
+        GLFWwindow* window,
+        Shader& shader,
+        uint32_t numImages,
+        vk::Format colorFormat
+        //vk::Format depthFormat
+        );
 
     void Bind(vk::raii::CommandBuffer& cmdBuffer);
 

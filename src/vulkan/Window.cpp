@@ -36,6 +36,12 @@ void Window::GlfwScrollCallback(GLFWwindow* window, const double xoffset, const 
         callback(xoffset, yoffset);
 }
 
+void Window::GlfwFramebufferSizeCallback(GLFWwindow *window, int width, int height) {
+    auto* const this_ = static_cast<Window*>(glfwGetWindowUserPointer(window));
+    for (auto& callback : this_->onFramebufferSizeChanged)
+        callback(width, height);
+}
+
 void Window::AddOnKeyChanged(std::function<void(int key, int scancode, int action, int mods)> callback) {
     onKeyChanged.push_back(std::move(callback));
 }
@@ -50,6 +56,10 @@ void Window::AddOnMouseButtonChanged(std::function<void(int button, int action, 
 
 void Window::AddOnScrollChanged(std::function<void(double xoffset, double yoffset)> callback) {
     onScrollChanged.push_back(std::move(callback));
+}
+
+void Window::AddOnFramebufferSizeChanged(std::function<void(int width, int height)> callback) {
+    onFramebufferSizeChanged.push_back(std::move(callback));
 }
 
 Window::Window(int width, int height, const char* pName) : m_width(width), m_height(height), m_pName(pName) {
@@ -73,6 +83,7 @@ Window::Window(int width, int height, const char* pName) : m_width(width), m_hei
     glfwSetMouseButtonCallback(m_window, GlfwMouseButtonCallback);
     glfwSetScrollCallback(m_window, GlfwScrollCallback);
     glfwSetKeyCallback(m_window, GlfwKeyCallback);
+    glfwSetFramebufferSizeCallback(m_window, GlfwFramebufferSizeCallback);
 };
 
 Window::~Window() {

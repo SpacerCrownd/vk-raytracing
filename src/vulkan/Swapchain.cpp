@@ -42,6 +42,7 @@ Swapchain::Swapchain(Device& device, vk::Extent2D extent, vk::raii::SurfaceKHR& 
 	uint32_t numImages = ChooseNumImages(surfaceCaps);
 	vk::PresentModeKHR presentMode = ChoosePresentMode(m_device.GetPhysicalDevice().m_presentModes);
 	m_swapchainSurfaceFormat = ChooseSurfaceFormatAndColorSpace(m_device.GetPhysicalDevice().m_surfaceFormats);
+	m_swapchainExtent = extent;
 
 	vk::SwapchainCreateInfoKHR swapChainCreateInfo = {
 		.surface = m_surface,

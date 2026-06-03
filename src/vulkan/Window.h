@@ -16,10 +16,12 @@ public:
     void AddOnCursorPositionChanged(std::function<void(double xpos, double ypos)> callback);
     void AddOnMouseButtonChanged(std::function<void(int button, int action, int mods)> callback);
     void AddOnScrollChanged(std::function<void(double xoffset, double yoffset)> callback);
+    void AddOnFramebufferSizeChanged(std::function<void(int width, int height)> callback);
 
     [[nodiscard]] GLFWwindow* GetWindow() const {
         return m_window;
     }
+
 private:
     GLFWwindow* m_window{};
     int m_width{};
@@ -30,12 +32,14 @@ private:
     std::vector<std::function<void(double xPos, double yPos)>> onCursorPositionChanged;
     std::vector<std::function<void(int button, int action, int mods)>> onMouseButtonChanged;
     std::vector<std::function<void(double xOffset, double yOffset)>> onScrollChanged;
+    std::vector<std::function<void(int width, int height)>> onFramebufferSizeChanged;
 
     static void GlfwErrorCallback(int error, const char* description);
     static void GlfwKeyCallback(GLFWwindow* window, int key, int scancode, int action, int mods);
     static void GlfwCursorPositionCallback(GLFWwindow* window, double xpos, double ypos);
     static void GlfwMouseButtonCallback(GLFWwindow* window, int button, int action, int mods);
     static void GlfwScrollCallback(GLFWwindow* window, double xOffset, double yOffset);
+    static void GlfwFramebufferSizeCallback(GLFWwindow* window, int width, int height);
 };
 
 }

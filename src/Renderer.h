@@ -22,6 +22,7 @@ public:
 private:
 	ptvk::Window m_window;
 	ptvk::Core m_vkCore;
+
 	std::optional<ptvk::GraphicsPipeline> m_graphicsPipeline;
 
 	GltfScene m_scene;

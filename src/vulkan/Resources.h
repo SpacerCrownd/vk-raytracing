@@ -63,7 +63,7 @@ private:
 
 struct Image {
     vk::Image image{VK_NULL_HANDLE};
-    vk::ImageView view{VK_NULL_HANDLE};
+    vk::raii::ImageView view{VK_NULL_HANDLE};
     vk::Extent3D extent{};
     vk::Format format{};
     uint32_t mipLevels{};
@@ -82,7 +82,7 @@ struct Image {
 
     Image(Image&& other) noexcept {
         image = other.image;
-        view = other.view;
+        view = std::move(other.view);
         extent = other.extent;
         format = other.format;
         mipLevels = other.mipLevels;
@@ -101,7 +101,7 @@ struct Image {
             cleanup();
 
             image = other.image;
-            view = other.view;
+            view = std::move(other.view);
             extent = other.extent;
             format = other.format;
             mipLevels = other.mipLevels;

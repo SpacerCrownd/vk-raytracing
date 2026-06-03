@@ -523,24 +523,16 @@ void Core::PresentFrame() {
 		.pSwapchains = &*m_swapchain->GetSwapchain(),
 		.pImageIndices = &m_currentImageIndex,
 	};
-	try
-	{
-		auto res = m_queue.presentKHR(presentInfo);
 
-		if (res == vk::Result::eSuboptimalKHR || res == vk::Result::eErrorOutOfDateKHR) {
-			RecreateSwapchain();
-		}else if (res != vk::Result::eSuccess) {
-			throw std::runtime_error("[ERROR] Failed to present");
-		}
-	}catch (const vk::SystemError& e){
-		if (e.code().value() == static_cast<int>(vk::Result::eErrorOutOfDateKHR)) {
-			RecreateSwapchain();
-			return;
-		} else {
-			throw;
-		}
+	auto res = m_queue.presentKHR(presentInfo);
+
+	if (res == vk::Result::eSuboptimalKHR || res == vk::Result::eErrorOutOfDateKHR || framebufferResized) {
+		framebufferResized = false;
+		RecreateSwapchain();
+	}else {
+		assert(res == vk::Result::eSuccess && "Failed to present!");
 	}
-
+	
 	m_currentFrameIndex = (m_currentFrameIndex + 1) % MAX_FRAMES_IN_FLIGHT;
 }
 

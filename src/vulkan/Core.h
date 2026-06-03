@@ -17,6 +17,8 @@ public:
 	Core(const char *appName, const Window& window);
 	~Core() = default;
 
+	bool framebufferResized = false;
+
 	void DeviceWaitIdle();
 	void RecreateSwapchain();
 
