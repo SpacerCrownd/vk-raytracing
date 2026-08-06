@@ -23,25 +23,17 @@ const char* GetDebugSeverityStr(vk::DebugUtilsMessageSeverityFlagBitsEXT severit
 	}
 }
 
-const char *GetDebugType(vk::DebugUtilsMessageTypeFlagsEXT type)
+const char* GetDebugType(vk::DebugUtilsMessageTypeFlagsEXT type)
 {
-    std::string result;
-
-    if (type & vk::DebugUtilsMessageTypeFlagBitsEXT::eGeneral)
-        result += "General ";
-    if (type & vk::DebugUtilsMessageTypeFlagBitsEXT::eValidation)
-        result += "Validation ";
-    if (type & vk::DebugUtilsMessageTypeFlagBitsEXT::ePerformance)
-        result += "Performance ";
+	// Fixed: Return static string literals instead of returning std::string::c_str() of a local variable
+	if (type & vk::DebugUtilsMessageTypeFlagBitsEXT::eGeneral)     return "General";
+	if (type & vk::DebugUtilsMessageTypeFlagBitsEXT::eValidation)  return "Validation";
+	if (type & vk::DebugUtilsMessageTypeFlagBitsEXT::ePerformance) return "Performance";
 #ifdef _WIN64
-    if (type & vk::DebugUtilsMessageTypeFlagBitsEXT::eDeviceAddressBinding)
-        result += "DeviceAddressBinding ";
+	if (type & vk::DebugUtilsMessageTypeFlagBitsEXT::eDeviceAddressBinding) return "DeviceAddressBinding";
 #endif
 
-    if (result.empty())
-        throw std::runtime_error("Invalid type code");
-
-    return result.c_str();
+	throw std::runtime_error("Invalid type code");
 }
 
 void PrintImageUsageFlags(const vk::ImageUsageFlags &flags) {
@@ -74,7 +66,7 @@ void PrintImageUsageFlags(const vk::ImageUsageFlags &flags) {
 	}
 }
 
-void PrintMemoryProperty(const vk::Flags<vk::MemoryPropertyFlagBits> &flags) {
+void PrintMemoryPropertyFlags(const vk::Flags<vk::MemoryPropertyFlagBits> &flags) {
 	if (flags & vk::MemoryPropertyFlagBits::eDeviceLocal) {
 		printf("DEVICE LOCAL ");
 	}
@@ -100,37 +92,7 @@ void PrintMemoryProperty(const vk::Flags<vk::MemoryPropertyFlagBits> &flags) {
 	}
 }
 
-vk::Format FindSupportedFormat(const vk::raii::PhysicalDevice &device, const std::vector<vk::Format> &candidates,
-									  const vk::ImageTiling tiling, const vk::FormatFeatureFlags features) {
-	for (const auto format: candidates) {
-		vk::FormatProperties props = device.getFormatProperties(format);
-
-		if (tiling == vk::ImageTiling::eLinear && (props.linearTilingFeatures & features) == features) {
-			return format;
-		}
-
-		if (tiling == vk::ImageTiling::eOptimal && (props.optimalTilingFeatures & features) == features) {
-			return format;
-		}
-	}
-
-	throw std::runtime_error("failed to find supporting format!");
-}
-
-vk::Format FindDepthFormat(const vk::raii::PhysicalDevice &device) {
-	std::vector Candidates = {
-		vk::Format::eD32Sfloat,
-		vk::Format::eD32SfloatS8Uint,
-		vk::Format::eD24UnormS8Uint
-	};
-
-	vk::Format depthFormat = FindSupportedFormat(device, Candidates, vk::ImageTiling::eOptimal,
-												 vk::FormatFeatureFlagBits::eDepthStencilAttachment);
-
-	return depthFormat;
-}
-
-void PrintMemoryPropertyFlags(VkMemoryPropertyFlags flags) {
+void PrintMemoryPropertyFlags(const VkMemoryPropertyFlags& flags) {
 	std::cout << "VkMemoryPropertyFlags: ";
 
 	if (flags & VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT)
@@ -164,6 +126,34 @@ void PrintMemoryPropertyFlags(VkMemoryPropertyFlags flags) {
 	std::cout << std::endl;
 }
 
+vk::Format FindSupportedFormat(const vk::raii::PhysicalDevice &device, const std::vector<vk::Format> &candidates,
+									  const vk::ImageTiling tiling, const vk::FormatFeatureFlags features) {
+	for (const auto format: candidates) {
+		vk::FormatProperties props = device.getFormatProperties(format);
+
+		if ((tiling == vk::ImageTiling::eLinear && (props.linearTilingFeatures & features) == features) ||
+			(tiling == vk::ImageTiling::eOptimal && (props.optimalTilingFeatures & features) == features)) {
+			return format;
+		}
+	}
+
+	throw std::runtime_error("failed to find supported format!");
+}
+
+vk::Format FindDepthFormat(const vk::raii::PhysicalDevice &device) {
+	std::vector candidates = {
+		vk::Format::eD32Sfloat,
+		vk::Format::eD32SfloatS8Uint,
+		vk::Format::eD24UnormS8Uint
+	};
+
+	vk::Format depthFormat = FindSupportedFormat(device, candidates, vk::ImageTiling::eOptimal,
+												 vk::FormatFeatureFlagBits::eDepthStencilAttachment);
+
+	return depthFormat;
+}
+
+// all-purpose inefficient image transition for initial testing
 void TransitionImage(vk::raii::CommandBuffer& cmd, vk::Image image, vk::ImageLayout currentLayout, vk::ImageLayout newLayout) {
 	vk::ImageMemoryBarrier2 imageBarrier {
 		.srcStageMask = vk::PipelineStageFlagBits2::eAllCommands,

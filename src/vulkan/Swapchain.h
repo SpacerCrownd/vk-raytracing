@@ -27,6 +27,7 @@ private:
 
     vk::Extent2D m_swapchainExtent;
     vk::SurfaceFormatKHR m_swapchainSurfaceFormat{};
+
     std::vector<vk::Image> m_swapchainImages;
     std::vector<vk::raii::ImageView> m_swapchainImageViews;
 };

@@ -12,6 +12,9 @@ public:
 
     [[nodiscard]] Buffer CreateBuffer(const vk::BufferCreateInfo &buffInfo, const VmaAllocationCreateInfo &allocCreateInfo, vk::DeviceSize minAlignment = 0) const;
     [[nodiscard]] Image CreateImage(const vk::ImageCreateInfo& imageInfo, const vk::ImageViewCreateInfo& imageViewInfo, const VmaAllocationCreateInfo& allocCreateInfo) const;
+
+    void GetAllocationMemoryProperties(VmaAllocation allocation, VkMemoryPropertyFlags &memoryProperties) const;
+
     [[nodiscard]] Image CreateImage(const vk::ImageCreateInfo& imageInfo, const VmaAllocationCreateInfo& allocCreateInfo) const;
 
     void DestroyBuffer(Buffer &buffer) const;

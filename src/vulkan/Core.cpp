@@ -7,13 +7,15 @@
 #include "Commands.h"
 
 namespace ptvk {
-static VKAPI_ATTR vk::Bool32 VKAPI_CALL DebugCallback(vk::DebugUtilsMessageSeverityFlagBitsEXT severity,
+static VKAPI_ATTR vk::Bool32 VKAPI_CALL DebugCallback(
+	vk::DebugUtilsMessageSeverityFlagBitsEXT severity,
 	vk::DebugUtilsMessageTypeFlagsEXT type,
 	const vk::DebugUtilsMessengerCallbackDataEXT* pCallbackData,
-	void*) {
+	void* pUserData)
+{
 	printf("[Debug Callback]\n %s\n", pCallbackData->pMessage);
 	printf("\tSeverity: %s\n", GetDebugSeverityStr(severity));
-	printf("\tType: %s", GetDebugType(type));
+	printf("\tType: %c", GetDebugType(type));
 	printf(" Objects ");
 
 	for (uint32_t i = 0; i < pCallbackData->objectCount; i++) {
@@ -35,6 +37,7 @@ Core::Core(const char* appName, const Window& window) : m_window(window)
 	CreateSwapchain();
 	CreateSyncObjects();
 	CreateCommandObjects();
+	CreateDepthResources();
 	//m_queue = std::make_unique<VulkanQueue>(m_device, m_swapchain, m_queueFamily, 0);
 };
 
@@ -152,7 +155,7 @@ void Core::InitResourceAllocator() {
 	};
 
 	VmaAllocatorCreateInfo allocatorCreateInfo = {
-		.flags = VMA_ALLOCATOR_CREATE_EXT_MEMORY_BUDGET_BIT | VMA_ALLOCATOR_CREATE_BUFFER_DEVICE_ADDRESS_BIT,
+		.flags = VMA_ALLOCATOR_CREATE_BUFFER_DEVICE_ADDRESS_BIT,
 		.physicalDevice = *m_physDevice->m_physDevice,
 		.device = *m_device->GetVkDevice(),
 		.pVulkanFunctions = &vulkanFunctions,
@@ -273,7 +276,7 @@ void Core::SelectPhysicalDevice() {
 				   physicalDevices[i].m_memProperties.memoryTypes[j].heapIndex
 			);
 
-			PrintMemoryProperty(physicalDevices[i].m_memProperties.memoryTypes[j].propertyFlags);
+			PrintMemoryPropertyFlags(physicalDevices[i].m_memProperties.memoryTypes[j].propertyFlags);
 			printf("\n");
 		}
 		printf("Heap Types %d\n", physicalDevices[i].m_memProperties.memoryHeapCount);
@@ -387,11 +390,10 @@ void Core::CreateSwapchain() {
 	// create separate draw image
 	vk::Extent3D drawImageExtent = {extent.width, extent.height, 1};
 
-	vk::ImageUsageFlags imageUsageFlags =
-		vk::ImageUsageFlagBits::eColorAttachment
-	  | vk::ImageUsageFlagBits::eTransferSrc
-	| vk::ImageUsageFlagBits::eTransferDst
-	| vk::ImageUsageFlagBits::eStorage;
+	vk::ImageUsageFlags imageUsageFlags = vk::ImageUsageFlagBits::eColorAttachment
+	| vk::ImageUsageFlagBits::eSampled
+	| vk::ImageUsageFlagBits::eTransferSrc
+	| vk::ImageUsageFlagBits::eTransferDst;
 
 	vk::ImageCreateInfo imageCreateInfo = {
 		.imageType = vk::ImageType::e2D,
@@ -404,8 +406,8 @@ void Core::CreateSwapchain() {
 	};
 
 	VmaAllocationCreateInfo allocationCreateInfo = {
-		.usage = VMA_MEMORY_USAGE_GPU_ONLY,
-		.requiredFlags = static_cast<VkMemoryPropertyFlags>(VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT),
+		.usage = VMA_MEMORY_USAGE_AUTO,
+		.requiredFlags = VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT,
 	};
 
 	vk::ImageViewCreateInfo viewCreateInfo = {
@@ -472,6 +474,81 @@ void Core::CreateCommandObjects() {
 	}
 
 	printf("[INFO] Command pools and buffers created\n");
+}
+
+void Core::CreateDepthResources() {
+	int numSwapchainImages = m_swapchain->GetSwapchainImageCount();
+	m_depthImages.resize(numSwapchainImages);
+	vk::Format depthFormat = m_physDevice->m_depthFormat;
+
+	for (int i=0; i < numSwapchainImages; i++) {
+		auto imageUsageFlags = vk::ImageUsageFlagBits::eDepthStencilAttachment;
+		vk::Extent3D extent = {m_swapchain->GetExtent().width, m_swapchain->GetExtent().height, 1};
+
+		vk::ImageCreateInfo imageCreateInfo = {
+			.imageType = vk::ImageType::e2D,
+			.format = depthFormat,
+			.extent = extent,
+			.mipLevels = 1,
+			.arrayLayers = 1,
+			.tiling = vk::ImageTiling::eOptimal,
+			.usage = imageUsageFlags,
+		};
+
+		VmaAllocationCreateInfo allocationCreateInfo = {
+			.usage = VMA_MEMORY_USAGE_AUTO,
+			.requiredFlags = VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT,
+		};
+
+		vk::ImageViewCreateInfo viewCreateInfo = {
+			.viewType = vk::ImageViewType::e2D,
+			.subresourceRange = {
+				.aspectMask = vk::ImageAspectFlagBits::eDepth,
+				.levelCount = 1,
+				.layerCount = 1,
+			}
+		};
+
+		m_depthImages[i] = m_resourceAllocator->CreateImage(imageCreateInfo, viewCreateInfo, allocationCreateInfo);
+
+		// Print memory properties of new allocation
+		//VkMemoryPropertyFlags memPropFlags;
+		//m_resourceAllocator->GetAllocationMemoryProperties(m_depthImages[i].allocation, memPropFlags);
+		//printf("Depth image memory usage flags:\n");
+		//PrintMemoryPropertyFlags(memPropFlags);
+
+		// transition image to depth optimal
+		vk::ImageSubresourceRange imageRange = {
+			.aspectMask = vk::ImageAspectFlagBits::eDepth,
+			.baseMipLevel = 0,
+			.levelCount = 1,
+			.baseArrayLayer = 0,
+			.layerCount = 1,
+		};
+
+		vk::ImageMemoryBarrier2 undefinedToDepthOptimalBarrier = {
+			.srcStageMask = vk::PipelineStageFlagBits2::eNone,
+			.srcAccessMask = vk::AccessFlagBits2::eNone,
+			.dstStageMask = vk::PipelineStageFlagBits2::eEarlyFragmentTests,
+			.dstAccessMask = vk::AccessFlagBits2::eDepthStencilAttachmentWrite,
+			.oldLayout = vk::ImageLayout::eUndefined,
+			.newLayout = vk::ImageLayout::eDepthAttachmentOptimal,
+			.srcQueueFamilyIndex = vk::QueueFamilyIgnored,
+			.dstQueueFamilyIndex = vk::QueueFamilyIgnored,
+			.image = m_depthImages[i].image,
+			.subresourceRange = imageRange,
+		};
+
+		vk::DependencyInfoKHR dependencyInfo = {
+			.dependencyFlags = {},
+			.imageMemoryBarrierCount = 1,
+			.pImageMemoryBarriers = &undefinedToDepthOptimalBarrier,
+		};
+
+		auto cmdBuf = BeginSingleTimeCommands(m_device->GetVkDevice(), m_transientCmdPool);
+		cmdBuf.pipelineBarrier2(dependencyInfo);
+		SubmitSingleTimeCommands(cmdBuf, m_device->GetVkDevice(), m_transientCmdPool, m_queue);
+	}
 }
 
 void Core::PrepareFrame() {

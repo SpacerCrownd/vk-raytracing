@@ -1,5 +1,6 @@
 ﻿#include "GltfScene.h"
 #include "GltfUtils.h"
+#include "vulkan/Utils.h"
 
 namespace app {
 void GltfScene::ImportGltfData(const tinygltf::Model& model, const ptvk::Core& core) const {
@@ -70,6 +71,18 @@ void GltfScene::ImportGltfData(const tinygltf::Model& model, const ptvk::Core& c
     };
 
     ptvk::Buffer geometryData = allocator.CreateBuffer(bufferCreateInfo, vmaAllocInfo);
+
+    VkMemoryPropertyFlags memPropFlags;
+    allocator.GetAllocationMemoryProperties(geometryData.allocation, memPropFlags);
+    // check memory allocation properties
+    //printf("Allocated vertex buffer memory flags: ");
+    //ptvk::PrintMemoryPropertyFlags(memPropFlags);
+    if(memPropFlags & VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT) {
+
+    } else {
+        // staging buffer required, no reBAR enabled
+        throw std::runtime_error("[ERROR] Application currently requires reBAR");
+    }
 
     /* OBJ Wavefront model loading
     // check allocation info

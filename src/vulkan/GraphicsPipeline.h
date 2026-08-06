@@ -12,8 +12,8 @@ public:
         GLFWwindow* window,
         Shader& shader,
         uint32_t numImages,
-        vk::Format colorFormat
-        //vk::Format depthFormat
+        vk::Format colorFormat,
+        vk::Format depthFormat
         );
 
     void Bind(vk::raii::CommandBuffer& cmdBuffer);

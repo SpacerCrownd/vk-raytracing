@@ -22,14 +22,15 @@ public:
 	void DeviceWaitIdle();
 	void RecreateSwapchain();
 
-	[[nodiscard]] vk::Format GetDepthFormat() const { return m_physDevice->m_depthFormat; }
-	[[nodiscard]] vk::raii::Queue& GetQueue() { return m_queue; }
-	[[nodiscard]] const Swapchain& GetSwapchain() const { return *m_swapchain; }
-	[[nodiscard]] const Device& GetDevice() const { return *m_device; }
-	[[nodiscard]] uint32_t GetCurrentFrameIndex() const { return m_currentFrameIndex; }
-	[[nodiscard]] uint32_t GetCurrentImageIndex() const { return m_currentImageIndex; }
-	[[nodiscard]] const ResourceAllocator& GetResourceAllocator() const { return *m_resourceAllocator; }
-	[[nodiscard]] const Image& GetDrawImage() const { return m_drawImage; }
+	vk::Format GetDepthFormat() const { return m_physDevice->m_depthFormat; }
+	vk::raii::Queue& GetQueue() { return m_queue; }
+	const Swapchain& GetSwapchain() const { return *m_swapchain; }
+	const Device& GetDevice() const { return *m_device; }
+	uint32_t GetCurrentFrameIndex() const { return m_currentFrameIndex; }
+	uint32_t GetCurrentImageIndex() const { return m_currentImageIndex; }
+	const ResourceAllocator& GetResourceAllocator() const { return *m_resourceAllocator; }
+	const Image& GetDrawImage() const { return m_drawImage; }
+	const Image& GetDepthImage(uint32_t i) const { return m_depthImages[i]; }
 
 	vk::raii::CommandBuffer& BeginCommandRecording();
 
@@ -50,7 +51,6 @@ private:
 	std::unique_ptr<ResourceAllocator> m_resourceAllocator{};
 
 	Image m_drawImage;
-	vk::Extent2D m_drawExtent;
 
 	vk::raii::Queue m_queue{VK_NULL_HANDLE}; // graphics queue
 
@@ -63,6 +63,8 @@ private:
 	std::vector<vk::raii::Fence> m_inFlightFences{};
 	uint32_t m_currentFrameIndex{0};
 	uint32_t m_currentImageIndex{0};
+
+	std::vector<Image> m_depthImages;
 
 	// Shaders
 	std::optional<Shader> m_rasterShader;
@@ -95,6 +97,7 @@ private:
 	void CreateSwapchain();
 	void CreateSyncObjects();
 	void CreateCommandObjects();
+	void CreateDepthResources();
 
 	vk::Extent2D ChooseSwapExtent(const vk::SurfaceCapabilitiesKHR& capabilities);
 

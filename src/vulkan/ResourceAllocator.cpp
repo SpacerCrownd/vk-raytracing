@@ -76,4 +76,8 @@ Image ResourceAllocator::CreateImage(const vk::ImageCreateInfo& imageInfo, const
      image.view = vk::raii::ImageView(m_device->GetVkDevice(), viewInfoTmp);
      return image;
 }
+
+void ResourceAllocator::GetAllocationMemoryProperties(VmaAllocation allocation, VkMemoryPropertyFlags &memoryProperties) const {
+     return vmaGetAllocationMemoryProperties(m_allocator, allocation, &memoryProperties);
+}
 }

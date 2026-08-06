@@ -20,13 +20,16 @@ namespace ptvk
 {
 const char* GetDebugSeverityStr(vk::DebugUtilsMessageSeverityFlagBitsEXT severity);
 const char* GetDebugType(vk::DebugUtilsMessageTypeFlagsEXT type);
+
 void PrintImageUsageFlags(const vk::ImageUsageFlags& flags);
-void PrintMemoryProperty(const vk::Flags<vk::MemoryPropertyFlagBits>& flags);
+void PrintMemoryPropertyFlags(const vk::Flags<vk::MemoryPropertyFlagBits>& flags);
+void PrintMemoryPropertyFlags(const VkMemoryPropertyFlags &flags);
+
 vk::Format FindSupportedFormat(const vk::raii::PhysicalDevice& device, const std::vector<vk::Format>& candidates,
                                vk::ImageTiling tiling, vk::FormatFeatureFlags features);
 vk::Format FindDepthFormat(const vk::raii::PhysicalDevice& device);
 
-void PrintMemoryPropertyFlags(const VkMemoryPropertyFlags &flags);
+
 
 void TransitionImage(vk::raii::CommandBuffer& cmd, vk::Image image, vk::ImageLayout currentLayout, vk::ImageLayout newLayout); // generic inefficient transition memory barriers
 
