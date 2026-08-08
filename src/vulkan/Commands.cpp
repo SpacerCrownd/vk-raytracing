@@ -1,14 +1,16 @@
 ﻿#include "Commands.h"
 
 namespace ptvk {
-vk::raii::CommandPool CreateTransientCommandPool(vk::raii::Device &device, uint32_t queueFamilyIndex) {
+vk::raii::CommandPool CreateTransientCommandPool(vk::raii::Device &device, uint32_t queueFamilyIndex)
+{
     return vk::raii::CommandPool(device, {
-        .flags            = vk::CommandPoolCreateFlagBits::eTransient,
+        .flags            = vk::CommandPoolCreateFlagBits::eTransient | vk::CommandPoolCreateFlagBits::eResetCommandBuffer,
         .queueFamilyIndex = queueFamilyIndex,
     });
 }
 
-vk::raii::CommandBuffer BeginSingleTimeCommands(vk::raii::Device &device, vk::raii::CommandPool &cmdPool) {
+vk::raii::CommandBuffer BeginSingleTimeCommands(vk::raii::Device &device, vk::raii::CommandPool &cmdPool)
+{
     vk::CommandBufferAllocateInfo allocInfo{ .commandPool = *cmdPool, .level = vk::CommandBufferLevel::ePrimary, .commandBufferCount = 1 };
 
     vk::raii::CommandBuffer cmd = std::move(vk::raii::CommandBuffers(device, allocInfo).front());
@@ -18,19 +20,29 @@ vk::raii::CommandBuffer BeginSingleTimeCommands(vk::raii::Device &device, vk::ra
     return std::move(cmd);
 }
 
-vk::Result SubmitSingleTimeCommands(vk::raii::CommandBuffer &cmd, vk::raii::Device &device, vk::raii::CommandPool &cmdPool, vk::raii::Queue &queue) {
+vk::Result SubmitSingleTimeCommands(vk::raii::CommandBuffer& cmd, vk::raii::Device& device, vk::raii::CommandPool& cmdPool, vk::raii::Queue& queue)
+{
     cmd.end();
+    vk::raii::Fence fence(device, vk::FenceCreateInfo{});
 
-    vk::FenceCreateInfo fenceCreateInfo{};
-    vk::raii::Fence fence = vk::raii::Fence(device, fenceCreateInfo);
-
-    vk::SubmitInfo submitInfo{
-        .commandBufferCount = 1,
-        .pCommandBuffers = &*cmd,
+    vk::CommandBufferSubmitInfo cmdSubmitInfo {
+        .commandBuffer = *cmd
     };
-    queue.submit(submitInfo, fence);
-    VK_FAIL_RETURN(device.waitForFences(*fence, vk::True, UINT64_MAX), "Failed waiting for single submit fence");
-    cmdPool.reset();
+
+    vk::SubmitInfo2 submitInfo {
+        .commandBufferInfoCount = 1,
+        .pCommandBufferInfos    = &cmdSubmitInfo
+    };
+
+    queue.submit2(submitInfo, *fence);
+
+    vk::Result result = device.waitForFences(*fence, vk::True, UINT64_MAX);
+    if (result != vk::Result::eSuccess) {
+        return result;
+    }
+
+    cmd.reset();
+
     return vk::Result::eSuccess;
 }
 }

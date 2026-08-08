@@ -7,7 +7,8 @@ GraphicsPipeline::GraphicsPipeline(
         Shader& shader,
         uint32_t numImages,
         vk::Format colorFormat,
-        vk::Format depthFormat
+        vk::Format depthFormat,
+        bool enableDepthTesting
     ) : m_device(device), m_numImages(numImages)
 {
     vk::PipelineShaderStageCreateInfo shaderStages[] {
@@ -52,8 +53,8 @@ GraphicsPipeline::GraphicsPipeline(
     m_pipelineLayout = vk::raii::PipelineLayout(device, pipelineLayoutInfo);
 
     vk::PipelineDepthStencilStateCreateInfo depthStencil {
-        .depthTestEnable       = vk::True,
-        .depthWriteEnable      = vk::True,
+        .depthTestEnable       = enableDepthTesting,
+        .depthWriteEnable      = enableDepthTesting,
         .depthCompareOp        = vk::CompareOp::eLess,
         .depthBoundsTestEnable = vk::False,
         .stencilTestEnable     = vk::False

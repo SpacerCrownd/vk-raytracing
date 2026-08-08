@@ -65,7 +65,8 @@ void Renderer::LoadShaders() {
 void Renderer::CreateGraphicsPipeline() {
     auto colorFormat = m_vkCore.GetDrawImage().format;
     auto depthFormat = m_vkCore.GetDepthFormat();
-    m_graphicsPipeline.emplace(m_vkCore.GetDevice().GetVkDevice(), m_window.GetWindow(), m_rasterShader.value(), 1, colorFormat, depthFormat);
+    m_graphicsPipeline.emplace(m_vkCore.GetDevice().GetVkDevice(), m_window.GetWindow(), m_rasterShader.value(), 1,
+                               colorFormat, depthFormat, m_enableDepth);
 }
 
 void Renderer::PrepareFrameData() {
@@ -174,7 +175,7 @@ void Renderer::Draw() {
         .imageView = m_vkCore.GetDepthImage(imgIndex).view,
         .imageLayout = vk::ImageLayout::eDepthAttachmentOptimal,
         .loadOp = vk::AttachmentLoadOp::eClear,
-        .storeOp = vk::AttachmentStoreOp::eStore,
+        .storeOp = vk::AttachmentStoreOp::eDontCare,
         .clearValue = depthValue
     };
     vk::RenderingInfo renderingInfo = {
@@ -191,11 +192,11 @@ void Renderer::Draw() {
     m_graphicsPipeline->Bind(cmdBuffer);
     cmdBuffer.setViewport(0, vk::Viewport(0.0f, 0.0f, static_cast<float>(swapchainExtent.width), static_cast<float>(swapchainExtent.height), 0.0f, 1.0f));
     cmdBuffer.setScissor(0, vk::Rect2D(vk::Offset2D(0, 0), swapchainExtent));
-    cmdBuffer.draw(3, 1, 0, 0);
+    cmdBuffer.draw(6, 1, 0, 0);
 
     cmdBuffer.endRendering();
 
-    // transfer draw image to swapchain image
+    // copy draw image to swapchain image
     dependencyInfo = {
         .dependencyFlags = {},
         .imageMemoryBarrierCount = 1,

@@ -13,7 +13,8 @@ public:
         Shader& shader,
         uint32_t numImages,
         vk::Format colorFormat,
-        vk::Format depthFormat
+        vk::Format depthFormat,
+        bool enableDepthTesting
         );
 
     void Bind(vk::raii::CommandBuffer& cmdBuffer);

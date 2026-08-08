@@ -31,6 +31,9 @@ private:
 	std::optional<ptvk::Shader> m_rasterShader;
 	std::optional<ptvk::Shader> m_rtShader;
 
+	// parameters
+	bool m_enableDepth = true;
+
 	void MainLoop();
 	void PrepareFrameData();
 	void Draw();

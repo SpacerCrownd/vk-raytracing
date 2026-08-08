@@ -48,6 +48,8 @@ add_executable(${PROJECT_NAME}
         src/GltfScene.cpp
         src/vulkan/GraphicsPipeline.cpp
         src/vulkan/GraphicsPipeline.h
+        src/vulkan/ImguiVulkan.cpp
+        src/vulkan/ImguiVulkan.h
 )
 
 # Shaders

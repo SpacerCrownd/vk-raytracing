@@ -34,10 +34,9 @@ Core::Core(const char* appName, const Window& window) : m_window(window)
 	SelectPhysicalDevice();
 	CreateLogicalDevice();
 	InitResourceAllocator();
+	CreateCommandObjects();
 	CreateSwapchain();
 	CreateSyncObjects();
-	CreateCommandObjects();
-	CreateDepthResources();
 	//m_queue = std::make_unique<VulkanQueue>(m_device, m_swapchain, m_queueFamily, 0);
 };
 
@@ -420,10 +419,11 @@ void Core::CreateSwapchain() {
 	};
 
 	m_drawImage = m_resourceAllocator->CreateImage(imageCreateInfo, viewCreateInfo, allocationCreateInfo);
+	CreateDepthResources();
 }
 
 void Core::RecreateSwapchain() {
-	printf("[INFO] Recreating Swapchain");
+	printf("[INFO] Recreating Swapchain\n");
 	int width = 0, height = 0;
 	glfwGetFramebufferSize(m_window.GetWindow(), &width, &height);
 	while (width == 0 || height == 0) {
@@ -568,20 +568,31 @@ void Core::PrepareFrame() {
 
 void Core::SubmitFrame() {
 	m_cmdBuffs[m_currentFrameIndex].end();
-	vk::PipelineStageFlags waitFlags = vk::PipelineStageFlagBits::eColorAttachmentOutput;
 
-	const vk::SubmitInfo submitInfo = {
-		.sType = vk::StructureType::eSubmitInfo,
-		.waitSemaphoreCount = 1,
-		.pWaitSemaphores = &*m_renderSemaphores[m_currentFrameIndex],
-		.pWaitDstStageMask = &waitFlags,
-		.commandBufferCount = 1,
-		.pCommandBuffers = &*m_cmdBuffs[m_currentFrameIndex],
-		.signalSemaphoreCount = 1,
-		.pSignalSemaphores = &*m_presentSemaphores[m_currentImageIndex],
+	vk::SemaphoreSubmitInfo waitSemaphoreSubmitInfo = {
+		.semaphore = m_renderSemaphores[m_currentFrameIndex],
+		.stageMask = vk::PipelineStageFlagBits2::eColorAttachmentOutput,
 	};
 
-	m_queue.submit(submitInfo, m_inFlightFences[m_currentFrameIndex]);
+	vk::SemaphoreSubmitInfo signalSemaphoreSubmitInfo = {
+		.semaphore = m_presentSemaphores[m_currentImageIndex],
+		.stageMask = vk::PipelineStageFlagBits2::eAllCommands,
+	};
+
+	vk::CommandBufferSubmitInfo cmdBufferSubmitInfo = {
+		.commandBuffer = m_cmdBuffs[m_currentFrameIndex],
+	};
+
+	vk::SubmitInfo2 submitInfo = {
+		.waitSemaphoreInfoCount = 1,
+		.pWaitSemaphoreInfos = &waitSemaphoreSubmitInfo,
+		.commandBufferInfoCount = 1,
+		.pCommandBufferInfos = &cmdBufferSubmitInfo,
+		.signalSemaphoreInfoCount = 1,
+		.pSignalSemaphoreInfos = &signalSemaphoreSubmitInfo,
+	};
+
+	m_queue.submit2(submitInfo, m_inFlightFences[m_currentFrameIndex]);
 }
 
 vk::raii::CommandBuffer& Core::BeginCommandRecording() {

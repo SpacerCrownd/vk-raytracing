@@ -10,7 +10,7 @@ struct Buffer {
     vk::DeviceSize bufferSize{};
     vk::DeviceAddress address{}; // buffer address in shader (Buffer Device Address extension)
     VmaAllocation allocation{};
-    VmaAllocator allocator{};
+    VmaAllocator* allocator;
     uint8_t* mapping{};
 
     Buffer() = default;
@@ -56,7 +56,7 @@ struct Buffer {
 private:
     void cleanup() {
         if (allocation) {
-            vmaDestroyBuffer(allocator, buffer, allocation);
+            vmaDestroyBuffer(*allocator, buffer, allocation);
         }
     }
 };
@@ -69,7 +69,7 @@ struct Image {
     uint32_t mipLevels{};
     uint32_t arrayLayers{};
     VmaAllocation allocation{};
-    VmaAllocator allocator{};
+    VmaAllocator* allocator;
 
     Image() = default;
 
@@ -120,7 +120,7 @@ struct Image {
 private:
     void cleanup() {
         if (allocation) {
-            vmaDestroyImage(allocator, image, allocation);
+            vmaDestroyImage(*allocator, image, allocation);
         }
     }
 };
