@@ -2,10 +2,12 @@
 #define VK_RAYTRACING_APPLICATION_H
 
 #include "vulkan/Core.h"
-#include "Camera.h"
-#include "GltfScene.h"
 #include "vulkan/Shader.h"
 #include "vulkan/GraphicsPipeline.h"
+#include "vulkan/GltfSceneVulkan.h"
+
+#include "Camera.h"
+#include "GltfScene.h"
 
 namespace app {
 class Renderer {
@@ -25,7 +27,8 @@ private:
 
 	std::optional<ptvk::GraphicsPipeline> m_graphicsPipeline;
 
-	GltfScene m_scene;
+	Scene m_scene;
+	ptvk::GltfSceneVulkan m_vkScene;
 	Camera m_camera;
 
 	std::optional<ptvk::Shader> m_rasterShader;
@@ -34,9 +37,11 @@ private:
 	// parameters
 	bool m_enableDepth = true;
 
+	// life cycle
 	void MainLoop();
 	void PrepareFrameData();
 	void Draw();
+	void OnResize();
 
 	void CreateScene();
 

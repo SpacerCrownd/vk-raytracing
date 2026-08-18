@@ -9,30 +9,32 @@
 #include <iostream>
 
 namespace app {
-tinygltf::Model LoadGltfResource(const std::filesystem::path &filename) {
-    tinygltf::Model model;
+bool loadGltf(const std::filesystem::path &filename, tinygltf::Model &model) {
     tinygltf::TinyGLTF loader;
     std::string err;
     std::string warn;
-    if (filename.extension() == ".gltf") {
-        if (!loader.LoadASCIIFromFile(&model, &err, &warn, filename.string())) {
-            std::cout << "[ERROR] Error loading glTF file: " << err << std::endl;
-            return {};
-        }
-    } else if (filename.extension() == ".glb") {
-        if (!loader.LoadBinaryFromFile(&model, &err, &warn, filename.string())) {
-            std::cout << "[ERROR] Error loading glTF file: " << err.c_str();
-            return {};
-        }
-    } else {
-        std::cout << "[ERROR] Unsupported file format: " << filename.extension().string().c_str() << std::endl;
-        return {};
-    }
-    std::cout << "\n[INFO] Loaded glTF file: " << filename.string().c_str() << std::endl;
-    return model;
+    const std::string extension = filename.extension().string();
+
+    // Check file extension and load file
+    bool ret{};
+    if (extension == ".glb")
+        ret = loader.LoadBinaryFromFile(&model, &err, &warn, filename.string());
+    else if (extension == ".gltf")
+        ret = loader.LoadASCIIFromFile(&model, &err, &warn, filename.string());
+    else
+        throw std::runtime_error("[ERROR] Tried to load unsupported file format.\n Currently supported file formats: .glb, .gltf.");
+
+    if (!warn.empty())
+        std::cout << ("[WARNING] Warn: " + warn) << std::endl;
+    if (!err.empty())
+        throw std::runtime_error("[ERROR] " + err);
+    if (!ret)
+        throw std::runtime_error("[ERROR] Failed to parse glTF file: " + filename.string());
+
+    std::cout << ("[GltfLoader] Parsed " + filename.string()) << std::endl;
 }
 
-vk::Filter ExtractFilter(int filter) {
+vk::Filter extractFilter(int filter) {
     switch (filter) {
         case TINYGLTF_TEXTURE_FILTER_LINEAR:
         case TINYGLTF_TEXTURE_FILTER_LINEAR_MIPMAP_LINEAR:
@@ -49,7 +51,7 @@ vk::Filter ExtractFilter(int filter) {
     }
 }
 
-vk::SamplerMipmapMode ExtractMipmapMode(int filter) {
+vk::SamplerMipmapMode extractMipmapMode(int filter) {
     switch (filter) {
         case TINYGLTF_TEXTURE_FILTER_LINEAR_MIPMAP_LINEAR:
         case TINYGLTF_TEXTURE_FILTER_NEAREST_MIPMAP_LINEAR:

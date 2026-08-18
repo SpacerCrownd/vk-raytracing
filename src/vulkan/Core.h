@@ -8,7 +8,6 @@
 #include "Window.h"
 #include "PhysicalDevice.h"
 #include "Shader.h"
-#include "GraphicsPipeline.h"
 
 namespace ptvk {
 
@@ -19,97 +18,95 @@ public:
 
 	bool framebufferResized = false;
 
-	void DeviceWaitIdle();
-	void RecreateSwapchain();
+	void deviceWaitIdle();
+	void recreateSwapchain();
 
-	vk::Format GetDepthFormat() const { return m_physDevice->m_depthFormat; }
-	vk::raii::Queue& GetQueue() { return m_queue; }
-	const Swapchain& GetSwapchain() const { return *m_swapchain; }
-	const Device& GetDevice() const { return *m_device; }
-	uint32_t GetCurrentFrameIndex() const { return m_currentFrameIndex; }
-	uint32_t GetCurrentImageIndex() const { return m_currentImageIndex; }
-	const ResourceAllocator& GetResourceAllocator() const { return *m_resourceAllocator; }
-	const Image& GetDrawImage() const { return m_drawImage; }
-	const Image& GetDepthImage(uint32_t i) const { return m_depthImages[i]; }
+	vk::Format               getDepthFormat() const { return m_pPhysDevice->m_depthFormat; }
+	vk::raii::Queue&         getQueue() { return m_queue; }
+	const Swapchain&         getSwapchain() const { return *m_pSwapchain; }
+	const Device&            getDevice() const { return *m_pDevice; }
+	uint32_t                 getCurrentFrameIndex() const { return m_currentFrameIndex; }
+	uint32_t                 getCurrentImageIndex() const { return m_currentImageIndex; }
+	const ResourceAllocator& getResourceAllocator() const { return *m_pResourceAllocator; }
+	const Image&             getDrawImage() const { return m_drawImage; }
+	const Image&             getDepthImage(uint32_t i) const { return m_depthImages[i]; }
 
-	vk::raii::CommandBuffer& BeginCommandRecording();
+	vk::raii::CommandBuffer& beginCommandRecording();
 
-	void PrepareFrame();
-	void SubmitFrame();
-	void PresentFrame();
+	void prepareFrame();
+	void submitFrame();
+	void presentFrame();
 
 private:
-	const Window& m_window;
-	vk::raii::Context m_context{};
-	vk::raii::Instance m_instance{VK_NULL_HANDLE};
-	vk::raii::SurfaceKHR m_surface{VK_NULL_HANDLE}; // vulkan window abstraction
+	InstanceVersion m_instanceVersion;
+
+	const Window&                    m_window;
+	vk::raii::Context                m_context{};
+	vk::raii::Instance               m_instance{VK_NULL_HANDLE};
+	vk::raii::SurfaceKHR             m_surface{VK_NULL_HANDLE}; // vulkan window abstraction
 	vk::raii::DebugUtilsMessengerEXT m_debugMessenger{VK_NULL_HANDLE};
 
-	std::unique_ptr<PhysicalDevice> m_physDevice{};
-	std::unique_ptr<Device> m_device{};
-	std::unique_ptr<Swapchain> m_swapchain{};
-	std::unique_ptr<ResourceAllocator> m_resourceAllocator{};
+	std::unique_ptr<PhysicalDevice>    m_pPhysDevice{};
+	std::unique_ptr<Device>            m_pDevice{};
+	std::unique_ptr<Swapchain>         m_pSwapchain{};
+	std::unique_ptr<ResourceAllocator> m_pResourceAllocator{};
 
-	Image m_drawImage;
+	Image              m_drawImage;
+	std::vector<Image> m_depthImages;
 
-	vk::raii::Queue m_queue{VK_NULL_HANDLE}; // graphics queue
+	// graphics queue
+	vk::raii::Queue m_queue{VK_NULL_HANDLE};
 
-	std::vector<vk::raii::CommandPool> m_cmdPools{};
+	// per frame in flight command objects
+	std::vector<vk::raii::CommandPool>   m_cmdPools{};
 	std::vector<vk::raii::CommandBuffer> m_cmdBuffs{};
 
-	// frame rendering objects
+	vk::raii::CommandPool m_transientCmdPool{VK_NULL_HANDLE};
+
+	// per frame in flight rendering objects
 	std::vector<vk::raii::Semaphore> m_presentSemaphores{};
 	std::vector<vk::raii::Semaphore> m_renderSemaphores{};
-	std::vector<vk::raii::Fence> m_inFlightFences{};
+	std::vector<vk::raii::Fence>     m_inFlightFences{};
+
 	uint32_t m_currentFrameIndex{0};
 	uint32_t m_currentImageIndex{0};
 
-	std::vector<Image> m_depthImages;
-
-	// Shaders
-	std::optional<Shader> m_rasterShader;
-	std::optional<Shader> m_rtShader;
-
+	// -- Raytracing objects --
 	// Raytracing pipeline components
-	vk::raii::Pipeline m_rtPipeline{VK_NULL_HANDLE};
-	vk::raii::PipelineLayout m_rtPipelineLayout{VK_NULL_HANDLE};
+	vk::raii::Pipeline                              m_rtPipeline{VK_NULL_HANDLE};
+	vk::raii::PipelineLayout                        m_rtPipelineLayout{VK_NULL_HANDLE};
 	std::vector<vk::raii::AccelerationStructureKHR> m_blas{};
-	vk::raii::AccelerationStructureKHR m_tlas{VK_NULL_HANDLE};
+	vk::raii::AccelerationStructureKHR              m_tlas{VK_NULL_HANDLE};
 
 	// Shader binding table stuff
-	vk::raii::Buffer m_sbtBuffer{VK_NULL_HANDLE};
-	std::vector<uint8_t> m_shaderHandles{};
+	vk::raii::Buffer                  m_sbtBuffer{VK_NULL_HANDLE};
+	std::vector<uint8_t>              m_shaderHandles{};
 	vk::StridedDeviceAddressRegionKHR m_raygenRegion{};
 	vk::StridedDeviceAddressRegionKHR m_missRegion{};
 	vk::StridedDeviceAddressRegionKHR m_hitRegion{};
 	vk::StridedDeviceAddressRegionKHR m_callableRegion{}; // callable shader region
 
-	vk::raii::CommandPool m_transientCmdPool{VK_NULL_HANDLE};
+	void createInstance(const char* appName);
+	void createDebugCallback();
+	void createSurface(GLFWwindow* window);
+	void selectPhysicalDevice();
+	void createLogicalDevice();
+	void initResourceAllocator();
+	void createSwapchain();
+	void createSyncObjects();
+	void createCommandObjects();
+	void createDepthResources();
 
-	InstanceVersion m_instanceVersion;
+	// Raytracing initialization methods
+	void createBLAS(vk::raii::CommandBuffer &cmdBuff);
+	void createTLAS(vk::raii::CommandBuffer &cmdBuff);
+	void createSBT();
+	void createAccelerationStructure();
+	void createRaytracingPipeline();
 
-	void CreateInstance(const char* appName);
-	void CreateDebugCallback();
-	void CreateSurface(GLFWwindow* window);
-	void SelectPhysicalDevice();
-	void CreateLogicalDevice();
-	void InitResourceAllocator();
-	void CreateSwapchain();
-	void CreateSyncObjects();
-	void CreateCommandObjects();
-	void CreateDepthResources();
-
-	vk::Extent2D ChooseSwapExtent(const vk::SurfaceCapabilitiesKHR& capabilities);
-
-	void CreateBLAS(vk::raii::CommandBuffer &cmdBuff);
-	void CreateTLAS(vk::raii::CommandBuffer &cmdBuff);
-	void CreateSBT();
-	void CreateAccelerationStructure();
-	void CreateRaytracingPipeline();
-
-	void UpdateInstanceVersion();
+	void		 updateInstanceVersion();
+	vk::Extent2D chooseSwapExtent(const vk::SurfaceCapabilitiesKHR& capabilities);
 };
-
 }
 
 #endif

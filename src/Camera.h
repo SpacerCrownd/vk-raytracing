@@ -20,13 +20,13 @@ public:
     double lastX { 0.f };
     double lastY { 0.f };
 
-    [[nodiscard]] glm::mat4 GetViewMatrix() const;
-    [[nodiscard]] glm::mat4 GetRotationMatrix() const;
+    glm::mat4 getViewMatrix() const;
+    glm::mat4 getRotationMatrix() const;
 
-    void OnKeyChanged(int key, int scancode, int action, int mods);
-    void OnMouseButtonChanged(GLFWwindow* window, int button, int action, int mods);
-    void OnCursorPositionChanged(double xpos, double ypos);
-    void Update();
+    void onKeyChanged(int key, int scancode, int action, int mods);
+    void onMouseButtonChanged(GLFWwindow* window, int button, int action, int mods);
+    void onCursorPositionChanged(double xpos, double ypos);
+    void update();
 };
 }
 

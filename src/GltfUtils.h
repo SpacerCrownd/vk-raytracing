@@ -6,9 +6,10 @@
 #include <vulkan/vulkan.hpp>
 
 namespace app {
-    tinygltf::Model LoadGltfResource(const std::filesystem::path &filename);
-    vk::Filter ExtractFilter(int filter);
-    vk::SamplerMipmapMode ExtractMipmapMode(int filter);
+bool loadGltf(const std::filesystem::path& filename, tinygltf::Model& model);
+
+vk::Filter            extractFilter(int filter);
+vk::SamplerMipmapMode extractMipmapMode(int filter);
 }
 
 

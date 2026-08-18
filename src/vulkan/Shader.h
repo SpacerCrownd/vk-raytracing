@@ -11,18 +11,19 @@ public:
     Shader(const vk::raii::Device& device, const std::string& fileName);
     ~Shader() = default;
 
-    [[nodiscard]] const vk::raii::ShaderModule& GetShaderModule() const {
+    const vk::raii::ShaderModule& getShaderModule() const {
         return m_shader;
     }
 
-    vk::PipelineShaderStageCreateInfo CreateShaderStage(vk::ShaderStageFlagBits stage, const char *pName) const;
+    vk::PipelineShaderStageCreateInfo createShaderStage(vk::ShaderStageFlagBits stage, const char *pName) const;
 
 private:
     const vk::raii::Device& m_device;
-    vk::raii::ShaderModule m_shader{VK_NULL_HANDLE};
+    vk::raii::ShaderModule  m_shader{VK_NULL_HANDLE};
 
-    static std::vector<char> ReadFile(const std::string& fileName);
-    void CreateShaderModule(const std::vector<char>& code);
+    static std::vector<char> readFile(const std::string& fileName);
+
+    void createShaderModule(const std::vector<char>& code);
 };
 
 }

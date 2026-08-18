@@ -8,12 +8,13 @@
 
 namespace ptvk {
 class ImguiVulkan {
+public:
+
 private:
     vk::raii::Sampler sampler{nullptr};
+
     Buffer vertexBuffer;
     Buffer indexBuffer;
-public:
-    
 };
 }
 

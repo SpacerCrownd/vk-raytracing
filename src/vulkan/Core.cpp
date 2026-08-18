@@ -1,10 +1,9 @@
 #include "Core.h"
 #include "Utils.h"
+#include "Commands.h"
 
 #include <algorithm>
 #include <iostream>
-
-#include "Commands.h"
 
 namespace ptvk {
 static VKAPI_ATTR vk::Bool32 VKAPI_CALL DebugCallback(
@@ -13,45 +12,57 @@ static VKAPI_ATTR vk::Bool32 VKAPI_CALL DebugCallback(
 	const vk::DebugUtilsMessengerCallbackDataEXT* pCallbackData,
 	void* pUserData)
 {
-	printf("[Debug Callback]\n %s\n", pCallbackData->pMessage);
-	printf("\tSeverity: %s\n", GetDebugSeverityStr(severity));
-	printf("\tType: %c", GetDebugType(type));
-	printf(" Objects ");
+	std::cout << "[Debug Callback] " << pCallbackData->pMessage << std::endl;
+
+	std::cout << "\tSeverity: "
+			  << getDebugSeverityStr(severity) << std::endl;
+
+	std::cout << "\tType: "
+			  << getDebugType(type);
+
+	std::cout << " Objects " << std::endl;
 
 	for (uint32_t i = 0; i < pCallbackData->objectCount; i++) {
-		printf("%llx ", pCallbackData->pObjects[i].objectHandle);
+		std::cout << '\t' << pCallbackData->pObjects[i].objectHandle;
+
+		if (i + 1 < pCallbackData->objectCount)
+			std::cout << ", ";
 	}
-	printf("\n");
+
+	std::cout << std::endl;
 
 	return vk::False;
 }
 
 Core::Core(const char* appName, const Window& window) : m_window(window)
 {
-	CreateInstance(appName);
-	if (enableDebugging) { CreateDebugCallback(); }
-	CreateSurface(window.GetWindow());
-	SelectPhysicalDevice();
-	CreateLogicalDevice();
-	InitResourceAllocator();
-	CreateCommandObjects();
-	CreateSwapchain();
-	CreateSyncObjects();
-	//m_queue = std::make_unique<VulkanQueue>(m_device, m_swapchain, m_queueFamily, 0);
+	createInstance(appName);
+	if (enableDebugging) { createDebugCallback(); }
+	createSurface(window.getWindow());
+	selectPhysicalDevice();
+	createLogicalDevice();
+	initResourceAllocator();
+	createCommandObjects();
+	createSwapchain();
+	createSyncObjects();
 };
 
-void Core::UpdateInstanceVersion() {
+void Core::updateInstanceVersion() {
 	uint32_t instanceVersion = m_context.enumerateInstanceVersion();
 
 	m_instanceVersion.Major = static_cast<int>(vk::apiVersionMajor(instanceVersion));
 	m_instanceVersion.Minor = static_cast<int>(vk::apiVersionMinor(instanceVersion));
 	m_instanceVersion.Patch = static_cast<int>(vk::apiVersionPatch(instanceVersion));
 
-	printf("[INFO] Vulkan loader supports version %d.%d.%d\n", m_instanceVersion.Major, m_instanceVersion.Minor, m_instanceVersion.Patch);
+	std::cout << "[INFO] Vulkan loader supports version "
+		  << m_instanceVersion.Major << "."
+		  << m_instanceVersion.Minor << "."
+		  << m_instanceVersion.Patch
+		  << std::endl;
 }
 
-void Core::CreateInstance(const char* appName) {
-	UpdateInstanceVersion();
+void Core::createInstance(const char* appName) {
+	updateInstanceVersion();
 
 	vk::ApplicationInfo appInfo{
 		.pApplicationName = appName,
@@ -93,8 +104,8 @@ void Core::CreateInstance(const char* appName) {
 	// List available instance extensions
 	auto extensionProperties = m_context.enumerateInstanceExtensionProperties();
 	std::cout << "Available instance extensions:" << std::endl;
-	for (const auto& extension : extensionProperties) {
-		std::cout << '\t' << extension.extensionName << std::endl;
+	for (const auto&[extensionName, specVersion] : extensionProperties) {
+		std::cout << '\t' << extensionName << std::endl;
 	}
 
 	// Get the required instance layers
@@ -118,10 +129,10 @@ void Core::CreateInstance(const char* appName) {
 	};
 
 	m_instance = vk::raii::Instance(m_context, createInfo);
-	printf("\n[INFO] Instance Created\n");
+	std::cout << std::endl << "[INFO] Instance Created" << std::endl;
 }
 
-void Core::CreateDebugCallback() {
+void Core::createDebugCallback() {
 	vk::DebugUtilsMessengerCreateInfoEXT msgCreateInfo{
 		.messageSeverity = vk::DebugUtilsMessageSeverityFlagBitsEXT::eVerbose |
 						   vk::DebugUtilsMessageSeverityFlagBitsEXT::eInfo |
@@ -135,38 +146,38 @@ void Core::CreateDebugCallback() {
 	};
 
 	m_debugMessenger = m_instance.createDebugUtilsMessengerEXT(msgCreateInfo);
-	printf("[INFO] Debug Messenger Created\n");
+	std::cout << "[INFO] Debug Messenger Created" << std::endl;
 }
 
-void Core::CreateSurface(GLFWwindow* window) {
+void Core::createSurface(GLFWwindow* window) {
 	VkSurfaceKHR surface;
 	if (glfwCreateWindowSurface(*m_instance, window, nullptr, &surface) != 0) {
 		throw std::runtime_error("Failed to create window surface!");
 	}
 	m_surface = vk::raii::SurfaceKHR(m_instance, surface);
-	printf("[INFO] Surface created\n");
+	std::cout << "[INFO] Surface created" << std::endl;
 }
 
-void Core::InitResourceAllocator() {
+void Core::initResourceAllocator() {
 	VmaVulkanFunctions vulkanFunctions = {
 		.vkGetInstanceProcAddr = m_instance.getDispatcher()->vkGetInstanceProcAddr,
-		.vkGetDeviceProcAddr = m_device->GetVkDevice().getDispatcher()->vkGetDeviceProcAddr,
+		.vkGetDeviceProcAddr = m_pDevice->getVkDevice().getDispatcher()->vkGetDeviceProcAddr,
 	};
 
 	VmaAllocatorCreateInfo allocatorCreateInfo = {
 		.flags = VMA_ALLOCATOR_CREATE_BUFFER_DEVICE_ADDRESS_BIT,
-		.physicalDevice = *m_physDevice->m_physDevice,
-		.device = *m_device->GetVkDevice(),
+		.physicalDevice = *m_pPhysDevice->m_physDevice,
+		.device = *m_pDevice->getVkDevice(),
 		.pVulkanFunctions = &vulkanFunctions,
 		.instance = *m_instance,
 		.vulkanApiVersion = VK_API_VERSION_1_3,
 	};
 
-	m_resourceAllocator = std::make_unique<ResourceAllocator>(allocatorCreateInfo, &*m_device);
-	printf("[INFO] VMA Allocator Created\n");
+	m_pResourceAllocator = std::make_unique<ResourceAllocator>(allocatorCreateInfo, &*m_pDevice);
+	std::cout << "[INFO] VMA Allocator Created" << std::endl;
 }
 
-void Core::SelectPhysicalDevice() {
+void Core::selectPhysicalDevice() {
 	auto vkPhysicalDevices = m_instance.enumeratePhysicalDevices();
 	std::vector<PhysicalDevice> physicalDevices;
 	physicalDevices.resize(vkPhysicalDevices.size());
@@ -179,67 +190,66 @@ void Core::SelectPhysicalDevice() {
 		physicalDevices[i].m_physDevice = std::move(device);
 		physicalDevices[i].m_devProperties2 = physicalDevices[i].m_physDevice.getProperties2();
 
-		printf("\nDevice name: %s\n", physicalDevices[i].m_devProperties2.properties.deviceName.data());
+		std::cout << "\nDevice name: " << physicalDevices[i].m_devProperties2.properties.deviceName.data() << std::endl;
 
 		physicalDevices[i].m_features2 = physicalDevices[i].m_physDevice.getFeatures2();
 
 		// API version
 		uint32_t apiVersion = physicalDevices[i].m_devProperties2.properties.apiVersion;
-		printf("	API version: %d.%d.%d.%d\n",
-			   vk::apiVersionVariant(apiVersion),
-			   vk::apiVersionMajor(apiVersion),
-			   vk::apiVersionMinor(apiVersion),
-			   vk::apiVersionPatch(apiVersion)
-		);
+		std::cout << "\tAPI version: "
+		  << vk::apiVersionVariant(apiVersion) << "."
+		  << vk::apiVersionMajor(apiVersion) << "."
+		  << vk::apiVersionMinor(apiVersion) << "."
+		  << vk::apiVersionPatch(apiVersion)
+		  << '\n';
 
 		if (apiVersion < vk::ApiVersion13) {
 			throw std::runtime_error("API version lower than 1.3");
 		}
 
 		// Queue Families
-		physicalDevices[i].m_qFamilyProperties = physicalDevices[i].m_physDevice.getQueueFamilyProperties();
-		size_t numQFamilies = physicalDevices[i].m_qFamilyProperties.size();
-		physicalDevices[i].m_qSupportsPresent.resize(numQFamilies);
-		printf("	Number of Queue families: %d\n", static_cast<int>(numQFamilies));
+		physicalDevices[i].m_queueFamilyProperties = physicalDevices[i].m_physDevice.getQueueFamilyProperties();
+		size_t numQFamilies = physicalDevices[i].m_queueFamilyProperties.size();
+		physicalDevices[i].m_queueSupportsPresent.resize(numQFamilies);
+		std::cout << "\tNumber of Queue families: " << static_cast<int>(numQFamilies) << std::endl;
 
 		for (uint32_t j = 0; j < numQFamilies; j++) {
-			auto queueFamProperty = physicalDevices[i].m_qFamilyProperties[j];
-			printf("	Family %d Num queues %d", j, queueFamProperty.queueCount);
+			auto queueFamProperty = physicalDevices[i].m_queueFamilyProperties[j];
+			std::cout << "\tFamily " << j << " Num queues " << queueFamProperty.queueCount << std::endl;
 
 			vk::QueueFlags flags = queueFamProperty.queueFlags;
-			printf("	Graphics %s, Compute %s, Transfer %s, Sparse binding %s\n",
-				   (flags & vk::QueueFlagBits::eGraphics) ? "Yes" : "No",
-				   (flags & vk::QueueFlagBits::eCompute) ? "Yes" : "No",
-				   (flags & vk::QueueFlagBits::eTransfer) ? "Yes" : "No",
-				   (flags & vk::QueueFlagBits::eSparseBinding) ? "Yes" : "No"
-			);
+			std::cout << "\tGraphics " << ((flags & vk::QueueFlagBits::eGraphics) ? "Yes" : "No")
+				<< ", Compute " << ((flags & vk::QueueFlagBits::eCompute) ? "Yes" : "No")
+				<< ", Transfer " << ((flags & vk::QueueFlagBits::eTransfer) ? "Yes" : "No")
+				<< ", Sparse binding " << ((flags & vk::QueueFlagBits::eSparseBinding) ? "Yes" : "No")
+				<< std::endl;
 
-			physicalDevices[i].m_qSupportsPresent[j] = physicalDevices[i].m_physDevice.getSurfaceSupportKHR(j, m_surface);
+			physicalDevices[i].m_queueSupportsPresent[j] = physicalDevices[i].m_physDevice.getSurfaceSupportKHR(j, m_surface);
 		}
-		printf("\n	Surface Stuff\n");
+		std::cout << std::endl << "	Surface Stuff" << std::endl;
 		// Formats
 		physicalDevices[i].m_surfaceFormats = physicalDevices[i].m_physDevice.getSurfaceFormatsKHR(m_surface);
 
 		for (const auto [format, colorSpace]: physicalDevices[i].m_surfaceFormats) {
-			printf("	Format %d color space %d\n", format, colorSpace);
+			std::cout << " Format " << to_string(format) << " color space " << to_string(colorSpace) << std::endl;
 		}
 
 		// Capabilities
 		physicalDevices[i].m_surfaceCapabilities = physicalDevices[i].m_physDevice.getSurfaceCapabilitiesKHR(m_surface);
-		PrintImageUsageFlags(physicalDevices[i].m_surfaceCapabilities.supportedUsageFlags);
-		printf("	minImageCount = %d maxImageCount = %d\n", physicalDevices[i].m_surfaceCapabilities.minImageCount,
-			   physicalDevices[i].m_surfaceCapabilities.maxImageCount);
-		printf("	currentExtent = %d x %d\n", physicalDevices[i].m_surfaceCapabilities.currentExtent.width,
-			   physicalDevices[i].m_surfaceCapabilities.currentExtent.height);
-		printf("	maxImageExtent = %d x %d\n", physicalDevices[i].m_surfaceCapabilities.maxImageExtent.width,
-			   physicalDevices[i].m_surfaceCapabilities.maxImageExtent.height);
-		printf("	minImageExtent = %d x %d\n", physicalDevices[i].m_surfaceCapabilities.minImageExtent.width,
-			   physicalDevices[i].m_surfaceCapabilities.minImageExtent.height);
+		printImageUsageFlags(physicalDevices[i].m_surfaceCapabilities.supportedUsageFlags);
+		std::cout << "	minImageCount = " << physicalDevices[i].m_surfaceCapabilities.minImageCount << " maxImageCount = " <<
+			physicalDevices[i].m_surfaceCapabilities.maxImageCount << std::endl;
+		std::cout << "	currentExtent = " << physicalDevices[i].m_surfaceCapabilities.currentExtent.width << " x " <<
+			physicalDevices[i].m_surfaceCapabilities.currentExtent.height << std::endl;
+		std::cout << "	maxImageExtent = " << physicalDevices[i].m_surfaceCapabilities.maxImageExtent.width << " x " <<
+			physicalDevices[i].m_surfaceCapabilities.maxImageExtent.height << std::endl;
+		std::cout << "	minImageExtent = " << physicalDevices[i].m_surfaceCapabilities.minImageExtent.width << " x " <<
+			physicalDevices[i].m_surfaceCapabilities.minImageExtent.height << std::endl;
 
 		// Present modes
 		physicalDevices[i].m_presentModes = physicalDevices[i].m_physDevice.getSurfacePresentModesKHR(m_surface);
 
-		printf("	Present modes: %d\n", static_cast<int>(physicalDevices[i].m_presentModes.size()));
+		std::cout << " Present modes: " << static_cast<int>(physicalDevices[i].m_presentModes.size()) << std::endl;
 
 		for (const vk::PresentModeKHR presentMode: physicalDevices[i].m_presentModes) {
 			auto name = "";
@@ -261,31 +271,31 @@ void Core::SelectPhysicalDevice() {
 					break;
 			}
 
-			printf("	Present mode %s supported\n", name);
+			std::cout << "	Present mode " << name << " supported" << std::endl;
 		}
 
 		// Memory properties
 		physicalDevices[i].m_memProperties = physicalDevices[i].m_physDevice.getMemoryProperties();
-		printf("Memory types: %d\n", physicalDevices[i].m_memProperties.memoryTypeCount);
+		std::cout << "Memory types: " << physicalDevices[i].m_memProperties.memoryTypeCount << std::endl;
 
 		for (uint32_t j = 0; j < physicalDevices[i].m_memProperties.memoryTypeCount; j++) {
-			printf("%d: flags %x, heap %d ",
-				   j,
-				   static_cast<uint32_t>(physicalDevices[i].m_memProperties.memoryTypes[j].propertyFlags),
-				   physicalDevices[i].m_memProperties.memoryTypes[j].heapIndex
-			);
-
-			PrintMemoryPropertyFlags(physicalDevices[i].m_memProperties.memoryTypes[j].propertyFlags);
-			printf("\n");
+			std::cout
+				<< j
+				<< ": flags "
+				<< static_cast<uint32_t>(physicalDevices[i].m_memProperties.memoryTypes[j].propertyFlags)
+				<< ", heap "
+				<< physicalDevices[i].m_memProperties.memoryTypes[j].heapIndex;
+			printMemoryPropertyFlags(physicalDevices[i].m_memProperties.memoryTypes[j].propertyFlags);
+			std::cout << std::endl;
 		}
-		printf("Heap Types %d\n", physicalDevices[i].m_memProperties.memoryHeapCount);
+		std::cout << "Heap Types " << physicalDevices[i].m_memProperties.memoryHeapCount << std::endl;
 
 		//extensions
 		physicalDevices[i].m_extensions = physicalDevices[i].m_physDevice.enumerateDeviceExtensionProperties();
 
-		physicalDevices[i].m_depthFormat = FindDepthFormat(physicalDevices[i].m_physDevice);
+		physicalDevices[i].m_depthFormat = findDepthFormat(physicalDevices[i].m_physDevice);
 
-		/*printf("Available extensions:\n");
+		/*std::cout << "Available extensions:\n");
 		std::cout << "Extension count: " << m_devices[i].m_extensions.size() << "\n";
 		for (const auto& ext : m_devices[i].m_extensions) {
 			std::cout << std::string(ext.extensionName.data()) << "\n";
@@ -303,7 +313,7 @@ void Core::SelectPhysicalDevice() {
 		};
 
 		for (auto reqExtension: requiredExtensions) {
-			if (!physicalDevice.IsExtensionSupported(reqExtension)) {
+			if (!physicalDevice.isExtensionSupported(reqExtension)) {
 				missingRequiredExtensions = true;
 				break;
 			}
@@ -329,15 +339,15 @@ void Core::SelectPhysicalDevice() {
 			physicalDevice.m_physDevice.getProperties2<vk::PhysicalDeviceProperties2, vk::PhysicalDeviceRayTracingPipelinePropertiesKHR>()
 				.get<vk::PhysicalDeviceRayTracingPipelinePropertiesKHR>();
 
-		m_physDevice = std::make_unique<PhysicalDevice>(physicalDevice);
-		printf("[INFO] Physical Device selected: %s\n", m_physDevice->m_devProperties2.properties.deviceName.data());
+		m_pPhysDevice = std::make_unique<PhysicalDevice>(physicalDevice);
+		std::cout << "[INFO] Physical Device selected: " << m_pPhysDevice->m_devProperties2.properties.deviceName.data() << std::endl;
 		return;
 	}
 
 	throw std::runtime_error("No physical device with required queue type and ray tracing capabilities found");
 }
 
-void Core::CreateLogicalDevice() {
+void Core::createLogicalDevice() {
 	std::vector<const char *> devExtensions = {
 		vk::KHRShaderDrawParametersExtensionName,
 		vk::KHRSwapchainExtensionName,
@@ -377,14 +387,14 @@ void Core::CreateLogicalDevice() {
 	featureChain.get<vk::PhysicalDeviceFeatures2>().features.tessellationShader = vk::True;
 	featureChain.get<vk::PhysicalDeviceFeatures2>().features.samplerAnisotropy = vk::True;
 	auto& features = featureChain.get<vk::PhysicalDeviceFeatures2>();
-	printf("Queue family properties size%llu", m_physDevice->m_qFamilyProperties.size());
-	m_device = std::make_unique<Device>(*m_physDevice, devExtensions, vk::QueueFlagBits::eGraphics, features, m_instanceVersion);
-	m_queue = vk::raii::Queue(m_device->GetVkDevice(), m_device->queueFamilyIndices.graphics, 0);
+	std::cout << "Queue family properties size " << m_pPhysDevice->m_queueFamilyProperties.size() << std::endl;
+	m_pDevice = std::make_unique<Device>(*m_pPhysDevice, devExtensions, vk::QueueFlagBits::eGraphics, features, m_instanceVersion);
+	m_queue = vk::raii::Queue(m_pDevice->getVkDevice(), m_pDevice->queueFamilyIndices.graphics, 0);
 }
 
-void Core::CreateSwapchain() {
-	vk::Extent2D extent = ChooseSwapExtent(m_physDevice->m_surfaceCapabilities);
-	m_swapchain = std::make_unique<Swapchain>(*m_device, extent, m_surface);
+void Core::createSwapchain() {
+	vk::Extent2D extent = chooseSwapExtent(m_pPhysDevice->m_surfaceCapabilities);
+	m_pSwapchain = std::make_unique<Swapchain>(*m_pDevice, extent, m_surface);
 
 	// create separate draw image
 	vk::Extent3D drawImageExtent = {extent.width, extent.height, 1};
@@ -418,72 +428,72 @@ void Core::CreateSwapchain() {
 		}
 	};
 
-	m_drawImage = m_resourceAllocator->CreateImage(imageCreateInfo, viewCreateInfo, allocationCreateInfo);
-	CreateDepthResources();
+	m_drawImage = m_pResourceAllocator->createImage(imageCreateInfo, viewCreateInfo, allocationCreateInfo);
+	createDepthResources();
 }
 
-void Core::RecreateSwapchain() {
-	printf("[INFO] Recreating Swapchain\n");
+void Core::recreateSwapchain() {
+	std::cout << "[INFO] Recreating Swapchain\n" << std::endl;
 	int width = 0, height = 0;
-	glfwGetFramebufferSize(m_window.GetWindow(), &width, &height);
+	glfwGetFramebufferSize(m_window.getWindow(), &width, &height);
 	while (width == 0 || height == 0) {
-		glfwGetFramebufferSize(m_window.GetWindow(), &width, &height);
+		glfwGetFramebufferSize(m_window.getWindow(), &width, &height);
 		glfwWaitEvents();
 	}
 
 	// update surface capabilities
-	m_physDevice->m_surfaceCapabilities = m_physDevice->m_physDevice.getSurfaceCapabilitiesKHR(m_surface);
+	m_pPhysDevice->m_surfaceCapabilities = m_pPhysDevice->m_physDevice.getSurfaceCapabilitiesKHR(m_surface);
 
-	m_device->GetVkDevice().waitIdle();
-	m_swapchain = nullptr;
+	m_pDevice->getVkDevice().waitIdle();
+	m_pSwapchain = nullptr;
 
-	CreateSwapchain();
+	createSwapchain();
 }
 
-void Core::CreateSyncObjects() {
+void Core::createSyncObjects() {
 	m_inFlightFences.clear();
 	m_renderSemaphores.clear();
 	m_presentSemaphores.clear();
 
 	// create one acquisition semaphore for each swapchain image
-	for (int i = 0; i < m_swapchain->GetSwapchainImageCount(); i++) {
-		m_presentSemaphores.emplace_back(m_device->GetVkDevice(), vk::SemaphoreCreateInfo());
+	for (int i = 0; i < m_pSwapchain->GetSwapchainImageCount(); i++) {
+		m_presentSemaphores.emplace_back(m_pDevice->getVkDevice(), vk::SemaphoreCreateInfo());
 	}
 
 	// for each in-flight frame create submit semaphores and acquisition fences
 	for (int i = 0; i < MAX_FRAMES_IN_FLIGHT; i++) {
-		m_renderSemaphores.emplace_back(m_device->GetVkDevice(), vk::SemaphoreCreateInfo());
-		m_inFlightFences.emplace_back(m_device->GetVkDevice(), vk::FenceCreateInfo{.flags = vk::FenceCreateFlagBits::eSignaled});
+		m_renderSemaphores.emplace_back(m_pDevice->getVkDevice(), vk::SemaphoreCreateInfo());
+		m_inFlightFences.emplace_back(m_pDevice->getVkDevice(), vk::FenceCreateInfo{.flags = vk::FenceCreateFlagBits::eSignaled});
 	}
 
-	printf("[INFO] Sync Objects Created\n");
+	std::cout << "[INFO] Sync Objects Created\n" << std::endl;
 }
 
-void Core::CreateCommandObjects() {
+void Core::createCommandObjects() {
 	m_cmdPools.clear();
 	m_cmdBuffs.clear();
 	m_transientCmdPool.clear();
 
-	m_transientCmdPool = CreateTransientCommandPool(m_device->GetVkDevice(), m_device->queueFamilyIndices.graphics);
+	m_transientCmdPool = createTransientCommandPool(m_pDevice->getVkDevice(), m_pDevice->queueFamilyIndices.graphics);
 
 	for (int i = 0; i < MAX_FRAMES_IN_FLIGHT; i++) {
-		m_cmdPools.emplace_back(m_device->GetVkDevice(), vk::CommandPoolCreateInfo{.queueFamilyIndex = m_device->queueFamilyIndices.graphics});
-		m_cmdBuffs.push_back(std::move(vk::raii::CommandBuffers(m_device->GetVkDevice(), vk::CommandBufferAllocateInfo{.commandPool = m_cmdPools[i],
+		m_cmdPools.emplace_back(m_pDevice->getVkDevice(), vk::CommandPoolCreateInfo{.queueFamilyIndex = m_pDevice->queueFamilyIndices.graphics});
+		m_cmdBuffs.push_back(std::move(vk::raii::CommandBuffers(m_pDevice->getVkDevice(), vk::CommandBufferAllocateInfo{.commandPool = m_cmdPools[i],
 															   .level = vk::CommandBufferLevel::ePrimary,
 															   .commandBufferCount = 1}).front()));
 	}
 
-	printf("[INFO] Command pools and buffers created\n");
+	std::cout << "[INFO] Command pools and buffers created" << std::endl;
 }
 
-void Core::CreateDepthResources() {
-	int numSwapchainImages = m_swapchain->GetSwapchainImageCount();
+void Core::createDepthResources() {
+	int numSwapchainImages = m_pSwapchain->GetSwapchainImageCount();
 	m_depthImages.resize(numSwapchainImages);
-	vk::Format depthFormat = m_physDevice->m_depthFormat;
+	vk::Format depthFormat = m_pPhysDevice->m_depthFormat;
 
 	for (int i=0; i < numSwapchainImages; i++) {
 		auto imageUsageFlags = vk::ImageUsageFlagBits::eDepthStencilAttachment;
-		vk::Extent3D extent = {m_swapchain->GetExtent().width, m_swapchain->GetExtent().height, 1};
+		vk::Extent3D extent = {m_pSwapchain->GetExtent().width, m_pSwapchain->GetExtent().height, 1};
 
 		vk::ImageCreateInfo imageCreateInfo = {
 			.imageType = vk::ImageType::e2D,
@@ -509,12 +519,12 @@ void Core::CreateDepthResources() {
 			}
 		};
 
-		m_depthImages[i] = m_resourceAllocator->CreateImage(imageCreateInfo, viewCreateInfo, allocationCreateInfo);
+		m_depthImages[i] = m_pResourceAllocator->createImage(imageCreateInfo, viewCreateInfo, allocationCreateInfo);
 
 		// Print memory properties of new allocation
 		//VkMemoryPropertyFlags memPropFlags;
 		//m_resourceAllocator->GetAllocationMemoryProperties(m_depthImages[i].allocation, memPropFlags);
-		//printf("Depth image memory usage flags:\n");
+		//std::cout << "Depth image memory usage flags:\n");
 		//PrintMemoryPropertyFlags(memPropFlags);
 
 		// transition image to depth optimal
@@ -545,20 +555,20 @@ void Core::CreateDepthResources() {
 			.pImageMemoryBarriers = &undefinedToDepthOptimalBarrier,
 		};
 
-		auto cmdBuf = BeginSingleTimeCommands(m_device->GetVkDevice(), m_transientCmdPool);
+		auto cmdBuf = beginSingleTimeCommands(m_pDevice->getVkDevice(), m_transientCmdPool);
 		cmdBuf.pipelineBarrier2(dependencyInfo);
-		SubmitSingleTimeCommands(cmdBuf, m_device->GetVkDevice(), m_transientCmdPool, m_queue);
+		submitSingleTimeCommands(cmdBuf, m_pDevice->getVkDevice(), m_transientCmdPool, m_queue);
 	}
 }
 
-void Core::PrepareFrame() {
-	auto fenceResult = m_device->GetVkDevice().waitForFences(*m_inFlightFences[m_currentFrameIndex], vk::True, UINT64_MAX);
+void Core::prepareFrame() {
+	auto fenceResult = m_pDevice->getVkDevice().waitForFences(*m_inFlightFences[m_currentFrameIndex], vk::True, UINT64_MAX);
 	VK_CHECK_RESULT(fenceResult, "Failed waiting for frame fence");
-	m_device->GetVkDevice().resetFences(*m_inFlightFences[m_currentFrameIndex]);
+	m_pDevice->getVkDevice().resetFences(*m_inFlightFences[m_currentFrameIndex]);
 
-	auto res = m_swapchain->AcquireNextImage(m_renderSemaphores[m_currentFrameIndex], m_currentImageIndex);
+	auto res = m_pSwapchain->AcquireNextImage(m_renderSemaphores[m_currentFrameIndex], m_currentImageIndex);
 	if (res == vk::Result::eErrorOutOfDateKHR) {
-		RecreateSwapchain();
+		recreateSwapchain();
 		return;
 	}
 	if (res != vk::Result::eSuccess && res != vk::Result::eSuboptimalKHR) {
@@ -566,7 +576,7 @@ void Core::PrepareFrame() {
 	}
 }
 
-void Core::SubmitFrame() {
+void Core::submitFrame() {
 	m_cmdBuffs[m_currentFrameIndex].end();
 
 	vk::SemaphoreSubmitInfo waitSemaphoreSubmitInfo = {
@@ -595,20 +605,20 @@ void Core::SubmitFrame() {
 	m_queue.submit2(submitInfo, m_inFlightFences[m_currentFrameIndex]);
 }
 
-vk::raii::CommandBuffer& Core::BeginCommandRecording() {
+vk::raii::CommandBuffer& Core::beginCommandRecording() {
 	m_cmdPools[m_currentFrameIndex].reset();
 	m_cmdBuffs[m_currentFrameIndex].begin(vk::CommandBufferBeginInfo{.flags = vk::CommandBufferUsageFlagBits::eOneTimeSubmit});
 	return m_cmdBuffs[m_currentFrameIndex];
 }
 
-void Core::PresentFrame() {
+void Core::presentFrame() {
 	const vk::PresentInfoKHR presentInfo = {
 		.sType = vk::StructureType::ePresentInfoKHR,
 		.pNext = nullptr,
 		.waitSemaphoreCount = 1,
 		.pWaitSemaphores = &*m_presentSemaphores[m_currentImageIndex],
 		.swapchainCount = 1,
-		.pSwapchains = &*m_swapchain->GetSwapchain(),
+		.pSwapchains = &*m_pSwapchain->GetSwapchain(),
 		.pImageIndices = &m_currentImageIndex,
 	};
 
@@ -616,7 +626,7 @@ void Core::PresentFrame() {
 
 	if (res == vk::Result::eSuboptimalKHR || res == vk::Result::eErrorOutOfDateKHR || framebufferResized) {
 		framebufferResized = false;
-		RecreateSwapchain();
+		recreateSwapchain();
 	}else {
 		assert(res == vk::Result::eSuccess && "Failed to present!");
 	}
@@ -624,29 +634,26 @@ void Core::PresentFrame() {
 	m_currentFrameIndex = (m_currentFrameIndex + 1) % MAX_FRAMES_IN_FLIGHT;
 }
 
-// TODO: Load scene
-// void Core::LoadScene(Scene scene) {}
-
-void Core::CreateBLAS(vk::raii::CommandBuffer& cmdBuff) {
+void Core::createBLAS(vk::raii::CommandBuffer& cmdBuff) {
 	// TODO: after model and scene loading -> create blas for each model in the scene
 
 }
 
-void Core::CreateTLAS(vk::raii::CommandBuffer& cmdBuff) {
+void Core::createTLAS(vk::raii::CommandBuffer& cmdBuff) {
 
 }
 
-void Core::CreateAccelerationStructure() {
+void Core::createAccelerationStructure() {
 	const vk::CommandBufferAllocateInfo cmdBuffAllocateInfo = {
 		.sType = vk::StructureType::eCommandBufferAllocateInfo,
 		.commandPool = m_cmdPools[0],
 		.level = vk::CommandBufferLevel::ePrimary,
 		.commandBufferCount = 1,
 	};
-	auto cmdBuffers = vk::raii::CommandBuffers(m_device->GetVkDevice(), cmdBuffAllocateInfo);
+	auto cmdBuffers = vk::raii::CommandBuffers(m_pDevice->getVkDevice(), cmdBuffAllocateInfo);
 	auto cmdBuff = std::move(cmdBuffers.front());
 
-	CreateBLAS(cmdBuff);
+	createBLAS(cmdBuff);
 
 	constexpr auto flags = vk::AccessFlagBits::eAccelerationStructureReadKHR | vk::AccessFlagBits::eAccelerationStructureWriteKHR;
 	vk::MemoryBarrier memoryBarrier = {
@@ -658,33 +665,33 @@ void Core::CreateAccelerationStructure() {
 		vk::PipelineStageFlagBits::eAccelerationStructureBuildKHR,
 		{}, memoryBarrier, {}, {});
 
-	CreateTLAS(cmdBuff);
+	createTLAS(cmdBuff);
 }
 
-void Core::CreateSBT() {
-
-}
-
-void Core::CreateRaytracingPipeline() {
+void Core::createSBT() {
 
 }
 
-vk::Extent2D Core::ChooseSwapExtent(const vk::SurfaceCapabilitiesKHR& capabilities) {
+void Core::createRaytracingPipeline() {
+
+}
+
+vk::Extent2D Core::chooseSwapExtent(const vk::SurfaceCapabilitiesKHR& capabilities) {
 	if (capabilities.currentExtent.width != 0xFFFFFFFF) {
-		printf("Current image extent: %d x %d\n", capabilities.currentExtent.width, capabilities.currentExtent.height);
+		std::cout << "Current image extent: " << capabilities.currentExtent.width << " x " << capabilities.currentExtent.height << std::endl;
 		return capabilities.currentExtent;
 	}
 	int width, height;
-	glfwGetFramebufferSize(m_window.GetWindow(), &width, &height);
-	printf("Max image extent: %d\n", capabilities.maxImageExtent.width);
+	glfwGetFramebufferSize(m_window.getWindow(), &width, &height);
+	std::cout << "Max image extent: " << capabilities.maxImageExtent.width << std::endl;
 	return {
 		std::clamp<uint32_t>(width, capabilities.minImageExtent.width, capabilities.maxImageExtent.width),
 		std::clamp<uint32_t>(height, capabilities.minImageExtent.height, capabilities.maxImageExtent.height)
 	};
 }
 
-void Core::DeviceWaitIdle() {
-	m_device->GetVkDevice().waitIdle();
+void Core::deviceWaitIdle() {
+	m_pDevice->getVkDevice().waitIdle();
 }
 
 }

@@ -9,12 +9,19 @@ namespace ptvk {
 class Device {
 
 public:
-	Device(PhysicalDevice &device, std::vector<const char*> devExtensions, vk::QueueFlags requestedQueueTypes, vk::PhysicalDeviceFeatures2 &features, InstanceVersion instanceVersion);
-	~Device() = default;
+	Device(
+		PhysicalDevice &device,
+		std::vector<const char*> devExtensions,
+		vk::QueueFlags requestedQueueTypes,
+		vk::PhysicalDeviceFeatures2 &features,
+		InstanceVersion instanceVersion
+		);
 
-	[[nodiscard]] vk::raii::Device& GetVkDevice() const { return *m_device; }
-	[[nodiscard]] PhysicalDevice& GetPhysicalDevice() const { return m_physicalDevice; }
-	[[nodiscard]] uint32_t GetMemoryType(uint32_t typeBits, vk::MemoryPropertyFlags properties, vk::Bool32& memTypeFound) const;
+	const vk::raii::Device& getVkDevice() const { return m_device; }
+	vk::raii::Device&		getVkDevice() { return m_device; }
+	PhysicalDevice&			getPhysicalDevice() const { return m_physicalDevice; }
+
+	uint32_t getMemoryType(uint32_t typeBits, vk::MemoryPropertyFlags properties, vk::Bool32& memTypeFound) const;
 
 	struct {
 		uint32_t graphics;
@@ -23,10 +30,10 @@ public:
 	} queueFamilyIndices{};
 
 private:
-	std::unique_ptr<vk::raii::Device> m_device;
-	PhysicalDevice& m_physicalDevice;
+	vk::raii::Device m_device{VK_NULL_HANDLE};
+	PhysicalDevice&	 m_physicalDevice;
 
-	[[nodiscard]] uint32_t GetQueueFamilyIndex(vk::QueueFlags flags) const;
+	uint32_t getQueueFamilyIndex(vk::QueueFlags flags) const;
 };
 
 }

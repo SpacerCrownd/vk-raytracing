@@ -1,4 +1,5 @@
 ﻿#include "Swapchain.h"
+#include <iostream>
 
 namespace ptvk {
 static uint32_t ChooseNumImages(const vk::SurfaceCapabilitiesKHR& surfaceCaps) {
@@ -36,12 +37,12 @@ static vk::SurfaceFormatKHR ChooseSurfaceFormatAndColorSpace(const std::vector<v
     return surfaceFormats[0];
 }
 
-Swapchain::Swapchain(Device& device, vk::Extent2D extent, vk::raii::SurfaceKHR& surface) : m_device(device), m_surface(surface){
-    const vk::SurfaceCapabilitiesKHR& surfaceCaps = m_device.GetPhysicalDevice().m_surfaceCapabilities;
+Swapchain::Swapchain(const Device& device, vk::Extent2D extent, vk::raii::SurfaceKHR& surface) : m_device(device), m_surface(surface){
+    const vk::SurfaceCapabilitiesKHR& surfaceCaps = m_device.getPhysicalDevice().m_surfaceCapabilities;
 
 	uint32_t numImages = ChooseNumImages(surfaceCaps);
-	vk::PresentModeKHR presentMode = ChoosePresentMode(m_device.GetPhysicalDevice().m_presentModes);
-	m_swapchainSurfaceFormat = ChooseSurfaceFormatAndColorSpace(m_device.GetPhysicalDevice().m_surfaceFormats);
+	vk::PresentModeKHR presentMode = ChoosePresentMode(m_device.getPhysicalDevice().m_presentModes);
+	m_swapchainSurfaceFormat = ChooseSurfaceFormatAndColorSpace(m_device.getPhysicalDevice().m_surfaceFormats);
 	m_swapchainExtent = extent;
 
 	vk::SwapchainCreateInfoKHR swapChainCreateInfo = {
@@ -65,9 +66,9 @@ Swapchain::Swapchain(Device& device, vk::Extent2D extent, vk::raii::SurfaceKHR& 
 
 	//printf("WINDOW EXTENT : width %d, height %d", m_window.GetExtent().width, m_window.GetExtent().heigth);
 
-	m_swapchain = vk::raii::SwapchainKHR(m_device.GetVkDevice(), swapChainCreateInfo);
+	m_swapchain = vk::raii::SwapchainKHR(m_device.getVkDevice(), swapChainCreateInfo);
 	m_swapchainImages = m_swapchain.getImages();
-	printf("[INFO] Swapchain Created\n");
+	std::cout << "[INFO] Swapchain Created" << std::endl;
 
 	// image views creation
 	m_swapchainImageViews.clear();
@@ -94,13 +95,13 @@ Swapchain::Swapchain(Device& device, vk::Extent2D extent, vk::raii::SurfaceKHR& 
 
 	for (auto image : m_swapchainImages) {
 		viewInfo.image = image;
-		m_swapchainImageViews.emplace_back(m_device.GetVkDevice(), viewInfo);
+		m_swapchainImageViews.emplace_back(m_device.getVkDevice(), viewInfo);
 	}
 }
 
 Swapchain::~Swapchain() {
 	m_swapchainImageViews.clear();
-	printf("[INFO] Swapchain Destroyed\n");
+	std::cout << "[INFO] Swapchain Destroyed" << std::endl;
 }
 
 vk::Result Swapchain::AcquireNextImage(const vk::raii::Semaphore &renderSemaphore, uint32_t &imageIndex) const {

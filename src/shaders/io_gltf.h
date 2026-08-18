@@ -4,52 +4,55 @@
 #include "slang_types.h"
 
 namespace shaderio {
-struct BufferView {
-    uint32_t offset;
-    uint32_t count;
-    uint32_t stride;
+struct VertexBuffer {
+    float3* positions;
+    float3* normals;
+    float3* tangents;
+    float4* colors;
+    float2* texCoords[2];
 };
 
-struct GltfMesh { // just a view into geometry data to locate meshes
-    uint8_t* gltfDataAddress; // address of geometry data buffer on gpu
-    int primitiveCount;
-    int primitiveOffset;
-    int indexType;
+struct GltfNode { // object instances
+    float4x4 objectToWorld;
+    float4x4 worldToObject;
+    int      primitiveID = -1;
 };
 
-struct GltfPrimitive {
-    BufferView positions;
-    BufferView normals;
-    BufferView uvs;
-    BufferView indices;
-    uint32_t materialIndex;
-};
-
-struct GltfInstance {
-    float4x4 transform;
-    uint32_t meshIndex;
+struct GltfPrimitive { // gltf calls submeshes primitives
+    uint3* indices;
+    int    materialID = -1;
 };
 
 struct GltfMaterial {
-    float4 baseColorFactor;             // albedo (RGBA format)
-    float  metallicFactor;              // metallicness
-    float  roughnessFactor;             // roughness
-    int    baseColorTextureIndex = -1;  // texture index (optional)
-    // Future development: Normal texture, roughness texture, metallic texture
+    float4 baseColor;             // albedo (RGBA format)
+    float  metallic;              // metallicness
+    float  roughness;             // roughness
+    int    baseColorTextureID = -1;  // texture index (optional)
+    int    roughnessTextureID = -1;
+    int    metallicTextureID  = -1;
 };
 
 struct GltfSceneInfo {
+    GltfSceneInfo* gltfSceneInfo;
+    GltfPrimitive* gltfPrimitives;
+    GltfNode*      gltfNodes;
+    GltfMaterial*  gltfMaterials;
+    // textures
+    // lights
+    // samplers?
+};
+
+struct FrameData {
     float4x4 projection;
     float4x4 view;
-    float3 cameraPosition;
-    int useSky;
-    float3 backgroundColor;
-    int numLights;
-    GltfMesh* meshes;
-    GltfPrimitive* primitives;
-    GltfInstance* instances;
-    GltfMaterial* materials;
-    // TODO: lights gpu address here
+    float3   cameraPosition;
+    int      useSky;
+    float3   backgroundColor;
+    int      numLights;
+};
+
+struct PushConstants {
+    FrameData frameData;
 };
 }
 

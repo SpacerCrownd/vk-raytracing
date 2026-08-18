@@ -1,7 +1,7 @@
 ﻿#include "Commands.h"
 
 namespace ptvk {
-vk::raii::CommandPool CreateTransientCommandPool(vk::raii::Device &device, uint32_t queueFamilyIndex)
+vk::raii::CommandPool createTransientCommandPool(vk::raii::Device &device, uint32_t queueFamilyIndex)
 {
     return vk::raii::CommandPool(device, {
         .flags            = vk::CommandPoolCreateFlagBits::eTransient | vk::CommandPoolCreateFlagBits::eResetCommandBuffer,
@@ -9,7 +9,7 @@ vk::raii::CommandPool CreateTransientCommandPool(vk::raii::Device &device, uint3
     });
 }
 
-vk::raii::CommandBuffer BeginSingleTimeCommands(vk::raii::Device &device, vk::raii::CommandPool &cmdPool)
+vk::raii::CommandBuffer beginSingleTimeCommands(vk::raii::Device &device, vk::raii::CommandPool &cmdPool)
 {
     vk::CommandBufferAllocateInfo allocInfo{ .commandPool = *cmdPool, .level = vk::CommandBufferLevel::ePrimary, .commandBufferCount = 1 };
 
@@ -20,7 +20,7 @@ vk::raii::CommandBuffer BeginSingleTimeCommands(vk::raii::Device &device, vk::ra
     return std::move(cmd);
 }
 
-vk::Result SubmitSingleTimeCommands(vk::raii::CommandBuffer& cmd, vk::raii::Device& device, vk::raii::CommandPool& cmdPool, vk::raii::Queue& queue)
+vk::Result submitSingleTimeCommands(vk::raii::CommandBuffer& cmd, vk::raii::Device& device, vk::raii::CommandPool& cmdPool, vk::raii::Queue& queue)
 {
     cmd.end();
     vk::raii::Fence fence(device, vk::FenceCreateInfo{});

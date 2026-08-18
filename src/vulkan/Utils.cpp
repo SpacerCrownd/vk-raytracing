@@ -3,7 +3,7 @@
 
 namespace ptvk {
 
-const char* GetDebugSeverityStr(vk::DebugUtilsMessageSeverityFlagBitsEXT severity)
+const char* getDebugSeverityStr(vk::DebugUtilsMessageSeverityFlagBitsEXT severity)
 {
 	switch (severity) {
 	case vk::DebugUtilsMessageSeverityFlagBitsEXT::eVerbose:
@@ -23,7 +23,7 @@ const char* GetDebugSeverityStr(vk::DebugUtilsMessageSeverityFlagBitsEXT severit
 	}
 }
 
-const char* GetDebugType(vk::DebugUtilsMessageTypeFlagsEXT type)
+const char* getDebugType(vk::DebugUtilsMessageTypeFlagsEXT type)
 {
 	// Fixed: Return static string literals instead of returning std::string::c_str() of a local variable
 	if (type & vk::DebugUtilsMessageTypeFlagBitsEXT::eGeneral)     return "General";
@@ -36,63 +36,63 @@ const char* GetDebugType(vk::DebugUtilsMessageTypeFlagsEXT type)
 	throw std::runtime_error("Invalid type code");
 }
 
-void PrintImageUsageFlags(const vk::ImageUsageFlags &flags) {
+void printImageUsageFlags(const vk::ImageUsageFlags &flags) {
 	if (flags & vk::ImageUsageFlagBits::eTransferSrc) {
-		printf("	Image usage transfer src is supported\n");
+		std::cout << "	Image usage transfer src is supported" << std::endl;
 	}
 
 	if (flags & vk::ImageUsageFlagBits::eTransferDst) {
-		printf("	Image usage transfer dest is supported\n");
+		std::cout << "	Image usage transfer dest is supported" << std::endl;
 	}
 
 	if (flags & vk::ImageUsageFlagBits::eSampled) {
-		printf("	Image usage sampled is supported\n");
+		std::cout << "	Image usage sampled is supported" << std::endl;
 	}
 
 	if (flags & vk::ImageUsageFlagBits::eColorAttachment) {
-		printf("	Image usage color attachment is supported\n");
+		std::cout << "	Image usage color attachment is supported" << std::endl;
 	}
 
 	if (flags & vk::ImageUsageFlagBits::eDepthStencilAttachment) {
-		printf("	Image usage depth stencil attachment is supported\n");
+		std::cout << "	Image usage depth stencil attachment is supported" << std::endl;
 	}
 
 	if (flags & vk::ImageUsageFlagBits::eTransientAttachment) {
-		printf("	Image usage transient attachment is supported\n");
+		std::cout << "	Image usage transient attachment is supported" << std::endl;
 	}
 
 	if (flags & vk::ImageUsageFlagBits::eInputAttachment) {
-		printf("	Image usage input attachment is supported\n");
+		std::cout << "	Image usage input attachment is supported" << std::endl;
 	}
 }
 
-void PrintMemoryPropertyFlags(const vk::Flags<vk::MemoryPropertyFlagBits> &flags) {
+void printMemoryPropertyFlags(const vk::Flags<vk::MemoryPropertyFlagBits> &flags) {
 	if (flags & vk::MemoryPropertyFlagBits::eDeviceLocal) {
-		printf("DEVICE LOCAL ");
+		std::cout << "DEVICE LOCAL ";
 	}
 
 	if (flags & vk::MemoryPropertyFlagBits::eHostVisible) {
-		printf("HOST VISIBLE ");
+		std::cout << "HOST VISIBLE ";
 	}
 
 	if (flags & vk::MemoryPropertyFlagBits::eHostCoherent) {
-		printf("HOST COHERENT ");
+		std::cout << "HOST COHERENT ";
 	}
 
 	if (flags & vk::MemoryPropertyFlagBits::eHostCached) {
-		printf("HOST CACHED ");
+		std::cout << "HOST CACHED ";
 	}
 
 	if (flags & vk::MemoryPropertyFlagBits::eLazilyAllocated) {
-		printf("LAZILY ALLOCATED ");
+		std::cout << "LAZILY ALLOCATED ";
 	}
 
 	if (flags & vk::MemoryPropertyFlagBits::eProtected) {
-		printf("PROTECTED ");
+		std::cout << "PROTECTED ";
 	}
 }
 
-void PrintMemoryPropertyFlags(const VkMemoryPropertyFlags& flags) {
+void printMemoryPropertyFlags(const VkMemoryPropertyFlags& flags) {
 	std::cout << "VkMemoryPropertyFlags: ";
 
 	if (flags & VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT)
@@ -126,7 +126,7 @@ void PrintMemoryPropertyFlags(const VkMemoryPropertyFlags& flags) {
 	std::cout << std::endl;
 }
 
-vk::Format FindSupportedFormat(const vk::raii::PhysicalDevice &device, const std::vector<vk::Format> &candidates,
+vk::Format findSupportedFormat(const vk::raii::PhysicalDevice &device, const std::vector<vk::Format> &candidates,
 									  const vk::ImageTiling tiling, const vk::FormatFeatureFlags features) {
 	for (const auto format: candidates) {
 		vk::FormatProperties props = device.getFormatProperties(format);
@@ -140,21 +140,21 @@ vk::Format FindSupportedFormat(const vk::raii::PhysicalDevice &device, const std
 	throw std::runtime_error("failed to find supported format!");
 }
 
-vk::Format FindDepthFormat(const vk::raii::PhysicalDevice &device) {
+vk::Format findDepthFormat(const vk::raii::PhysicalDevice &device) {
 	std::vector candidates = {
 		vk::Format::eD32Sfloat,
 		vk::Format::eD32SfloatS8Uint,
 		vk::Format::eD24UnormS8Uint
 	};
 
-	vk::Format depthFormat = FindSupportedFormat(device, candidates, vk::ImageTiling::eOptimal,
+	vk::Format depthFormat = findSupportedFormat(device, candidates, vk::ImageTiling::eOptimal,
 												 vk::FormatFeatureFlagBits::eDepthStencilAttachment);
 
 	return depthFormat;
 }
 
 // all-purpose inefficient image transition for initial testing
-void TransitionImage(vk::raii::CommandBuffer& cmd, vk::Image image, vk::ImageLayout currentLayout, vk::ImageLayout newLayout) {
+void transitionImage(vk::raii::CommandBuffer& cmd, vk::Image image, vk::ImageLayout currentLayout, vk::ImageLayout newLayout) {
 	vk::ImageMemoryBarrier2 imageBarrier {
 		.srcStageMask = vk::PipelineStageFlagBits2::eAllCommands,
 		.srcAccessMask =  vk::AccessFlagBits2::eMemoryWrite,
@@ -182,7 +182,7 @@ void TransitionImage(vk::raii::CommandBuffer& cmd, vk::Image image, vk::ImageLay
 	cmd.pipelineBarrier2(depInfo);
 }
 
-void CopyImage(vk::raii::CommandBuffer& cmd, vk::Image source, vk::Image destination, vk::Extent2D srcSize, vk::Extent2D dstSize) {
+void copyImage(vk::raii::CommandBuffer& cmd, vk::Image source, vk::Image destination, vk::Extent2D srcSize, vk::Extent2D dstSize) {
 	vk::ImageBlit2 blitRegion{
 		.srcSubresource = {
 			.aspectMask = vk::ImageAspectFlagBits::eColor,

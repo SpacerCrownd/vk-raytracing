@@ -2,7 +2,7 @@
 
 namespace ptvk {
 GraphicsPipeline::GraphicsPipeline(
-        vk::raii::Device &device,
+        const vk::raii::Device &device,
         GLFWwindow *window,
         Shader& shader,
         uint32_t numImages,
@@ -12,8 +12,8 @@ GraphicsPipeline::GraphicsPipeline(
     ) : m_device(device), m_numImages(numImages)
 {
     vk::PipelineShaderStageCreateInfo shaderStages[] {
-        shader.CreateShaderStage(vk::ShaderStageFlagBits::eVertex, "vertMain"),
-        shader.CreateShaderStage(vk::ShaderStageFlagBits::eFragment, "fragMain")
+        shader.createShaderStage(vk::ShaderStageFlagBits::eVertex, "vertMain"),
+        shader.createShaderStage(vk::ShaderStageFlagBits::eFragment, "fragMain")
     };
 
     vk::PipelineVertexInputStateCreateInfo   vertexInputInfo;
@@ -86,7 +86,7 @@ GraphicsPipeline::GraphicsPipeline(
     m_pipeline = vk::raii::Pipeline(device, nullptr, pipelineCreateInfoChain.get<vk::GraphicsPipelineCreateInfo>());
 }
 
-void GraphicsPipeline::Bind(vk::raii::CommandBuffer &cmdBuffer) {
+void GraphicsPipeline::bind(vk::raii::CommandBuffer &cmdBuffer) {
     cmdBuffer.bindPipeline(vk::PipelineBindPoint::eGraphics, m_pipeline);
 }
 }

@@ -1,14 +1,20 @@
 #include "Device.h"
 
 namespace ptvk {
-Device::Device(PhysicalDevice &device, std::vector<const char*> devExtensions, vk::QueueFlags requestedQueueTypes, vk::PhysicalDeviceFeatures2 &features, InstanceVersion instanceVersion) : m_physicalDevice(device) {
+Device::Device(
+    PhysicalDevice &device,
+    std::vector<const char*> devExtensions,
+    vk::QueueFlags requestedQueueTypes,
+    vk::PhysicalDeviceFeatures2 &features,
+    InstanceVersion instanceVersion
+    ) : m_physicalDevice(device){
     std::vector<vk::DeviceQueueCreateInfo> queueCreateInfos;
 
     constexpr float defaultQueuePriority(0.0f);
 
     // graphics queue creation
     if (requestedQueueTypes & vk::QueueFlagBits::eGraphics) {
-        queueFamilyIndices.graphics = GetQueueFamilyIndex(vk::QueueFlagBits::eGraphics);
+        queueFamilyIndices.graphics = getQueueFamilyIndex(vk::QueueFlagBits::eGraphics);
         auto queueCreateInfo = vk::DeviceQueueCreateInfo{
             .sType = vk::StructureType::eDeviceQueueCreateInfo,
             .queueFamilyIndex = queueFamilyIndices.graphics,
@@ -21,7 +27,7 @@ Device::Device(PhysicalDevice &device, std::vector<const char*> devExtensions, v
     }
     // dedicated compute queue creation
     if (requestedQueueTypes & vk::QueueFlagBits::eCompute) {
-        queueFamilyIndices.compute = GetQueueFamilyIndex(vk::QueueFlagBits::eCompute);
+        queueFamilyIndices.compute = getQueueFamilyIndex(vk::QueueFlagBits::eCompute);
         auto queueCreateInfo = vk::DeviceQueueCreateInfo{
             .sType = vk::StructureType::eDeviceQueueCreateInfo,
             .queueFamilyIndex = queueFamilyIndices.compute,
@@ -35,7 +41,7 @@ Device::Device(PhysicalDevice &device, std::vector<const char*> devExtensions, v
     }
     // dedicated transfer queue creation
     if (requestedQueueTypes & vk::QueueFlagBits::eTransfer) {
-        queueFamilyIndices.transfer = GetQueueFamilyIndex(vk::QueueFlagBits::eTransfer);
+        queueFamilyIndices.transfer = getQueueFamilyIndex(vk::QueueFlagBits::eTransfer);
         auto queueCreateInfo = vk::DeviceQueueCreateInfo{
             .sType = vk::StructureType::eDeviceQueueCreateInfo,
             .queueFamilyIndex = queueFamilyIndices.transfer,
@@ -47,7 +53,7 @@ Device::Device(PhysicalDevice &device, std::vector<const char*> devExtensions, v
         queueFamilyIndices.transfer = queueFamilyIndices.graphics;
     }
 
-    bool deviceSupportsDynamicRendering = m_physicalDevice.IsExtensionSupported(vk::KHRDynamicRenderingExtensionName);
+    bool deviceSupportsDynamicRendering = m_physicalDevice.isExtensionSupported(vk::KHRDynamicRenderingExtensionName);
     bool instance_is_1_3_or_more = (instanceVersion.Major >= 1) || (instanceVersion.Minor >= 3);
     if (instance_is_1_3_or_more && deviceSupportsDynamicRendering) {
         printf("[INFO] The Vulkan instance and device support dynamic rendering as a core feature\n");
@@ -72,12 +78,12 @@ Device::Device(PhysicalDevice &device, std::vector<const char*> devExtensions, v
         .ppEnabledExtensionNames = devExtensions.data(),
     };
 
-    m_device = std::make_unique<vk::raii::Device>(m_physicalDevice.m_physDevice, deviceCreateInfo);
+    m_device = vk::raii::Device(m_physicalDevice.m_physDevice, deviceCreateInfo);
 
     printf("\n[INFO] Device created\n");
 }
 
-uint32_t Device::GetMemoryType(uint32_t typeBits, vk::MemoryPropertyFlags properties, vk::Bool32& memTypeFound) const {
+uint32_t Device::getMemoryType(uint32_t typeBits, vk::MemoryPropertyFlags properties, vk::Bool32& memTypeFound) const {
     for (uint32_t i = 0; i < m_physicalDevice.m_memProperties.memoryTypeCount; i++)
     {
         if ((typeBits & 1) == 1)
@@ -102,14 +108,14 @@ uint32_t Device::GetMemoryType(uint32_t typeBits, vk::MemoryPropertyFlags proper
     throw std::runtime_error("Could not find a matching memory type");
 }
 
-uint32_t Device::GetQueueFamilyIndex(vk::QueueFlags flags) const {
+uint32_t Device::getQueueFamilyIndex(vk::QueueFlags flags) const {
     // Dedicated queue for compute
     // Try to find a queue family index that supports compute but not graphics
     if (flags & vk::QueueFlagBits::eCompute)
     {
-        for (uint32_t i = 0; i < static_cast<uint32_t>(m_physicalDevice.m_qFamilyProperties.size()); i++)
+        for (uint32_t i = 0; i < static_cast<uint32_t>(m_physicalDevice.m_queueFamilyProperties.size()); i++)
         {
-            if (m_physicalDevice.m_qFamilyProperties[i].queueFlags & vk::QueueFlagBits::eCompute && !(m_physicalDevice.m_qFamilyProperties[i].queueFlags & vk::QueueFlagBits::eGraphics))
+            if (m_physicalDevice.m_queueFamilyProperties[i].queueFlags & vk::QueueFlagBits::eCompute && !(m_physicalDevice.m_queueFamilyProperties[i].queueFlags & vk::QueueFlagBits::eGraphics))
             {
                 return i;
             }
@@ -120,9 +126,9 @@ uint32_t Device::GetQueueFamilyIndex(vk::QueueFlags flags) const {
     // Try to find a queue family index that supports transfer but not graphics and compute
     if (flags & vk::QueueFlagBits::eTransfer)
     {
-        for (uint32_t i = 0; i < static_cast<uint32_t>(m_physicalDevice.m_qFamilyProperties.size()); i++)
+        for (uint32_t i = 0; i < static_cast<uint32_t>(m_physicalDevice.m_queueFamilyProperties.size()); i++)
         {
-            if ((m_physicalDevice.m_qFamilyProperties[i].queueFlags & vk::QueueFlagBits::eTransfer) && !(m_physicalDevice.m_qFamilyProperties[i].queueFlags & vk::QueueFlagBits::eGraphics) && !(m_physicalDevice.m_qFamilyProperties[i].queueFlags & vk::QueueFlagBits::eCompute))
+            if ((m_physicalDevice.m_queueFamilyProperties[i].queueFlags & vk::QueueFlagBits::eTransfer) && !(m_physicalDevice.m_queueFamilyProperties[i].queueFlags & vk::QueueFlagBits::eGraphics) && !(m_physicalDevice.m_queueFamilyProperties[i].queueFlags & vk::QueueFlagBits::eCompute))
             {
                 return i;
             }
@@ -130,11 +136,11 @@ uint32_t Device::GetQueueFamilyIndex(vk::QueueFlags flags) const {
     }
     // For other queue types or if no separate compute queue is present, return the first one to support the requested flags
 
-    printf("Check %d\n", static_cast<int>(m_physicalDevice.m_qFamilyProperties.size()));
+    printf("Check %d\n", static_cast<int>(m_physicalDevice.m_queueFamilyProperties.size()));
 
-    for (uint32_t i = 0; i < static_cast<uint32_t>(m_physicalDevice.m_qFamilyProperties.size()); i++)
+    for (uint32_t i = 0; i < static_cast<uint32_t>(m_physicalDevice.m_queueFamilyProperties.size()); i++)
     {
-        if (m_physicalDevice.m_qFamilyProperties[i].queueFlags & flags)
+        if (m_physicalDevice.m_queueFamilyProperties[i].queueFlags & flags)
         {
             return i;
         }

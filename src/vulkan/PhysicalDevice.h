@@ -6,29 +6,28 @@
 
 struct PhysicalDevice {
     vk::raii::PhysicalDevice m_physDevice = VK_NULL_HANDLE;
-    vk::PhysicalDeviceProperties2 m_devProperties2{};
-    std::vector<vk::QueueFamilyProperties> m_qFamilyProperties;
-    std::vector<vk::Bool32> m_qSupportsPresent;
-    std::vector<vk::SurfaceFormatKHR> m_surfaceFormats;
-    vk::SurfaceCapabilitiesKHR m_surfaceCapabilities{};
-    vk::PhysicalDeviceMemoryProperties m_memProperties{};
-    std::vector<vk::PresentModeKHR> m_presentModes;
-    vk::PhysicalDeviceFeatures2 m_features2{};
-    vk::Format m_depthFormat{};
-    vk::PhysicalDeviceRayTracingPipelinePropertiesKHR m_rtProperties{vk::StructureType::ePhysicalDeviceRayTracingPipelinePropertiesKHR};
-    vk::PhysicalDeviceAccelerationStructurePropertiesKHR m_asProperties{vk::StructureType::ePhysicalDeviceAccelerationStructurePropertiesKHR};
 
-    struct {
-        int Variant = 0;
-        int Major = 0;
-        int Minor = 0;
-        int Patch = 0;
-    } m_apiVersion;
+    vk::PhysicalDeviceProperties2      m_devProperties2{};
+    vk::SurfaceCapabilitiesKHR         m_surfaceCapabilities{};
+    vk::PhysicalDeviceMemoryProperties m_memProperties{};
+    vk::PhysicalDeviceFeatures2        m_features2{};
+    vk::Format                         m_depthFormat{};
+
     std::vector<vk::ExtensionProperties> m_extensions;
 
-    bool IsExtensionSupported(const char* pExt) const;
-    [[nodiscard]] vk::PhysicalDeviceRayTracingPipelinePropertiesKHR GetRayTracingPipelinePropertiesKHR() const { return m_rtProperties; }
-    [[nodiscard]] vk::PhysicalDeviceAccelerationStructurePropertiesKHR GetAccelerationStructurePropertiesKHR() const { return m_asProperties; }
+    std::vector<vk::SurfaceFormatKHR> m_surfaceFormats;
+    std::vector<vk::PresentModeKHR>   m_presentModes;
+
+    vk::PhysicalDeviceRayTracingPipelinePropertiesKHR    m_rtProperties{vk::StructureType::ePhysicalDeviceRayTracingPipelinePropertiesKHR};
+    vk::PhysicalDeviceAccelerationStructurePropertiesKHR m_asProperties{vk::StructureType::ePhysicalDeviceAccelerationStructurePropertiesKHR};
+
+    std::vector<vk::QueueFamilyProperties> m_queueFamilyProperties;
+    std::vector<vk::Bool32>                m_queueSupportsPresent;
+
+    bool isExtensionSupported(const char* pExt) const;
+
+    vk::PhysicalDeviceRayTracingPipelinePropertiesKHR    getRayTracingPipelinePropertiesKHR() const { return m_rtProperties; }
+    vk::PhysicalDeviceAccelerationStructurePropertiesKHR getAccelerationStructurePropertiesKHR() const { return m_asProperties; }
 };
 
 

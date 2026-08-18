@@ -6,15 +6,14 @@
 
 namespace ptvk {
 struct Buffer {
-    vk::Buffer buffer{VK_NULL_HANDLE};
-    vk::DeviceSize bufferSize{};
+    vk::Buffer        buffer{VK_NULL_HANDLE};
+    vk::DeviceSize    bufferSize{};
     vk::DeviceAddress address{}; // buffer address in shader (Buffer Device Address extension)
-    VmaAllocation allocation{};
-    VmaAllocator* allocator;
-    uint8_t* mapping{};
+    VmaAllocation     allocation{};
+    VmaAllocator      allocator;
+    uint8_t*          mapping{};
 
     Buffer() = default;
-
     ~Buffer() {
         cleanup();
     }
@@ -56,23 +55,22 @@ struct Buffer {
 private:
     void cleanup() {
         if (allocation) {
-            vmaDestroyBuffer(*allocator, buffer, allocation);
+            vmaDestroyBuffer(allocator, buffer, allocation);
         }
     }
 };
 
 struct Image {
-    vk::Image image{VK_NULL_HANDLE};
+    vk::Image           image{VK_NULL_HANDLE};
     vk::raii::ImageView view{VK_NULL_HANDLE};
-    vk::Extent3D extent{};
-    vk::Format format{};
-    uint32_t mipLevels{};
-    uint32_t arrayLayers{};
-    VmaAllocation allocation{};
-    VmaAllocator* allocator;
+    vk::Extent3D        extent{};
+    vk::Format          format{};
+    uint32_t            mipLevels{};
+    uint32_t            arrayLayers{};
+    VmaAllocation       allocation{};
+    VmaAllocator        allocator;
 
     Image() = default;
-
     ~Image() {
         cleanup();
     }
@@ -120,7 +118,7 @@ struct Image {
 private:
     void cleanup() {
         if (allocation) {
-            vmaDestroyImage(*allocator, image, allocation);
+            vmaDestroyImage(allocator, image, allocation);
         }
     }
 };

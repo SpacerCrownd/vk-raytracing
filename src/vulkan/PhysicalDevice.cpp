@@ -1,6 +1,6 @@
 ﻿#include "PhysicalDevice.h"
 
-bool PhysicalDevice::IsExtensionSupported(const char* pExt) const {
+bool PhysicalDevice::isExtensionSupported(const char* pExt) const {
     bool res = false;
     std::string reqExtension(pExt);
 

@@ -7,28 +7,28 @@ namespace app {
 Renderer::Renderer(int width, int height, const char* pAppName) : width(width), height(height),
                                                                   m_window(width, height, pAppName),
                                                                   m_vkCore(pAppName, m_window),
-                                                                  m_scene(),
                                                                   m_camera(glm::vec3(0.0f, 0.0f, 0.0f))
 {
-    m_window.AddOnKeyChanged([this](int key, int scancode, int action, int mods){
-        m_camera.OnKeyChanged(key, scancode, action, mods);
+    m_window.addOnKeyChanged([this](int key, int scancode, int action, int mods){
+        m_camera.onKeyChanged(key, scancode, action, mods);
     });
 
-    m_window.AddOnMouseButtonChanged([this](int button, int action, int mods) {
-        m_camera.OnMouseButtonChanged(this->m_window.GetWindow(), button, action, mods);
+    m_window.addOnMouseButtonChanged([this](int button, int action, int mods) {
+        m_camera.onMouseButtonChanged(this->m_window.getWindow(), button, action, mods);
     });
 
-    m_window.AddOnCursorPositionChanged([this](double x, double y) {
-        m_camera.OnCursorPositionChanged(x, y);
+    m_window.addOnCursorPositionChanged([this](double x, double y) {
+        m_camera.onCursorPositionChanged(x, y);
     });
 
-    m_window.AddOnFramebufferSizeChanged([this](int width, int height) {
+    m_window.addOnFramebufferSizeChanged([this](int width, int height) {
         m_vkCore.framebufferResized = true;
+        OnResize();
     });
 }
 
 Renderer::~Renderer() {
-    m_vkCore.DeviceWaitIdle();
+    m_vkCore.deviceWaitIdle();
 }
 
 void Renderer::Run() {
@@ -44,7 +44,7 @@ void Renderer::MainLoop() {
     int frames = 0;
     float fpsTime = 0.0f;
     */
-    while (!glfwWindowShouldClose(m_window.GetWindow())) {
+    while (!glfwWindowShouldClose(m_window.getWindow())) {
         PrepareFrameData();
         Draw();
         glfwPollEvents();
@@ -52,20 +52,20 @@ void Renderer::MainLoop() {
 }
 
 void Renderer::CreateScene() {
-    tinygltf::Model model = LoadGltfResource("assets/test model/scene.gltf");
-    m_scene.ImportGltfData(model, m_vkCore);
+    //tinygltf::Model model = LoadGltfResource("assets/test model/scene.gltf");
+    //m_scene.UploadToGpu(model, m_vkCore);
 }
 
 void Renderer::LoadShaders() {
-    m_rasterShader.emplace(m_vkCore.GetDevice().GetVkDevice(), "testRaster.spv");
+    m_rasterShader.emplace(m_vkCore.getDevice().getVkDevice(), "testRaster.spv");
     // m_rtShader.emplace(m_vkCore.GetDevice().GetVkDevice(), "raytracing.spv");
     printf("[INFO] Shaders Loaded\n");
 }
 
 void Renderer::CreateGraphicsPipeline() {
-    auto colorFormat = m_vkCore.GetDrawImage().format;
-    auto depthFormat = m_vkCore.GetDepthFormat();
-    m_graphicsPipeline.emplace(m_vkCore.GetDevice().GetVkDevice(), m_window.GetWindow(), m_rasterShader.value(), 1,
+    auto colorFormat = m_vkCore.getDrawImage().format;
+    auto depthFormat = m_vkCore.getDepthFormat();
+    m_graphicsPipeline.emplace(m_vkCore.getDevice().getVkDevice(), m_window.getWindow(), m_rasterShader.value(), 1,
                                colorFormat, depthFormat, m_enableDepth);
 }
 
@@ -74,9 +74,9 @@ void Renderer::PrepareFrameData() {
 }
 
 void Renderer::Draw() {
-    m_vkCore.PrepareFrame();
+    m_vkCore.prepareFrame();
 
-    auto& cmdBuffer = m_vkCore.BeginCommandRecording();
+    auto& cmdBuffer = m_vkCore.beginCommandRecording();
 
     vk::ImageSubresourceRange imageRange = {
         .aspectMask = vk::ImageAspectFlagBits::eColor,
@@ -135,16 +135,16 @@ void Renderer::Draw() {
     };
 
     // get swapchain image
-    uint32_t imgIndex = m_vkCore.GetCurrentImageIndex();
-    const auto& swapchainImage = m_vkCore.GetSwapchain().GetSwapchainImage(static_cast<int>(imgIndex));
-    auto swapchainExtent = m_vkCore.GetSwapchain().GetExtent();
+    uint32_t imgIndex = m_vkCore.getCurrentImageIndex();
+    const auto& swapchainImage = m_vkCore.getSwapchain().GetSwapchainImage(static_cast<int>(imgIndex));
+    auto swapchainExtent = m_vkCore.getSwapchain().GetExtent();
 
     // swapchain layout transitions
     undefinedToTransferDstBarrier.image = swapchainImage;
     transferToPresentBarrier.image = swapchainImage;
 
     // get draw image
-    auto& drawImage = m_vkCore.GetDrawImage();
+    auto& drawImage = m_vkCore.getDrawImage();
 
     // draw layout transitions
     undefinedToColorAttachmentBarrier.image = drawImage.image;
@@ -172,7 +172,7 @@ void Renderer::Draw() {
         .clearValue = clearColor,
     };
     vk::RenderingAttachmentInfo depthAttachmentInfo = {
-        .imageView = m_vkCore.GetDepthImage(imgIndex).view,
+        .imageView = m_vkCore.getDepthImage(imgIndex).view,
         .imageLayout = vk::ImageLayout::eDepthAttachmentOptimal,
         .loadOp = vk::AttachmentLoadOp::eClear,
         .storeOp = vk::AttachmentStoreOp::eDontCare,
@@ -189,7 +189,7 @@ void Renderer::Draw() {
     // Draw here
     cmdBuffer.beginRendering(renderingInfo);
 
-    m_graphicsPipeline->Bind(cmdBuffer);
+    m_graphicsPipeline->bind(cmdBuffer);
     cmdBuffer.setViewport(0, vk::Viewport(0.0f, 0.0f, static_cast<float>(swapchainExtent.width), static_cast<float>(swapchainExtent.height), 0.0f, 1.0f));
     cmdBuffer.setScissor(0, vk::Rect2D(vk::Offset2D(0, 0), swapchainExtent));
     cmdBuffer.draw(6, 1, 0, 0);
@@ -206,7 +206,7 @@ void Renderer::Draw() {
 
     // copy draw image to swapchain for presentation
     vk::Extent2D drawExtent = {drawImage.extent.width, drawImage.extent.height};
-    ptvk::CopyImage(cmdBuffer, drawImage.image, swapchainImage, drawExtent, swapchainExtent);
+    ptvk::copyImage(cmdBuffer, drawImage.image, swapchainImage, drawExtent, swapchainExtent);
 
     // End frame draw commands recording
     dependencyInfo = {
@@ -216,7 +216,10 @@ void Renderer::Draw() {
     };
     cmdBuffer.pipelineBarrier2(dependencyInfo);
 
-    m_vkCore.SubmitFrame();
-    m_vkCore.PresentFrame();
+    m_vkCore.submitFrame();
+    m_vkCore.presentFrame();
+}
+
+void Renderer::OnResize() {
 }
 }
