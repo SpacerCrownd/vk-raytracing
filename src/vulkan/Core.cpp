@@ -18,7 +18,7 @@ static VKAPI_ATTR vk::Bool32 VKAPI_CALL DebugCallback(
 			  << getDebugSeverityStr(severity) << std::endl;
 
 	std::cout << "\tType: "
-			  << getDebugType(type);
+			  << getDebugType(type) << std::endl;
 
 	std::cout << " Objects " << std::endl;
 
@@ -45,6 +45,7 @@ Core::Core(const char* appName, const Window& window) : m_window(window)
 	createCommandObjects();
 	createSwapchain();
 	createSyncObjects();
+	createSamplers();
 };
 
 void Core::updateInstanceVersion() {
@@ -404,7 +405,7 @@ void Core::createSwapchain() {
 	| vk::ImageUsageFlagBits::eTransferSrc
 	| vk::ImageUsageFlagBits::eTransferDst;
 
-	vk::ImageCreateInfo imageCreateInfo = {
+	vk::ImageCreateInfo imageInfo = {
 		.imageType = vk::ImageType::e2D,
 		.format = vk::Format::eR16G16B16A16Sfloat,
 		.extent = drawImageExtent,
@@ -414,21 +415,44 @@ void Core::createSwapchain() {
 		.usage = imageUsageFlags,
 	};
 
-	VmaAllocationCreateInfo allocationCreateInfo = {
+	VmaAllocationCreateInfo allocationInfo = {
 		.usage = VMA_MEMORY_USAGE_AUTO,
 		.requiredFlags = VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT,
 	};
 
-	vk::ImageViewCreateInfo viewCreateInfo = {
+	vk::ImageViewCreateInfo imageViewInfo = {
 		.viewType = vk::ImageViewType::e2D,
 		.subresourceRange = {
 			.aspectMask = vk::ImageAspectFlagBits::eColor,
+			.baseMipLevel = 0,
 			.levelCount = 1,
+			.baseArrayLayer = 0,
 			.layerCount = 1,
 		}
 	};
 
-	m_drawImage = m_pResourceAllocator->createImage(imageCreateInfo, viewCreateInfo, allocationCreateInfo);
+	m_drawImage = m_pResourceAllocator->createImage(imageInfo, imageViewInfo, allocationInfo);
+
+	vk::ImageSubresourceRange subresourceRange = {
+		.aspectMask = vk::ImageAspectFlagBits::eColor,
+		.baseMipLevel = 0,
+		.levelCount = 1,
+		.baseArrayLayer = 0,
+		.layerCount = 1,
+	};
+
+	auto cmdBuf = beginSingleTimeCommands(m_pDevice->getVkDevice(), m_transientCmdPool);
+	imageLayoutTransition(cmdBuf,
+						  m_drawImage.image,
+						  vk::PipelineStageFlagBits2::eAllCommands,
+						  vk::PipelineStageFlagBits2::eAllCommands,
+						  {},
+						  {},
+						  vk::ImageLayout::eUndefined,
+						  vk::ImageLayout::eGeneral,
+						  subresourceRange);
+	submitSingleTimeCommandBuffer(cmdBuf);
+
 	createDepthResources();
 }
 
@@ -487,78 +511,109 @@ void Core::createCommandObjects() {
 }
 
 void Core::createDepthResources() {
-	int numSwapchainImages = m_pSwapchain->GetSwapchainImageCount();
-	m_depthImages.resize(numSwapchainImages);
 	vk::Format depthFormat = m_pPhysDevice->m_depthFormat;
 
-	for (int i=0; i < numSwapchainImages; i++) {
-		auto imageUsageFlags = vk::ImageUsageFlagBits::eDepthStencilAttachment;
-		vk::Extent3D extent = {m_pSwapchain->GetExtent().width, m_pSwapchain->GetExtent().height, 1};
+	auto imageUsageFlags = vk::ImageUsageFlagBits::eDepthStencilAttachment;
+	vk::Extent3D extent = {
+		.width = m_pSwapchain->GetExtent().width,
+		.height = m_pSwapchain->GetExtent().height,
+		.depth = 1
+	};
 
-		vk::ImageCreateInfo imageCreateInfo = {
-			.imageType = vk::ImageType::e2D,
-			.format = depthFormat,
-			.extent = extent,
-			.mipLevels = 1,
-			.arrayLayers = 1,
-			.tiling = vk::ImageTiling::eOptimal,
-			.usage = imageUsageFlags,
-		};
+	vk::ImageCreateInfo imageCreateInfo = {
+		.imageType = vk::ImageType::e2D,
+		.format = depthFormat,
+		.extent = extent,
+		.mipLevels = 1,
+		.arrayLayers = 1,
+		.tiling = vk::ImageTiling::eOptimal,
+		.usage = imageUsageFlags,
+	};
 
-		VmaAllocationCreateInfo allocationCreateInfo = {
-			.usage = VMA_MEMORY_USAGE_AUTO,
-			.requiredFlags = VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT,
-		};
+	VmaAllocationCreateInfo allocationCreateInfo = {
+		.usage = VMA_MEMORY_USAGE_AUTO,
+		.requiredFlags = VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT,
+	};
 
-		vk::ImageViewCreateInfo viewCreateInfo = {
-			.viewType = vk::ImageViewType::e2D,
-			.subresourceRange = {
-				.aspectMask = vk::ImageAspectFlagBits::eDepth,
-				.levelCount = 1,
-				.layerCount = 1,
-			}
-		};
-
-		m_depthImages[i] = m_pResourceAllocator->createImage(imageCreateInfo, viewCreateInfo, allocationCreateInfo);
-
-		// Print memory properties of new allocation
-		//VkMemoryPropertyFlags memPropFlags;
-		//m_resourceAllocator->GetAllocationMemoryProperties(m_depthImages[i].allocation, memPropFlags);
-		//std::cout << "Depth image memory usage flags:\n");
-		//PrintMemoryPropertyFlags(memPropFlags);
-
-		// transition image to depth optimal
-		vk::ImageSubresourceRange imageRange = {
+	vk::ImageViewCreateInfo viewCreateInfo = {
+		.viewType = vk::ImageViewType::e2D,
+		.subresourceRange = {
 			.aspectMask = vk::ImageAspectFlagBits::eDepth,
-			.baseMipLevel = 0,
 			.levelCount = 1,
-			.baseArrayLayer = 0,
 			.layerCount = 1,
-		};
+		}
+	};
 
-		vk::ImageMemoryBarrier2 undefinedToDepthOptimalBarrier = {
-			.srcStageMask = vk::PipelineStageFlagBits2::eNone,
-			.srcAccessMask = vk::AccessFlagBits2::eNone,
-			.dstStageMask = vk::PipelineStageFlagBits2::eEarlyFragmentTests,
-			.dstAccessMask = vk::AccessFlagBits2::eDepthStencilAttachmentWrite,
-			.oldLayout = vk::ImageLayout::eUndefined,
-			.newLayout = vk::ImageLayout::eDepthAttachmentOptimal,
-			.srcQueueFamilyIndex = vk::QueueFamilyIgnored,
-			.dstQueueFamilyIndex = vk::QueueFamilyIgnored,
-			.image = m_depthImages[i].image,
-			.subresourceRange = imageRange,
-		};
+	m_depthImage = m_pResourceAllocator->createImage(imageCreateInfo, viewCreateInfo, allocationCreateInfo);
 
-		vk::DependencyInfoKHR dependencyInfo = {
-			.dependencyFlags = {},
-			.imageMemoryBarrierCount = 1,
-			.pImageMemoryBarriers = &undefinedToDepthOptimalBarrier,
-		};
+	// transition image to depth optimal
+	vk::ImageSubresourceRange subresourceRange = {
+		.aspectMask = vk::ImageAspectFlagBits::eDepth,
+		.baseMipLevel = 0,
+		.levelCount = 1,
+		.baseArrayLayer = 0,
+		.layerCount = 1,
+	};
 
-		auto cmdBuf = beginSingleTimeCommands(m_pDevice->getVkDevice(), m_transientCmdPool);
-		cmdBuf.pipelineBarrier2(dependencyInfo);
-		submitSingleTimeCommands(cmdBuf, m_pDevice->getVkDevice(), m_transientCmdPool, m_queue);
+	auto cmdBuf = beginSingleTimeCommandBuffer();
+	imageLayoutTransition(cmdBuf,
+						  m_depthImage.image,
+						  vk::PipelineStageFlagBits2::eAllCommands,
+						  vk::PipelineStageFlagBits2::eAllCommands,
+						  {},
+						  {},
+						  vk::ImageLayout::eUndefined,
+						  vk::ImageLayout::eDepthAttachmentOptimal,
+						  subresourceRange);
+	submitSingleTimeCommandBuffer(cmdBuf);
+}
+
+void Core::createSamplers() {
+	std::array<vk::SamplerCreateInfo, 2> createInfos{};
+
+	auto properties = m_pDevice->getPhysicalDevice().m_devProperties2;
+
+	createInfos[0] = {
+		.magFilter = vk::Filter::eNearest,
+		.minFilter = vk::Filter::eNearest,
+		.mipmapMode = vk::SamplerMipmapMode::eNearest,
+		.addressModeU = vk::SamplerAddressMode::eRepeat,
+		.addressModeV = vk::SamplerAddressMode::eRepeat,
+		.addressModeW = vk::SamplerAddressMode::eRepeat,
+		.mipLodBias = 0.0f,
+		.anisotropyEnable = vk::True,
+		.maxAnisotropy = properties.properties.limits.maxSamplerAnisotropy,
+		.compareEnable = vk::False,
+		.compareOp = vk::CompareOp::eAlways,
+		.minLod = 0.0f,
+		.maxLod = 0.0f,
+		.borderColor = vk::BorderColor::eFloatOpaqueBlack,
+		.unnormalizedCoordinates = vk::False,
+	};
+
+	createInfos[1] = {
+		.magFilter = vk::Filter::eLinear,
+		.minFilter = vk::Filter::eLinear,
+		.mipmapMode = vk::SamplerMipmapMode::eNearest,
+		.addressModeU = vk::SamplerAddressMode::eRepeat,
+		.addressModeV = vk::SamplerAddressMode::eRepeat,
+		.addressModeW = vk::SamplerAddressMode::eRepeat,
+		.mipLodBias = 0.0f,
+		.anisotropyEnable = vk::True,
+		.maxAnisotropy = properties.properties.limits.maxSamplerAnisotropy,
+		.compareEnable = vk::False,
+		.compareOp = vk::CompareOp::eAlways,
+		.minLod = 0.0f,
+		.maxLod = 0.0f,
+		.borderColor = vk::BorderColor::eFloatOpaqueBlack,
+		.unnormalizedCoordinates = vk::False,
+	};
+
+	for (size_t i = 0; i < m_samplers.size(); i++) {
+		m_samplers.emplace_back(m_pDevice->getVkDevice(), createInfos[i], nullptr);
 	}
+
+	std::cout << "[INFO] Initialized samplers" << std::endl;
 }
 
 void Core::prepareFrame() {
@@ -609,6 +664,14 @@ vk::raii::CommandBuffer& Core::beginCommandRecording() {
 	m_cmdPools[m_currentFrameIndex].reset();
 	m_cmdBuffs[m_currentFrameIndex].begin(vk::CommandBufferBeginInfo{.flags = vk::CommandBufferUsageFlagBits::eOneTimeSubmit});
 	return m_cmdBuffs[m_currentFrameIndex];
+}
+
+vk::raii::CommandBuffer Core::beginSingleTimeCommandBuffer() {
+	return beginSingleTimeCommands(m_pDevice->getVkDevice(), m_transientCmdPool);
+}
+
+vk::Result Core::submitSingleTimeCommandBuffer(const vk::raii::CommandBuffer &cmdBuf) {
+	return submitSingleTimeCommands(cmdBuf, m_pDevice->getVkDevice(), m_queue);
 }
 
 void Core::presentFrame() {
@@ -678,7 +741,7 @@ void Core::createRaytracingPipeline() {
 
 vk::Extent2D Core::chooseSwapExtent(const vk::SurfaceCapabilitiesKHR& capabilities) {
 	if (capabilities.currentExtent.width != 0xFFFFFFFF) {
-		std::cout << "Current image extent: " << capabilities.currentExtent.width << " x " << capabilities.currentExtent.height << std::endl;
+		std::cout << "[INFO] Current image extent: " << capabilities.currentExtent.width << " x " << capabilities.currentExtent.height << std::endl;
 		return capabilities.currentExtent;
 	}
 	int width, height;
@@ -693,5 +756,4 @@ vk::Extent2D Core::chooseSwapExtent(const vk::SurfaceCapabilitiesKHR& capabiliti
 void Core::deviceWaitIdle() {
 	m_pDevice->getVkDevice().waitIdle();
 }
-
 }

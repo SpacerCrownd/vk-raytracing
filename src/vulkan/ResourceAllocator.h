@@ -21,7 +21,7 @@ public:
 
 private:
     VmaAllocator m_allocator{};
-    Device*      m_device{};
+    Device*      m_pDevice{};
 };
 }
 

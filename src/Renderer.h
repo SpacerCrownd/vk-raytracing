@@ -5,11 +5,17 @@
 #include "vulkan/Shader.h"
 #include "vulkan/GraphicsPipeline.h"
 #include "vulkan/GltfSceneVulkan.h"
+#include "vulkan/SamplerPool.h"
 
 #include "Camera.h"
 #include "GltfScene.h"
 
 namespace app {
+enum PipelineType {
+	eRaster = 0,
+	eRaytracing
+};
+
 class Renderer {
 public:
 	int width = 1240;
@@ -25,17 +31,20 @@ private:
 	ptvk::Window m_window;
 	ptvk::Core m_vkCore;
 
-	std::optional<ptvk::GraphicsPipeline> m_graphicsPipeline;
+	std::unique_ptr<ptvk::GraphicsPipeline> m_pGraphicsPipeline{};
 
-	Scene m_scene;
-	ptvk::GltfSceneVulkan m_vkScene;
-	Camera m_camera;
+	GltfScene							   m_scene{};
+	Camera								   m_camera{glm::vec3(0.0)};
+	std::unique_ptr<ptvk::GltfSceneVulkan> m_pVkScene{};
 
-	std::optional<ptvk::Shader> m_rasterShader;
-	std::optional<ptvk::Shader> m_rtShader;
+	std::unique_ptr<ptvk::SamplerPool> m_samplerPool{};
 
-	// parameters
+	std::unique_ptr<ptvk::Shader> m_pRasterShader{};
+	std::unique_ptr<ptvk::Shader> m_pRtShader{};
+
+	// config parameters
 	bool m_enableDepth = true;
+	PipelineType m_currentPipeline = eRaster;
 
 	// life cycle
 	void MainLoop();

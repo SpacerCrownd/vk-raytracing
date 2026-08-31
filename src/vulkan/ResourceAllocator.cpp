@@ -6,7 +6,7 @@
 #include "ResourceAllocator.h"
 
 namespace ptvk {
-ResourceAllocator::ResourceAllocator(const VmaAllocatorCreateInfo &allocatorInfo, Device* device) : m_device(device){
+ResourceAllocator::ResourceAllocator(const VmaAllocatorCreateInfo &allocatorInfo, Device* device) : m_pDevice(device){
      vmaCreateAllocator(&allocatorInfo, &m_allocator);
 }
 
@@ -28,12 +28,12 @@ Buffer ResourceAllocator::createBuffer(const vk::BufferCreateInfo& buffInfo, con
 
      buffer.buffer = bufferRawHandle;
      buffer.bufferSize = vmaAllocInfo.size;
-     buffer.mapping = static_cast<uint8_t *>(vmaAllocInfo.pMappedData);
+     buffer.pMapping = static_cast<uint8_t *>(vmaAllocInfo.pMappedData);
 
      vk::BufferDeviceAddressInfo buffDeviceAddrInfo{
           .buffer = buffer.buffer,
      };
-     buffer.address = m_device->getVkDevice().getBufferAddress(buffDeviceAddrInfo);
+     buffer.address = m_pDevice->getVkDevice().getBufferAddress(buffDeviceAddrInfo);
 
      buffer.allocator = m_allocator;
 
@@ -56,7 +56,14 @@ Image ResourceAllocator::createImage(const vk::ImageCreateInfo& imageInfo, const
      vk::ImageViewCreateInfo viewInfoTmp = viewInfo;
      viewInfoTmp.image = image.image;
      viewInfoTmp.format = image.format;
-     image.view = vk::raii::ImageView(m_device->getVkDevice(), viewInfoTmp);
+     image.view = vk::raii::ImageView(m_pDevice->getVkDevice(), viewInfoTmp);
+
+     // Print memory properties of new allocation
+     //VkMemoryPropertyFlags memPropFlags;
+     //m_resourceAllocator->GetAllocationMemoryProperties(m_depthImages[i].allocation, memPropFlags);
+     //std::cout << "Depth image memory usage flags:\n");
+     //PrintMemoryPropertyFlags(memPropFlags);
+
      return image;
 }
 
@@ -80,6 +87,4 @@ Image ResourceAllocator::createImage(const vk::ImageCreateInfo& imageInfo, const
 
      return std::move(image);
 }
-
-
 }

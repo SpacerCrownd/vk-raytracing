@@ -25,6 +25,8 @@ Renderer::Renderer(int width, int height, const char* pAppName) : width(width), 
         m_vkCore.framebufferResized = true;
         OnResize();
     });
+
+    m_samplerPool = std::make_unique<ptvk::SamplerPool>(m_vkCore.getDevice().getVkDevice());
 }
 
 Renderer::~Renderer() {
@@ -52,12 +54,12 @@ void Renderer::MainLoop() {
 }
 
 void Renderer::CreateScene() {
-    //tinygltf::Model model = LoadGltfResource("assets/test model/scene.gltf");
+    m_scene.load("assets/basicmesh.glb");
     //m_scene.UploadToGpu(model, m_vkCore);
 }
 
 void Renderer::LoadShaders() {
-    m_rasterShader.emplace(m_vkCore.getDevice().getVkDevice(), "testRaster.spv");
+    m_pRasterShader = std::make_unique<ptvk::Shader>(m_vkCore.getDevice().getVkDevice(), "testRaster.spv");
     // m_rtShader.emplace(m_vkCore.GetDevice().GetVkDevice(), "raytracing.spv");
     printf("[INFO] Shaders Loaded\n");
 }
@@ -65,7 +67,7 @@ void Renderer::LoadShaders() {
 void Renderer::CreateGraphicsPipeline() {
     auto colorFormat = m_vkCore.getDrawImage().format;
     auto depthFormat = m_vkCore.getDepthFormat();
-    m_graphicsPipeline.emplace(m_vkCore.getDevice().getVkDevice(), m_window.getWindow(), m_rasterShader.value(), 1,
+    m_pGraphicsPipeline = std::make_unique<ptvk::GraphicsPipeline>(m_vkCore.getDevice().getVkDevice(), m_window.getWindow(), *m_pRasterShader.get(), 1,
                                colorFormat, depthFormat, m_enableDepth);
 }
 
@@ -78,7 +80,7 @@ void Renderer::Draw() {
 
     auto& cmdBuffer = m_vkCore.beginCommandRecording();
 
-    vk::ImageSubresourceRange imageRange = {
+    vk::ImageSubresourceRange subresourceRange = {
         .aspectMask = vk::ImageAspectFlagBits::eColor,
         .baseMipLevel = 0,
         .levelCount = 1,
@@ -86,135 +88,110 @@ void Renderer::Draw() {
         .layerCount = 1,
     };
 
-    vk::ImageMemoryBarrier2 undefinedToColorAttachmentBarrier = {
-        .srcStageMask = vk::PipelineStageFlagBits2::eColorAttachmentOutput,
-        .srcAccessMask = vk::AccessFlagBits2::eNone,
-        .dstStageMask = vk::PipelineStageFlagBits2::eColorAttachmentOutput,
-        .dstAccessMask = vk::AccessFlagBits2::eColorAttachmentWrite,
-        .oldLayout = vk::ImageLayout::eUndefined,
-        .newLayout = vk::ImageLayout::eColorAttachmentOptimal,
-        .srcQueueFamilyIndex = vk::QueueFamilyIgnored,
-        .dstQueueFamilyIndex = vk::QueueFamilyIgnored,
-        .subresourceRange = imageRange,
-    };
-
-    vk::ImageMemoryBarrier2 undefinedToTransferDstBarrier = {
-        .srcStageMask = vk::PipelineStageFlagBits2::eTransfer,
-        .srcAccessMask = vk::AccessFlagBits2::eNone,
-        .dstStageMask = vk::PipelineStageFlagBits2::eTransfer,
-        .dstAccessMask = vk::AccessFlagBits2::eTransferWrite,
-        .oldLayout = vk::ImageLayout::eUndefined,
-        .newLayout = vk::ImageLayout::eTransferDstOptimal,
-        .srcQueueFamilyIndex = vk::QueueFamilyIgnored,
-        .dstQueueFamilyIndex = vk::QueueFamilyIgnored,
-        .subresourceRange = imageRange,
-    };
-
-    vk::ImageMemoryBarrier2 transferToPresentBarrier = {
-        .srcStageMask = vk::PipelineStageFlagBits2::eTransfer,
-        .srcAccessMask = vk::AccessFlagBits2::eTransferWrite,
-        .dstStageMask = vk::PipelineStageFlagBits2::eAllCommands,
-        .dstAccessMask = vk::AccessFlagBits2::eNone,
-        .oldLayout = vk::ImageLayout::eTransferDstOptimal,
-        .newLayout = vk::ImageLayout::ePresentSrcKHR,
-        .srcQueueFamilyIndex = vk::QueueFamilyIgnored,
-        .dstQueueFamilyIndex = vk::QueueFamilyIgnored,
-        .subresourceRange = imageRange,
-    };
-
-    vk::ImageMemoryBarrier2 colorToTransferSrcBarrier = {
-        .srcStageMask = vk::PipelineStageFlagBits2::eColorAttachmentOutput,
-        .srcAccessMask = vk::AccessFlagBits2::eColorAttachmentWrite,
-        .dstStageMask = vk::PipelineStageFlagBits2::eTransfer,
-        .dstAccessMask = vk::AccessFlagBits2::eTransferRead,
-        .oldLayout = vk::ImageLayout::eColorAttachmentOptimal,
-        .newLayout = vk::ImageLayout::eTransferSrcOptimal,
-        .srcQueueFamilyIndex = vk::QueueFamilyIgnored,
-        .dstQueueFamilyIndex = vk::QueueFamilyIgnored,
-        .subresourceRange = imageRange,
-    };
-
     // get swapchain image
     uint32_t imgIndex = m_vkCore.getCurrentImageIndex();
     const auto& swapchainImage = m_vkCore.getSwapchain().GetSwapchainImage(static_cast<int>(imgIndex));
     auto swapchainExtent = m_vkCore.getSwapchain().GetExtent();
-
-    // swapchain layout transitions
-    undefinedToTransferDstBarrier.image = swapchainImage;
-    transferToPresentBarrier.image = swapchainImage;
-
     // get draw image
     auto& drawImage = m_vkCore.getDrawImage();
 
-    // draw layout transitions
-    undefinedToColorAttachmentBarrier.image = drawImage.image;
-    colorToTransferSrcBarrier.image = drawImage.image;
+    if (m_currentPipeline == eRaster) {
+        // prepare to start dynamic rendering
+        //cmdBuffer.clearColorImage(swapchainImage, vk::ImageLayout::eTransferDstOptimal, clearColor, imageRange);
+        vk::ClearValue clearColor = vk::ClearColorValue(1.0f, 1.0f, 1.0f, 1.0f);
+        vk::ClearValue depthValue = vk::ClearDepthStencilValue(1.0f, 0);
+        vk::RenderingAttachmentInfo colorAttachmentInfo = {
+            .imageView = drawImage.view,
+            .imageLayout = vk::ImageLayout::eGeneral,
+            .loadOp = vk::AttachmentLoadOp::eClear,
+            .storeOp = vk::AttachmentStoreOp::eStore,
+            .clearValue = clearColor,
+        };
+        vk::RenderingAttachmentInfo depthAttachmentInfo = {
+            .imageView = m_vkCore.getDepthImage().view,
+            .imageLayout = vk::ImageLayout::eDepthAttachmentOptimal,
+            .loadOp = vk::AttachmentLoadOp::eClear,
+            .storeOp = vk::AttachmentStoreOp::eDontCare,
+            .clearValue = depthValue
+        };
+        vk::RenderingInfo renderingInfo = {
+            .renderArea = {
+                .offset = {.x = 0,.y = 0},
+                .extent = {
+                    .width = drawImage.extent.width,
+                    .height = drawImage.extent.height
+                }
+            },
+            .layerCount = 1,
+            .colorAttachmentCount = 1,
+            .pColorAttachments = &colorAttachmentInfo,
+            .pDepthAttachment = &depthAttachmentInfo
+        };
 
-    vk::ImageMemoryBarrier2 blitBarriers[2] = { undefinedToTransferDstBarrier, undefinedToColorAttachmentBarrier };
-    vk::DependencyInfoKHR dependencyInfo = {
-        .dependencyFlags = {},
-        .imageMemoryBarrierCount = 2,
-        .pImageMemoryBarriers = blitBarriers,
-    };
+        // begin dynamic rendering
+        cmdBuffer.beginRendering(renderingInfo);
 
-    cmdBuffer.pipelineBarrier2(dependencyInfo);
+        // bind pipeline
+        m_pGraphicsPipeline->bind(cmdBuffer);
 
-    // Prepare Rendering
-    //cmdBuffer.clearColorImage(swapchainImage, vk::ImageLayout::eTransferDstOptimal, clearColor, imageRange);
-    vk::ClearValue clearColor = vk::ClearColorValue(1.0f, 1.0f, 1.0f, 1.0f);
-    vk::ClearValue depthValue = vk::ClearDepthStencilValue(1.0f, 0);
+        cmdBuffer.setViewport(0, vk::Viewport(0.0f, 0.0f, static_cast<float>(swapchainExtent.width), static_cast<float>(swapchainExtent.height), 0.0f, 1.0f));
+        cmdBuffer.setScissor(0, vk::Rect2D(vk::Offset2D(0, 0), swapchainExtent));
 
-    vk::RenderingAttachmentInfo colorAttachmentInfo = {
-        .imageView = drawImage.view,
-        .imageLayout = vk::ImageLayout::eColorAttachmentOptimal,
-        .loadOp = vk::AttachmentLoadOp::eClear,
-        .storeOp = vk::AttachmentStoreOp::eStore,
-        .clearValue = clearColor,
-    };
-    vk::RenderingAttachmentInfo depthAttachmentInfo = {
-        .imageView = m_vkCore.getDepthImage(imgIndex).view,
-        .imageLayout = vk::ImageLayout::eDepthAttachmentOptimal,
-        .loadOp = vk::AttachmentLoadOp::eClear,
-        .storeOp = vk::AttachmentStoreOp::eDontCare,
-        .clearValue = depthValue
-    };
-    vk::RenderingInfo renderingInfo = {
-        .renderArea = {.offset = {0,0}, .extent = {drawImage.extent.width, drawImage.extent.height}},
-        .layerCount = 1,
-        .colorAttachmentCount = 1,
-        .pColorAttachments = &colorAttachmentInfo,
-        .pDepthAttachment = &depthAttachmentInfo
-    };
+        // start drawing
+        cmdBuffer.draw(6, 1, 0, 0);
 
-    // Draw here
-    cmdBuffer.beginRendering(renderingInfo);
+        cmdBuffer.endRendering();
+    } else if (m_currentPipeline == eRaytracing) {
 
-    m_graphicsPipeline->bind(cmdBuffer);
-    cmdBuffer.setViewport(0, vk::Viewport(0.0f, 0.0f, static_cast<float>(swapchainExtent.width), static_cast<float>(swapchainExtent.height), 0.0f, 1.0f));
-    cmdBuffer.setScissor(0, vk::Rect2D(vk::Offset2D(0, 0), swapchainExtent));
-    cmdBuffer.draw(6, 1, 0, 0);
+    }
 
-    cmdBuffer.endRendering();
+    // --
+    // Copy draw image into swapchain image
+    // --
+    // transition swapchain image to transfer dst
+    ptvk::imageLayoutTransition(cmdBuffer,
+                                 swapchainImage,
+                                 vk::PipelineStageFlagBits2::eColorAttachmentOutput,
+                                 vk::PipelineStageFlagBits2::eTransfer,
+                                 {},
+                                 vk::AccessFlagBits2::eTransferWrite,
+                                 vk::ImageLayout::eUndefined,
+                                 vk::ImageLayout::eTransferDstOptimal,
+                                 subresourceRange);
 
-    // copy draw image to swapchain image
-    dependencyInfo = {
-        .dependencyFlags = {},
-        .imageMemoryBarrierCount = 1,
-        .pImageMemoryBarriers = &colorToTransferSrcBarrier,
-    };
-    cmdBuffer.pipelineBarrier2(dependencyInfo);
+    // transition draw image to transfer src
+    ptvk::imageLayoutTransition(cmdBuffer,
+                                 drawImage.image,
+                                 vk::PipelineStageFlagBits2::eRayTracingShaderKHR | vk::PipelineStageFlagBits2::eColorAttachmentOutput,
+                                 vk::PipelineStageFlagBits2::eTransfer,
+                                 vk::AccessFlagBits2::eShaderWrite | vk::AccessFlagBits2::eColorAttachmentWrite,
+                                 vk::AccessFlagBits2::eTransferRead,
+                                 vk::ImageLayout::eGeneral,
+                                 vk::ImageLayout::eTransferSrcOptimal,
+                                 subresourceRange);
 
     // copy draw image to swapchain for presentation
     vk::Extent2D drawExtent = {drawImage.extent.width, drawImage.extent.height};
     ptvk::copyImage(cmdBuffer, drawImage.image, swapchainImage, drawExtent, swapchainExtent);
 
-    // End frame draw commands recording
-    dependencyInfo = {
-        .dependencyFlags = {},
-        .imageMemoryBarrierCount = 1,
-        .pImageMemoryBarriers = &transferToPresentBarrier,
-    };
-    cmdBuffer.pipelineBarrier2(dependencyInfo);
+    // transition swapchain image for presentation
+    ptvk::imageLayoutTransition(
+        cmdBuffer,
+        swapchainImage,
+        vk::ImageLayout::eTransferDstOptimal,
+        vk::ImageLayout::ePresentSrcKHR);
+
+    // transition draw image back to general layout for raytracing/rasterization in next draw call
+    ptvk::imageLayoutTransition(
+        cmdBuffer,
+        drawImage.image,
+        vk::PipelineStageFlagBits2::eTransfer,
+        vk::PipelineStageFlagBits2::eAllCommands,
+        vk::AccessFlagBits2::eTransferRead, // last access was for copy transfer src
+        {},
+        vk::ImageLayout::eTransferSrcOptimal,
+        vk::ImageLayout::eGeneral,
+        subresourceRange);
 
     m_vkCore.submitFrame();
     m_vkCore.presentFrame();

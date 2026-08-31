@@ -126,8 +126,10 @@ void printMemoryPropertyFlags(const VkMemoryPropertyFlags& flags) {
 	std::cout << std::endl;
 }
 
-vk::Format findSupportedFormat(const vk::raii::PhysicalDevice &device, const std::vector<vk::Format> &candidates,
-									  const vk::ImageTiling tiling, const vk::FormatFeatureFlags features) {
+vk::Format findSupportedFormat(const vk::raii::PhysicalDevice &device,
+							   const std::vector<vk::Format> &candidates,
+							   vk::ImageTiling tiling,
+							   vk::FormatFeatureFlags features) {
 	for (const auto format: candidates) {
 		vk::FormatProperties props = device.getFormatProperties(format);
 
@@ -153,26 +155,26 @@ vk::Format findDepthFormat(const vk::raii::PhysicalDevice &device) {
 	return depthFormat;
 }
 
-// all-purpose inefficient image transition for initial testing
-void transitionImage(vk::raii::CommandBuffer& cmd, vk::Image image, vk::ImageLayout currentLayout, vk::ImageLayout newLayout) {
+void imageLayoutTransition(vk::raii::CommandBuffer &cmd,
+						   vk::Image image,
+						   vk::PipelineStageFlags2 srcStageMask,
+						   vk::PipelineStageFlags2 dstStageMask,
+						   vk::AccessFlags2 srcAccessMask,
+						   vk::AccessFlags2 dstAccessMask,
+						   vk::ImageLayout oldLayout,
+						   vk::ImageLayout newLayout,
+						   const vk::ImageSubresourceRange &subresourceRange)
+{
 	vk::ImageMemoryBarrier2 imageBarrier {
-		.srcStageMask = vk::PipelineStageFlagBits2::eAllCommands,
-		.srcAccessMask =  vk::AccessFlagBits2::eMemoryWrite,
-		.dstStageMask = vk::PipelineStageFlagBits2::eAllCommands,
-		.dstAccessMask = vk::AccessFlagBits2::eMemoryWrite | vk::AccessFlagBits2::eMemoryRead,
-		.oldLayout = currentLayout,
+		.srcStageMask = srcStageMask,
+		.srcAccessMask =  srcAccessMask,
+		.dstStageMask = dstStageMask,
+		.dstAccessMask = dstAccessMask,
+		.oldLayout = oldLayout,
 		.newLayout = newLayout,
+		.image = image,
+		.subresourceRange = subresourceRange
 	};
-
-	vk::ImageAspectFlags aspectMask = (newLayout == vk::ImageLayout::eDepthAttachmentOptimal) ? vk::ImageAspectFlags::BitsType::eDepth : vk::ImageAspectFlags::BitsType::eColor;
-	imageBarrier.subresourceRange = {
-		.aspectMask = aspectMask,
-		.baseMipLevel = 0,
-		.levelCount = vk::RemainingMipLevels,
-		.baseArrayLayer = 0,
-		.layerCount = vk::RemainingArrayLayers,
-	};
-	imageBarrier.image = image;
 
 	vk::DependencyInfo depInfo {
 		.imageMemoryBarrierCount = 1,
@@ -182,7 +184,30 @@ void transitionImage(vk::raii::CommandBuffer& cmd, vk::Image image, vk::ImageLay
 	cmd.pipelineBarrier2(depInfo);
 }
 
-void copyImage(vk::raii::CommandBuffer& cmd, vk::Image source, vk::Image destination, vk::Extent2D srcSize, vk::Extent2D dstSize) {
+// all-purpose inefficient image transition for initial testing
+void imageLayoutTransition(vk::raii::CommandBuffer& cmd, vk::Image image, vk::ImageLayout currentLayout, vk::ImageLayout newLayout) {
+	vk::ImageAspectFlags aspectMask = (newLayout == vk::ImageLayout::eDepthAttachmentOptimal) ? vk::ImageAspectFlags::BitsType::eDepth : vk::ImageAspectFlags::BitsType::eColor;
+	vk::ImageSubresourceRange subresourceRange = {
+		.aspectMask = aspectMask,
+		.baseMipLevel = 0,
+		.levelCount = vk::RemainingMipLevels,
+		.baseArrayLayer = 0,
+		.layerCount = vk::RemainingArrayLayers,
+	};
+
+	imageLayoutTransition(cmd,
+						  image,
+						  vk::PipelineStageFlagBits2::eAllCommands,
+						  vk::PipelineStageFlagBits2::eAllCommands,
+						  vk::AccessFlagBits2::eMemoryWrite,
+						  vk::AccessFlagBits2::eMemoryWrite | vk::AccessFlagBits2::eMemoryRead,
+						  currentLayout,
+						  newLayout,
+						  subresourceRange
+						  );
+}
+
+void copyImage(const vk::raii::CommandBuffer& cmd, vk::Image source, vk::Image destination, vk::Extent2D srcSize, vk::Extent2D dstSize) {
 	vk::ImageBlit2 blitRegion{
 		.srcSubresource = {
 			.aspectMask = vk::ImageAspectFlagBits::eColor,

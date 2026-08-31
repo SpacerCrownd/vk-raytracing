@@ -20,7 +20,7 @@ public:
     void bind(vk::raii::CommandBuffer& cmdBuffer);
 
 private:
-    const vk::raii::Device&        m_device;
+    const vk::raii::Device&  m_device;
     vk::raii::Pipeline       m_pipeline{VK_NULL_HANDLE};
     vk::raii::PipelineLayout m_pipelineLayout{VK_NULL_HANDLE};
 

@@ -4,8 +4,8 @@
 #include "Vulkan.h"
 
 namespace ptvk {
-vk::raii::CommandPool createTransientCommandPool(vk::raii::Device& device, uint32_t queueFamilyIndex);
-vk::raii::CommandBuffer beginSingleTimeCommands(vk::raii::Device& device, vk::raii::CommandPool& cmdPool);
+vk::raii::CommandPool createTransientCommandPool(const vk::raii::Device& device, uint32_t queueFamilyIndex);
+vk::raii::CommandBuffer beginSingleTimeCommands(const vk::raii::Device& device, const vk::raii::CommandPool& cmdPool);
 
 inline vk::raii::CommandBuffer createSingleTimeCommands(vk::raii::Device& device, vk::raii::CommandPool& cmdPool)
 {
@@ -13,7 +13,7 @@ inline vk::raii::CommandBuffer createSingleTimeCommands(vk::raii::Device& device
     return std::move(cmd);
 }
 
-vk::Result submitSingleTimeCommands(vk::raii::CommandBuffer &cmd, vk::raii::Device& device, vk::raii::CommandPool& cmdPool, vk::raii::Queue& queue);
+vk::Result submitSingleTimeCommands(const vk::raii::CommandBuffer &cmd, const vk::raii::Device& device, const vk::raii::Queue& queue);
 }
 
 

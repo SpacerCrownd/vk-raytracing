@@ -32,6 +32,7 @@ FetchContent_Declare(
 FetchContent_MakeAvailable(glm)
 
 add_executable(${PROJECT_NAME}
+        src/TinygltfImpl.cpp
         src/vulkan/Core.cpp
         src/vulkan/Utils.cpp
         src/vulkan/Commands.cpp
@@ -53,6 +54,7 @@ add_executable(${PROJECT_NAME}
         src/vulkan/GltfSceneVulkan.cpp
         src/vulkan/GltfSceneVulkan.h
         src/vulkan/GltfSceneVulkan.h
+
 )
 
 # Shaders

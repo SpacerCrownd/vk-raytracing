@@ -9,7 +9,7 @@
 namespace app {
 class Camera {
 public:
-    Camera(glm::vec3 pos);
+    explicit Camera(glm::vec3 pos);
 
     glm::vec3 velocity {0.f, 0.f, 0.f};
     glm::vec3 position;

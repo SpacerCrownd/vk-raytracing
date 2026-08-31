@@ -11,7 +11,7 @@ struct Buffer {
     vk::DeviceAddress address{}; // buffer address in shader (Buffer Device Address extension)
     VmaAllocation     allocation{};
     VmaAllocator      allocator;
-    uint8_t*          mapping{};
+    uint8_t*          pMapping{};
 
     Buffer() = default;
     ~Buffer() {
@@ -27,11 +27,11 @@ struct Buffer {
         address = other.address;
         allocation = other.allocation;
         allocator = other.allocator;
-        mapping = other.mapping;
+        pMapping = other.pMapping;
 
         other.buffer = VK_NULL_HANDLE;
         other.allocation = VK_NULL_HANDLE;
-        other.mapping = nullptr;
+        other.pMapping = nullptr;
     }
 
     Buffer& operator=(Buffer&& other) noexcept {
@@ -43,11 +43,11 @@ struct Buffer {
             address = other.address;
             allocation = other.allocation;
             allocator = other.allocator;
-            mapping = other.mapping;
+            pMapping = other.pMapping;
 
             other.buffer = VK_NULL_HANDLE;
             other.allocation = VK_NULL_HANDLE;
-            other.mapping = nullptr;
+            other.pMapping = nullptr;
         }
         return *this;
     }

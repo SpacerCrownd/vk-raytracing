@@ -2,6 +2,7 @@
 #define VK_RAYTRACING_SCENE_H
 
 #include <filesystem>
+#include <unordered_set>
 #include <vector>
 
 #include <tinygltf/tiny_gltf.h>
@@ -10,8 +11,7 @@
 // scene data
 namespace app {
 // a render node is the instance of a gltf primitive in the scene graph
-struct RenderNode
-{
+struct RenderNode {
     glm::mat4 worldMatrix  = glm::mat4(1.0f);
     int       materialID   = 0;   // Reference to the material
     int       renderPrimID = -1;  // Reference to the unique primitive
@@ -19,8 +19,7 @@ struct RenderNode
 };
 
 // a render primitive corresponds to a unique geometry object (a primitive (i.e. a submesh) in gltf)
-struct RenderPrimitive
-{
+struct RenderPrimitive {
     tinygltf::Primitive* pPrimitive  = nullptr;
     int                  vertexCount = 0;
     int                  indexCount  = 0;
@@ -29,25 +28,24 @@ struct RenderPrimitive
 
 struct RenderLight {
     glm::mat4 worldMatrix = glm::mat4(1.0f);
-    int lightType         = 0;
+    int lightID           = 0;
     int nodeID            = -1;
 };
 
-// bidirectional reference between render node (app scene representation) <-> node/primitive (gltf scene object)
+// bidirectional reference between render node (app scene object representation) <-> node/primitive (gltf object)
 // each gltf primitive instance will have its own render node in the scene graph
 // nodeID -> primitiveIndex, 1:N relationship
 class RenderNodeRegistry {
 public:
+    const std::vector<RenderNode>&     getRenderNodes() const { return m_renderNodes; }
+    std::vector<RenderNode>&           getRenderNodes() { return m_renderNodes; }
+    int                                getRenderNodeID(int nodeID, int primIndex) const;
+    std::optional<std::pair<int, int>> getNodeAndPrim(int renderNodeID) const;
+    const std::vector<int>&            getRenderNodeIDsForNode(int nodeID) const;
+
     int addRenderNode(const RenderNode& node, int nodeID, int primIndex);
 
-    int getRenderNodeID(int nodeID, int primIndex) const;
-    std::optional<std::pair<int, int>> getNodeAndPrim(int renderNodeID) const;
-    const std::vector<int>& getRenderNodesForNode(int nodeID) const;
-
     void clear();
-
-    const std::vector<RenderNode>& getRenderNodes() const { return m_renderNodes; }
-    std::vector<RenderNode>& getRenderNodes() { return m_renderNodes; }
 private:
     std::vector<RenderNode> m_renderNodes;
 
@@ -60,9 +58,11 @@ private:
     // Grouped by node: nodeID -> [renderNodeIDs]
     std::unordered_map<int, std::vector<int>> m_nodeToRenderNodes;
 
+    static const std::vector<int> s_emptyRenderNodes;
+
     // fit two 32bit integers into one uint64
     // (nodeID, primIndex)
-    static uint64_t MakeKey(int nodeID, int primIndex)
+    static uint64_t makeKey(int nodeID, int primIndex)
     {
         return (static_cast<uint64_t>(static_cast<uint32_t>(nodeID)) << 32) | static_cast<uint32_t>(primIndex);
     }
@@ -70,22 +70,17 @@ private:
 
 // nodeID -> Gltf Node
 // RenderNode -> rendering node created from (nodeID, primIndex)
-class Scene {
+class GltfScene { // NOTE: in case of scene editing implementation, add dirty flag tracking for optimized scene update
 public:
-    Scene();
-    ~Scene();
-
-    bool                         loadGLTF(const std::filesystem::path& filename);
+    bool                         load(const std::filesystem::path& filename);
     const std::filesystem::path& getFilename() const { return m_filename; }
 
     const tinygltf::Model& getModel() const { return m_model; }
     tinygltf::Model        getModel() { return m_model; }
 
-    // TODO: Scene management methods (e.g. move render nodes, add, remove scene elements, lights, etc...)
     const std::vector<glm::mat4>& getNodesWorldMatrices() const { return m_nodesWorldMatrices; }
     const std::vector<glm::mat4>& getNodesLocalMatrices() const { return m_nodesLocalMatrices; }
     void                          updateNodeWorldMatrices();
-    void                          updateLocalMatricesAndLights();
 
     const std::vector<RenderPrimitive>& getRenderPrimitives() const { return m_renderPrimitives; }
     std::vector<RenderPrimitive>&       getRenderPrimitives() { return m_renderPrimitives; }
@@ -94,14 +89,39 @@ public:
     const std::vector<RenderLight>& getRenderLights() const { return m_renderLights; }
 
     const std::vector<RenderNode>& getRenderNodes() const { return m_renderNodeRegistry.getRenderNodes(); }
-    const RenderNodeRegistry& getRenderNodeRegistry() const { return m_renderNodeRegistry; }
-    RenderNodeRegistry& getRenderNodeRegistry() { return m_renderNodeRegistry; }
+    const RenderNodeRegistry&      getRenderNodeRegistry() const { return m_renderNodeRegistry; }
+    RenderNodeRegistry&            getRenderNodeRegistry() { return m_renderNodeRegistry; }
+
+    struct DirtyFlags {
+        std::unordered_set<int> renderNodesVkIDs; // indices of render nodes that need to be updated on gpu buffers
+        std::unordered_set<int> renderNodesRtIDs; // indices of render nodes that need to be updated on tlas
+        std::unordered_set<int> lightIDs;
+        std::unordered_set<int> nodeIDs;
+        // possible additions:
+        // material editing
+        // ...
+
+        void clear() {
+            renderNodesVkIDs.clear();
+            renderNodesRtIDs.clear();
+            lightIDs.clear();
+            nodeIDs.clear();
+        }
+
+        bool isEmpty() const {
+            return renderNodesVkIDs.empty() && renderNodesRtIDs.empty() && lightIDs.empty() && nodeIDs.empty();
+        }
+    };
+
+    const DirtyFlags& getDirtyFlags() const { return m_dirtyFlags; }
+    DirtyFlags&       getDirtyFlags() { return m_dirtyFlags; }
+    void              clearDirtyFlags() { m_dirtyFlags.clear(); }
 
     void destroy();
 
     int getNumTriangles() const { return m_numTriangles; }
 
-
+    // TODO: In the future add scene management methods (e.g. move render nodes, add, remove scene elements, lights, etc...)
 private:
     // gltf data
     tinygltf::Model       m_model;
@@ -117,24 +137,26 @@ private:
     std::vector<glm::mat4> m_nodesLocalMatrices;
     std::vector<int>       m_nodeParents;
 
-    int m_numTriangles;
+    DirtyFlags m_dirtyFlags;
+
+    int m_numTriangles{0};
 
     void parseGltf();
     void clearData();
 
     using PrimitiveKeyMap = std::map<std::string, int>; // this is used to make sure primitives are loaded once while parsing
 
-    PrimitiveKeyMap buildPrimitiveKeyMap();
-    void            createRenderNodesForNode(int nodeID, const glm::mat4& worldMatrix, const PrimitiveKeyMap& primMap);
-    void            rebuildScene();
+    PrimitiveKeyMap buildPrimitiveKeyMap(); // cycle through meshes and import unique primitives
+    void createRenderNodesForNode(int nodeID,
+                                  const glm::mat4& parentMat,
+                                  PrimitiveKeyMap& primitiveKeyMap);
 
-    // gltf scene graph traversal
-    void traverseScene(const std::function<void(int nodeID, const glm::mat4& worldMatrix)>& callback);
-    void traverseNode(int nodeID, const glm::mat4& parentMatrix);
+    glm::mat4 computeNodeWorldMatrix(int nodeID) const;
 
-    // utilities
-    void createMissingTangentsForModel();
+    void setSceneElementsDefaultNames();
 
+    void markLightDirty(int lightIndex);
+    void markNodeDirty(int nodeIndex);
 };
 }
 

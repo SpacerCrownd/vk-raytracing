@@ -11,6 +11,10 @@
 
 namespace ptvk {
 
+enum {
+
+	};
+
 class Core {
 public:
 	Core(const char *appName, const Window& window);
@@ -21,17 +25,21 @@ public:
 	void deviceWaitIdle();
 	void recreateSwapchain();
 
-	vk::Format               getDepthFormat() const { return m_pPhysDevice->m_depthFormat; }
-	vk::raii::Queue&         getQueue() { return m_queue; }
-	const Swapchain&         getSwapchain() const { return *m_pSwapchain; }
-	const Device&            getDevice() const { return *m_pDevice; }
-	uint32_t                 getCurrentFrameIndex() const { return m_currentFrameIndex; }
-	uint32_t                 getCurrentImageIndex() const { return m_currentImageIndex; }
-	const ResourceAllocator& getResourceAllocator() const { return *m_pResourceAllocator; }
-	const Image&             getDrawImage() const { return m_drawImage; }
-	const Image&             getDepthImage(uint32_t i) const { return m_depthImages[i]; }
+	vk::Format							  getDepthFormat() const { return m_pPhysDevice->m_depthFormat; }
+	vk::raii::Queue&					  getQueue() { return m_queue; }
+	const Swapchain&					  getSwapchain() const { return *m_pSwapchain; }
+	const Device&						  getDevice() const { return *m_pDevice; }
+	uint32_t							  getCurrentFrameIndex() const { return m_currentFrameIndex; }
+	uint32_t							  getCurrentImageIndex() const { return m_currentImageIndex; }
+	const ResourceAllocator&			  getResourceAllocator() const { return *m_pResourceAllocator; }
+	const Image&						  getDrawImage() const { return m_drawImage; }
+	const Image&						  getDepthImage() const { return m_depthImage; }
+    const std::vector<vk::raii::Sampler>& getSamplers() const { return m_samplers; }
 
 	vk::raii::CommandBuffer& beginCommandRecording();
+
+	vk::raii::CommandBuffer beginSingleTimeCommandBuffer();
+	vk::Result				submitSingleTimeCommandBuffer(const vk::raii::CommandBuffer& cmdBuf);
 
 	void prepareFrame();
 	void submitFrame();
@@ -51,8 +59,8 @@ private:
 	std::unique_ptr<Swapchain>         m_pSwapchain{};
 	std::unique_ptr<ResourceAllocator> m_pResourceAllocator{};
 
-	Image              m_drawImage;
-	std::vector<Image> m_depthImages;
+	Image m_drawImage;
+	Image m_depthImage;
 
 	// graphics queue
 	vk::raii::Queue m_queue{VK_NULL_HANDLE};
@@ -63,13 +71,15 @@ private:
 
 	vk::raii::CommandPool m_transientCmdPool{VK_NULL_HANDLE};
 
-	// per frame in flight rendering objects
+	// per frame in flight resources
 	std::vector<vk::raii::Semaphore> m_presentSemaphores{};
 	std::vector<vk::raii::Semaphore> m_renderSemaphores{};
 	std::vector<vk::raii::Fence>     m_inFlightFences{};
 
 	uint32_t m_currentFrameIndex{0};
 	uint32_t m_currentImageIndex{0};
+
+	std::vector<vk::raii::Sampler> m_samplers{};
 
 	// -- Raytracing objects --
 	// Raytracing pipeline components
@@ -96,6 +106,7 @@ private:
 	void createSyncObjects();
 	void createCommandObjects();
 	void createDepthResources();
+	void createSamplers();
 
 	// Raytracing initialization methods
 	void createBLAS(vk::raii::CommandBuffer &cmdBuff);
@@ -104,6 +115,7 @@ private:
 	void createAccelerationStructure();
 	void createRaytracingPipeline();
 
+	// helper functions
 	void		 updateInstanceVersion();
 	vk::Extent2D chooseSwapExtent(const vk::SurfaceCapabilitiesKHR& capabilities);
 };

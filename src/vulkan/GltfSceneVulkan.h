@@ -3,10 +3,15 @@
 
 #include "Core.h"
 #include "../GltfScene.h"
+#include "SamplerPool.h"
 
 namespace ptvk {
 class GltfSceneVulkan {
 public:
+    GltfSceneVulkan(const ResourceAllocator &allocator,
+                    const SamplerPool &samplerPool,
+                    bool generateMipmaps);
+
     struct VertexBuffers {
         Buffer bPosition;
         Buffer bNormal;
@@ -16,17 +21,31 @@ public:
         Buffer bColor;
     };
 
-private:
-    Buffer          m_bSceneInfo{};
-    Buffer          m_bMaterials{};
-    Buffer          m_bTextures{};
-    VertexBuffers   m_vertexBuffers{};
-    Buffer          m_bIndices{};
-    Buffer          m_bLights{};
-    Buffer          m_bRenderNodes{};
-    Buffer          m_bRenderPrimitives{};
+    void createVkResources(vk::raii::CommandBuffer &cmd, app::GltfScene &scene);
+    void updateFromScene(vk::raii::CommandBuffer &cmd, app::GltfScene &scene);
+    void destroy();
 
-    std::vector<vk::raii::Sampler> m_samplers{};
+private:
+    const ResourceAllocator               &m_allocator;
+    const SamplerPool                     &m_samplerPool;
+
+    Buffer m_bMaterials{};
+    Buffer m_bTextureInfos{}; // 1 to 1 correspondence with gltf textures for material indexing
+    Buffer m_bLights{};
+
+    Buffer m_bRenderNodes{};
+    Buffer m_bRenderPrimitives{};
+    Buffer m_bSceneInfo{};
+
+    std::vector<VertexBuffers> m_vertexBuffers{};
+    std::vector<Buffer>        m_bIndices{};
+    std::vector<Image>         m_images{};
+
+    bool m_generateMipmaps{false}; // TODO
+
+    void uploadTextureImages(vk::raii::CommandBuffer &cmd, app::GltfScene &scene);
+    void createTextures(vk::raii::CommandBuffer &cmd, app::GltfScene &scene);
+    void createVertexIndexBuffers();
 };
 }
 
