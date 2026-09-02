@@ -15,10 +15,10 @@ static VKAPI_ATTR vk::Bool32 VKAPI_CALL DebugCallback(
 	std::cout << "[Debug Callback] " << pCallbackData->pMessage << std::endl;
 
 	std::cout << "\tSeverity: "
-			  << getDebugSeverityStr(severity) << std::endl;
+			  << utils::getDebugSeverityStr(severity) << std::endl;
 
 	std::cout << "\tType: "
-			  << getDebugType(type) << std::endl;
+			  << utils::getDebugType(type) << std::endl;
 
 	std::cout << " Objects " << std::endl;
 
@@ -237,7 +237,7 @@ void Core::selectPhysicalDevice() {
 
 		// Capabilities
 		physicalDevices[i].m_surfaceCapabilities = physicalDevices[i].m_physDevice.getSurfaceCapabilitiesKHR(m_surface);
-		printImageUsageFlags(physicalDevices[i].m_surfaceCapabilities.supportedUsageFlags);
+		utils::printImageUsageFlags(physicalDevices[i].m_surfaceCapabilities.supportedUsageFlags);
 		std::cout << "	minImageCount = " << physicalDevices[i].m_surfaceCapabilities.minImageCount << " maxImageCount = " <<
 			physicalDevices[i].m_surfaceCapabilities.maxImageCount << std::endl;
 		std::cout << "	currentExtent = " << physicalDevices[i].m_surfaceCapabilities.currentExtent.width << " x " <<
@@ -286,7 +286,7 @@ void Core::selectPhysicalDevice() {
 				<< static_cast<uint32_t>(physicalDevices[i].m_memProperties.memoryTypes[j].propertyFlags)
 				<< ", heap "
 				<< physicalDevices[i].m_memProperties.memoryTypes[j].heapIndex;
-			printMemoryPropertyFlags(physicalDevices[i].m_memProperties.memoryTypes[j].propertyFlags);
+			utils::printMemoryPropertyFlags(physicalDevices[i].m_memProperties.memoryTypes[j].propertyFlags);
 			std::cout << std::endl;
 		}
 		std::cout << "Heap Types " << physicalDevices[i].m_memProperties.memoryHeapCount << std::endl;
@@ -294,7 +294,7 @@ void Core::selectPhysicalDevice() {
 		//extensions
 		physicalDevices[i].m_extensions = physicalDevices[i].m_physDevice.enumerateDeviceExtensionProperties();
 
-		physicalDevices[i].m_depthFormat = findDepthFormat(physicalDevices[i].m_physDevice);
+		physicalDevices[i].m_depthFormat = utils::findDepthFormat(physicalDevices[i].m_physDevice);
 
 		/*std::cout << "Available extensions:\n");
 		std::cout << "Extension count: " << m_devices[i].m_extensions.size() << "\n";
@@ -442,7 +442,7 @@ void Core::createSwapchain() {
 	};
 
 	auto cmdBuf = beginSingleTimeCommands(m_pDevice->getVkDevice(), m_transientCmdPool);
-	imageLayoutTransition(cmdBuf,
+	utils::imageLayoutTransition(cmdBuf,
 						  m_drawImage.image,
 						  vk::PipelineStageFlagBits2::eAllCommands,
 						  vk::PipelineStageFlagBits2::eAllCommands,
@@ -556,7 +556,7 @@ void Core::createDepthResources() {
 	};
 
 	auto cmdBuf = beginSingleTimeCommandBuffer();
-	imageLayoutTransition(cmdBuf,
+	utils::imageLayoutTransition(cmdBuf,
 						  m_depthImage.image,
 						  vk::PipelineStageFlagBits2::eAllCommands,
 						  vk::PipelineStageFlagBits2::eAllCommands,

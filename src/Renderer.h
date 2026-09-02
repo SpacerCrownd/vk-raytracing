@@ -37,7 +37,7 @@ private:
 	Camera								   m_camera{glm::vec3(0.0)};
 	std::unique_ptr<ptvk::GltfSceneVulkan> m_pVkScene{};
 
-	std::unique_ptr<ptvk::SamplerPool> m_samplerPool{};
+	std::unique_ptr<ptvk::SamplerPool> m_pSamplerPool{};
 
 	std::unique_ptr<ptvk::Shader> m_pRasterShader{};
 	std::unique_ptr<ptvk::Shader> m_pRtShader{};

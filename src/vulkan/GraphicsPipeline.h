@@ -7,17 +7,15 @@
 namespace ptvk {
 class GraphicsPipeline {
 public:
-    GraphicsPipeline(
-        const vk::raii::Device& device,
-        GLFWwindow* window,
-        Shader& shader,
-        uint32_t numImages,
-        vk::Format colorFormat,
-        vk::Format depthFormat,
-        bool enableDepthTesting
-        );
+    GraphicsPipeline(const vk::raii::Device& device,
+                    GLFWwindow* window,
+                    const Shader& shader,
+                    uint32_t numImages,
+                    vk::Format colorFormat,
+                    vk::Format depthFormat,
+                    bool enableDepthTesting);
 
-    void bind(vk::raii::CommandBuffer& cmdBuffer);
+    void bind(const vk::raii::CommandBuffer& cmdBuffer);
 
 private:
     const vk::raii::Device&  m_device;

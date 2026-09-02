@@ -53,8 +53,11 @@ add_executable(${PROJECT_NAME}
         src/vulkan/ImguiVulkan.h
         src/vulkan/GltfSceneVulkan.cpp
         src/vulkan/GltfSceneVulkan.h
-        src/vulkan/GltfSceneVulkan.h
-
+        src/vulkan/GltfSceneVulkan.cpp
+        src/vulkan/SamplerPool.h
+        src/vulkan/SamplerPool.cpp
+        src/vulkan/StagingUploader.h
+        src/vulkan/StagingUploader.cpp
 )
 
 # Shaders

@@ -26,7 +26,8 @@ Renderer::Renderer(int width, int height, const char* pAppName) : width(width), 
         OnResize();
     });
 
-    m_samplerPool = std::make_unique<ptvk::SamplerPool>(m_vkCore.getDevice().getVkDevice());
+    m_pSamplerPool = std::make_unique<ptvk::SamplerPool>(m_vkCore.getDevice().getVkDevice());
+    m_pVkScene = std::make_unique<ptvk::GltfSceneVulkan>(m_vkCore.getResourceAllocator(), m_pSamplerPool, false);
 }
 
 Renderer::~Renderer() {
@@ -41,11 +42,6 @@ void Renderer::Run() {
 }
 
 void Renderer::MainLoop() {
-    /*
-    auto curTime = static_cast<float>(glfwGetTime());
-    int frames = 0;
-    float fpsTime = 0.0f;
-    */
     while (!glfwWindowShouldClose(m_window.getWindow())) {
         PrepareFrameData();
         Draw();
@@ -54,7 +50,9 @@ void Renderer::MainLoop() {
 }
 
 void Renderer::CreateScene() {
-    m_scene.load("assets/basicmesh.glb");
+    m_scene.load("assets/sponza/NewSponza_Main_glTF_003.gltf");
+    auto cmd = m_vkCore.beginSingleTimeCommandBuffer();
+
     //m_scene.UploadToGpu(model, m_vkCore);
 }
 
@@ -172,7 +170,7 @@ void Renderer::Draw() {
 
     // copy draw image to swapchain for presentation
     vk::Extent2D drawExtent = {drawImage.extent.width, drawImage.extent.height};
-    ptvk::copyImage(cmdBuffer, drawImage.image, swapchainImage, drawExtent, swapchainExtent);
+    ptvk::blitImage(cmdBuffer, drawImage.image, swapchainImage, drawExtent, swapchainExtent);
 
     // transition swapchain image for presentation
     ptvk::imageLayoutTransition(

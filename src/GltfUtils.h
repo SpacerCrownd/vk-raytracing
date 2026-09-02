@@ -10,6 +10,7 @@ namespace app::gltfutils {
 bool                  loadGltf(const std::filesystem::path& filename, tinygltf::Model& model);
 vk::Filter            extractFilter(int filter);
 vk::SamplerMipmapMode extractMipmapMode(int filter);
+vk::SamplerAddressMode extractWrapMode(int wrapMode);
 
 std::string generatePrimitiveKey(const tinygltf::Primitive& primitive);
 void        getNodeTRS(const tinygltf::Node& node, glm::vec3& translation, glm::quat& rotation, glm::vec3& scale);

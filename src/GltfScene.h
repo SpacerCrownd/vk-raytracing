@@ -147,16 +147,15 @@ private:
     using PrimitiveKeyMap = std::map<std::string, int>; // this is used to make sure primitives are loaded once while parsing
 
     PrimitiveKeyMap buildPrimitiveKeyMap(); // cycle through meshes and import unique primitives
-    void createRenderNodesForNode(int nodeID,
-                                  const glm::mat4& parentMat,
-                                  PrimitiveKeyMap& primitiveKeyMap);
-
-    glm::mat4 computeNodeWorldMatrix(int nodeID) const;
+    void            createRenderNodesForNode(int nodeID,
+                                             const glm::mat4& parentMat,
+                                             PrimitiveKeyMap& primitiveKeyMap);
+    glm::mat4       computeNodeWorldMatrix(int nodeID) const;
 
     void setSceneElementsDefaultNames();
 
     void markLightDirty(int lightIndex);
-    void markNodeDirty(int nodeIndex);
+    void markNodeDirty(int nodeIndex); // needs to be called when modifying node transform in-editor
 };
 }
 

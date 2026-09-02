@@ -7,7 +7,7 @@
 namespace ptvk {
 class ResourceAllocator {
 public:
-    ResourceAllocator(const VmaAllocatorCreateInfo &allocatorInfo, Device* device);
+    ResourceAllocator(const VmaAllocatorCreateInfo &allocatorInfo, const Device& device);
     ~ResourceAllocator();
 
     Buffer createBuffer(const vk::BufferCreateInfo &buffInfo, const VmaAllocationCreateInfo &allocCreateInfo, vk::DeviceSize minAlignment = 0) const;
@@ -16,12 +16,12 @@ public:
 
     void getAllocationInfo(VmaAllocation allocation, VkMemoryPropertyFlags* flags) const { return vmaGetAllocationMemoryProperties(m_allocator, allocation, flags);};
 
-    void destroyBuffer(Buffer &buffer) const;
-    void destroyImage(Image &image) const;
+    void destroyBuffer(const Buffer &buffer) const;
+    void destroyImage(const Image &image) const;
 
 private:
-    VmaAllocator m_allocator{};
-    Device*      m_pDevice{};
+    VmaAllocator  m_allocator{};
+    const Device& m_device;
 };
 }
 

@@ -1,7 +1,7 @@
 #include "Utils.h"
 #include <iostream>
 
-namespace ptvk {
+namespace ptvk::utils {
 
 const char* getDebugSeverityStr(vk::DebugUtilsMessageSeverityFlagBitsEXT severity)
 {
@@ -129,7 +129,8 @@ void printMemoryPropertyFlags(const VkMemoryPropertyFlags& flags) {
 vk::Format findSupportedFormat(const vk::raii::PhysicalDevice &device,
 							   const std::vector<vk::Format> &candidates,
 							   vk::ImageTiling tiling,
-							   vk::FormatFeatureFlags features) {
+							   vk::FormatFeatureFlags features)
+{
 	for (const auto format: candidates) {
 		vk::FormatProperties props = device.getFormatProperties(format);
 
@@ -155,7 +156,7 @@ vk::Format findDepthFormat(const vk::raii::PhysicalDevice &device) {
 	return depthFormat;
 }
 
-void imageLayoutTransition(vk::raii::CommandBuffer &cmd,
+void imageLayoutTransition(const vk::raii::CommandBuffer &cmd,
 						   vk::Image image,
 						   vk::PipelineStageFlags2 srcStageMask,
 						   vk::PipelineStageFlags2 dstStageMask,
@@ -185,7 +186,7 @@ void imageLayoutTransition(vk::raii::CommandBuffer &cmd,
 }
 
 // all-purpose inefficient image transition for initial testing
-void imageLayoutTransition(vk::raii::CommandBuffer& cmd, vk::Image image, vk::ImageLayout currentLayout, vk::ImageLayout newLayout) {
+void imageLayoutTransition(const vk::raii::CommandBuffer& cmd, vk::Image image, vk::ImageLayout currentLayout, vk::ImageLayout newLayout) {
 	vk::ImageAspectFlags aspectMask = (newLayout == vk::ImageLayout::eDepthAttachmentOptimal) ? vk::ImageAspectFlags::BitsType::eDepth : vk::ImageAspectFlags::BitsType::eColor;
 	vk::ImageSubresourceRange subresourceRange = {
 		.aspectMask = aspectMask,
@@ -203,11 +204,10 @@ void imageLayoutTransition(vk::raii::CommandBuffer& cmd, vk::Image image, vk::Im
 						  vk::AccessFlagBits2::eMemoryWrite | vk::AccessFlagBits2::eMemoryRead,
 						  currentLayout,
 						  newLayout,
-						  subresourceRange
-						  );
+						  subresourceRange);
 }
 
-void copyImage(const vk::raii::CommandBuffer& cmd, vk::Image source, vk::Image destination, vk::Extent2D srcSize, vk::Extent2D dstSize) {
+void blitImage(const vk::raii::CommandBuffer& cmd, vk::Image source, vk::Image destination, vk::Extent2D srcSize, vk::Extent2D dstSize) {
 	vk::ImageBlit2 blitRegion{
 		.srcSubresource = {
 			.aspectMask = vk::ImageAspectFlagBits::eColor,

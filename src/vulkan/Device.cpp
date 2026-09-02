@@ -1,16 +1,15 @@
 #include "Device.h"
 
 namespace ptvk {
-Device::Device(
-    PhysicalDevice &device,
-    std::vector<const char*> devExtensions,
-    vk::QueueFlags requestedQueueTypes,
-    vk::PhysicalDeviceFeatures2 &features,
-    InstanceVersion instanceVersion
-    ) : m_physicalDevice(device){
+Device::Device(const PhysicalDevice &device,
+               std::vector<const char*> &devExtensions,
+               const vk::QueueFlags &requestedQueueTypes,
+               vk::PhysicalDeviceFeatures2 &features,
+               InstanceVersion instanceVersion) : m_physicalDevice(device)
+{
     std::vector<vk::DeviceQueueCreateInfo> queueCreateInfos;
 
-    constexpr float defaultQueuePriority(0.0f);
+    float defaultQueuePriority{0.0f};
 
     // graphics queue creation
     if (requestedQueueTypes & vk::QueueFlagBits::eGraphics) {

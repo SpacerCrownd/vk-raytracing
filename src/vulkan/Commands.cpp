@@ -18,6 +18,11 @@ vk::raii::CommandBuffer beginSingleTimeCommands(const vk::raii::Device &device, 
     return std::move(cmd);
 }
 
+vk::raii::CommandBuffer createSingleTimeCommands(vk::raii::Device &device, vk::raii::CommandPool &cmdPool) {
+    auto cmd = beginSingleTimeCommands(device, cmdPool);
+    return std::move(cmd);
+}
+
 vk::Result submitSingleTimeCommands(const vk::raii::CommandBuffer& cmd, const vk::raii::Device& device, const vk::raii::Queue& queue) {
     cmd.end();
     vk::raii::Fence fence(device, vk::FenceCreateInfo{});

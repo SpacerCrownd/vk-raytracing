@@ -4,7 +4,7 @@ namespace ptvk {
 GraphicsPipeline::GraphicsPipeline(
         const vk::raii::Device &device,
         GLFWwindow *window,
-        Shader& shader,
+        const Shader& shader,
         uint32_t numImages,
         vk::Format colorFormat,
         vk::Format depthFormat,
@@ -86,7 +86,7 @@ GraphicsPipeline::GraphicsPipeline(
     m_pipeline = vk::raii::Pipeline(device, nullptr, pipelineCreateInfoChain.get<vk::GraphicsPipelineCreateInfo>());
 }
 
-void GraphicsPipeline::bind(vk::raii::CommandBuffer &cmdBuffer) {
+void GraphicsPipeline::bind(const vk::raii::CommandBuffer &cmdBuffer) {
     cmdBuffer.bindPipeline(vk::PipelineBindPoint::eGraphics, m_pipeline);
 }
 }

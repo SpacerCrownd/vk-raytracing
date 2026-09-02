@@ -67,6 +67,22 @@ vk::SamplerMipmapMode extractMipmapMode(int filter) {
     }
 }
 
+vk::SamplerAddressMode extractWrapMode(int wrapMode) {
+    switch (wrapMode) {
+        case TINYGLTF_TEXTURE_WRAP_REPEAT:
+            return vk::SamplerAddressMode::eRepeat;
+
+        case TINYGLTF_TEXTURE_WRAP_CLAMP_TO_EDGE:
+            return vk::SamplerAddressMode::eClampToEdge;
+
+        case TINYGLTF_TEXTURE_WRAP_MIRRORED_REPEAT:
+            return vk::SamplerAddressMode::eMirroredRepeat;
+
+        default:
+            return vk::SamplerAddressMode::eRepeat;
+    }
+}
+
 std::string generatePrimitiveKey(const tinygltf::Primitive& primitive)
 {
     std::stringstream string;

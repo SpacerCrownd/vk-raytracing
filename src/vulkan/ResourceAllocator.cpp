@@ -6,7 +6,7 @@
 #include "ResourceAllocator.h"
 
 namespace ptvk {
-ResourceAllocator::ResourceAllocator(const VmaAllocatorCreateInfo &allocatorInfo, Device* device) : m_pDevice(device){
+ResourceAllocator::ResourceAllocator(const VmaAllocatorCreateInfo &allocatorInfo, const Device& device) : m_device(device){
      vmaCreateAllocator(&allocatorInfo, &m_allocator);
 }
 
@@ -18,15 +18,15 @@ Buffer ResourceAllocator::createBuffer(const vk::BufferCreateInfo& buffInfo, con
      Buffer buffer{};
 
      VmaAllocationInfo vmaAllocInfo{};
-     VkBuffer bufferRawHandle{};
+     VkBuffer vkBuffer{};
 
-     auto result = vmaCreateBufferWithAlignment(m_allocator, &*buffInfo, &allocCreateInfo, minAlignment, &bufferRawHandle, &buffer.allocation, &vmaAllocInfo);
+     auto result = vmaCreateBufferWithAlignment(m_allocator, &*buffInfo, &allocCreateInfo, minAlignment, &vkBuffer, &buffer.allocation, &vmaAllocInfo);
 
      if (result != VK_SUCCESS) {
           throw std::runtime_error("Failed to create buffer");
      }
 
-     buffer.buffer = bufferRawHandle;
+     buffer.buffer = vkBuffer;
      buffer.bufferSize = vmaAllocInfo.size;
      buffer.pMapping = static_cast<uint8_t *>(vmaAllocInfo.pMappedData);
 
@@ -38,15 +38,6 @@ Buffer ResourceAllocator::createBuffer(const vk::BufferCreateInfo& buffInfo, con
      buffer.allocator = m_allocator;
 
      return std::move(buffer);
-}
-
-void ResourceAllocator::destroyBuffer(Buffer &buffer) const {
-     vmaDestroyBuffer(m_allocator, buffer.buffer, buffer.allocation);
-     buffer = {};
-}
-
-void ResourceAllocator::destroyImage(Image &image) const {
-     vmaDestroyImage(m_allocator, image.image, image.allocation);
 }
 
 Image ResourceAllocator::createImage(const vk::ImageCreateInfo& imageInfo, const vk::ImageViewCreateInfo& viewInfo, const VmaAllocationCreateInfo &allocCreateInfo) const {
@@ -86,5 +77,13 @@ Image ResourceAllocator::createImage(const vk::ImageCreateInfo& imageInfo, const
      image.allocator = m_allocator;
 
      return std::move(image);
+}
+
+void ResourceAllocator::destroyBuffer(const Buffer &buffer) const {
+     vmaDestroyBuffer(m_allocator, buffer.buffer, buffer.allocation);
+}
+
+void ResourceAllocator::destroyImage(const Image &image) const {
+     vmaDestroyImage(m_allocator, image.image, image.allocation);
 }
 }

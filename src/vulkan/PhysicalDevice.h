@@ -3,7 +3,7 @@
 
 #include "Vulkan.h"
 #include <vector>
-
+namespace ptvk {
 struct PhysicalDevice {
     vk::raii::PhysicalDevice m_physDevice = VK_NULL_HANDLE;
 
@@ -29,6 +29,6 @@ struct PhysicalDevice {
     vk::PhysicalDeviceRayTracingPipelinePropertiesKHR    getRayTracingPipelinePropertiesKHR() const { return m_rtProperties; }
     vk::PhysicalDeviceAccelerationStructurePropertiesKHR getAccelerationStructurePropertiesKHR() const { return m_asProperties; }
 };
-
+}
 
 #endif //VK_RAYTRACING_PHYSICAL_DEVICE_H

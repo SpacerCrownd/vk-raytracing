@@ -28,16 +28,17 @@ struct GltfRenderPrimitive { // gltf calls submeshes primitives
 struct GltfTextureInfo {
     int imageID;
     int samplerID;
-};
+}; // 8 bytes
 
 struct GltfMaterial {
     float4 baseColor;                // albedo          0, 16
     float  metallic;                 // metallicness    16, 4
     float  roughness;                // roughness       20, 4
     int    baseColorTextureID = -1;  // texture index   24, 4
-    int    roughnessTextureID = -1;  //                 28, 4
-    int    metallicTextureID  = -1;  //                 32, 4
-};
+    int    normalTextureID    = -1;  //                 28, 4
+    int    roughnessTextureID = -1;  //                 32, 4
+    int    metallicTextureID  = -1;  //                 36, 4
+}; // 40 bytes
 
 
 enum LightType {

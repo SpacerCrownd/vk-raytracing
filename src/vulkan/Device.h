@@ -9,17 +9,15 @@ namespace ptvk {
 class Device {
 
 public:
-	Device(
-		PhysicalDevice &device,
-		std::vector<const char*> devExtensions,
-		vk::QueueFlags requestedQueueTypes,
+	Device(const PhysicalDevice &device,
+		std::vector<const char*> &devExtensions,
+		const vk::QueueFlags &requestedQueueTypes,
 		vk::PhysicalDeviceFeatures2 &features,
-		InstanceVersion instanceVersion
-		);
+		InstanceVersion instanceVersion);
 
 	const vk::raii::Device& getVkDevice() const { return m_device; }
 	vk::raii::Device&		getVkDevice() { return m_device; }
-	PhysicalDevice&			getPhysicalDevice() const { return m_physicalDevice; }
+	const PhysicalDevice&	getPhysicalDevice() const { return m_physicalDevice; }
 
 	uint32_t getMemoryType(uint32_t typeBits, vk::MemoryPropertyFlags properties, vk::Bool32& memTypeFound) const;
 
@@ -30,8 +28,8 @@ public:
 	} queueFamilyIndices{};
 
 private:
-	vk::raii::Device m_device{VK_NULL_HANDLE};
-	PhysicalDevice&	 m_physicalDevice;
+	vk::raii::Device      m_device{VK_NULL_HANDLE};
+	const PhysicalDevice& m_physicalDevice;
 
 	uint32_t getQueueFamilyIndex(vk::QueueFlags flags) const;
 };

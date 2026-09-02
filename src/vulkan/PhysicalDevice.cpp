@@ -1,5 +1,6 @@
 ﻿#include "PhysicalDevice.h"
 
+namespace ptvk {
 bool PhysicalDevice::isExtensionSupported(const char* pExt) const {
     bool res = false;
     std::string reqExtension(pExt);
@@ -14,4 +15,5 @@ bool PhysicalDevice::isExtensionSupported(const char* pExt) const {
 
     printf("Extension %s %s supporterd\n", pExt, res ? "is" : "is not");
     return res;
+}
 }
