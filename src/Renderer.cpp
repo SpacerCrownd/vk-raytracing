@@ -147,7 +147,7 @@ void Renderer::Draw() {
     // Copy draw image into swapchain image
     // --
     // transition swapchain image to transfer dst
-    ptvk::imageLayoutTransition(cmdBuffer,
+    ptvk::utils::imageLayoutTransition(cmdBuffer,
                                  swapchainImage,
                                  vk::PipelineStageFlagBits2::eColorAttachmentOutput,
                                  vk::PipelineStageFlagBits2::eTransfer,
@@ -158,7 +158,7 @@ void Renderer::Draw() {
                                  subresourceRange);
 
     // transition draw image to transfer src
-    ptvk::imageLayoutTransition(cmdBuffer,
+    ptvk::utils::imageLayoutTransition(cmdBuffer,
                                  drawImage.image,
                                  vk::PipelineStageFlagBits2::eRayTracingShaderKHR | vk::PipelineStageFlagBits2::eColorAttachmentOutput,
                                  vk::PipelineStageFlagBits2::eTransfer,
@@ -170,17 +170,17 @@ void Renderer::Draw() {
 
     // copy draw image to swapchain for presentation
     vk::Extent2D drawExtent = {drawImage.extent.width, drawImage.extent.height};
-    ptvk::blitImage(cmdBuffer, drawImage.image, swapchainImage, drawExtent, swapchainExtent);
+    ptvk::utils::blitImage(cmdBuffer, drawImage.image, swapchainImage, drawExtent, swapchainExtent);
 
     // transition swapchain image for presentation
-    ptvk::imageLayoutTransition(
+    ptvk::utils::imageLayoutTransition(
         cmdBuffer,
         swapchainImage,
         vk::ImageLayout::eTransferDstOptimal,
         vk::ImageLayout::ePresentSrcKHR);
 
     // transition draw image back to general layout for raytracing/rasterization in next draw call
-    ptvk::imageLayoutTransition(
+    ptvk::utils::imageLayoutTransition(
         cmdBuffer,
         drawImage.image,
         vk::PipelineStageFlagBits2::eTransfer,

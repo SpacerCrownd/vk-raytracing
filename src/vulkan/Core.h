@@ -7,7 +7,6 @@
 #include "Swapchain.h"
 #include "Window.h"
 #include "PhysicalDevice.h"
-#include "Shader.h"
 
 namespace ptvk {
 

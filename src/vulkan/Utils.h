@@ -37,7 +37,13 @@ void imageLayoutTransition(const vk::raii::CommandBuffer &cmd,
                            vk::AccessFlags2 dstAccessMask,
                            vk::ImageLayout oldLayout,
                            vk::ImageLayout newLayout,
-                           const vk::ImageSubresourceRange &subresourceRange);
+                           vk::ImageSubresourceRange subresourceRange = {
+                                .aspectMask = vk::ImageAspectFlagBits::eColor,
+                                .baseMipLevel = 0,
+                                .levelCount = vk::RemainingMipLevels,
+                                .baseArrayLayer = 0,
+                                .layerCount = vk::RemainingArrayLayers
+                            });
 void blitImage(const vk::raii::CommandBuffer& cmd, vk::Image source, vk::Image destination, vk::Extent2D srcSize, vk::Extent2D dstSize);
 
 // img barrier utils

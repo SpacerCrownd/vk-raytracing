@@ -1,14 +1,15 @@
 ﻿#ifndef VK_RAYTRACING_GLTFSCENEVULKAN_H
 #define VK_RAYTRACING_GLTFSCENEVULKAN_H
 
-#include "Core.h"
-#include "../GltfScene.h"
 #include "SamplerPool.h"
+#include "StagingUploader.h"
+#include "../GltfScene.h"
 
 namespace ptvk {
 class GltfSceneVulkan {
 public:
     GltfSceneVulkan(const ResourceAllocator &allocator,
+                    StagingUploader &staging,
                     SamplerPool &samplerPool,
                     bool generateMipmaps);
     ~GltfSceneVulkan();
@@ -28,6 +29,7 @@ public:
 
 private:
     const ResourceAllocator &m_allocator;
+    StagingUploader         &m_staging;
     SamplerPool             &m_samplerPool;
 
     std::vector<vk::Sampler> m_samplers;

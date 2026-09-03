@@ -33,11 +33,11 @@ Buffer ResourceAllocator::createBuffer(const vk::BufferCreateInfo& buffInfo, con
      vk::BufferDeviceAddressInfo buffDeviceAddrInfo{
           .buffer = buffer.buffer,
      };
-     buffer.address = m_pDevice->getVkDevice().getBufferAddress(buffDeviceAddrInfo);
+     buffer.address = m_device.getVkDevice().getBufferAddress(buffDeviceAddrInfo);
 
      buffer.allocator = m_allocator;
 
-     return std::move(buffer);
+     return buffer;
 }
 
 Image ResourceAllocator::createImage(const vk::ImageCreateInfo& imageInfo, const vk::ImageViewCreateInfo& viewInfo, const VmaAllocationCreateInfo &allocCreateInfo) const {
@@ -47,7 +47,7 @@ Image ResourceAllocator::createImage(const vk::ImageCreateInfo& imageInfo, const
      vk::ImageViewCreateInfo viewInfoTmp = viewInfo;
      viewInfoTmp.image = image.image;
      viewInfoTmp.format = image.format;
-     image.view = vk::raii::ImageView(m_pDevice->getVkDevice(), viewInfoTmp);
+     image.view = vk::raii::ImageView(m_device.getVkDevice(), viewInfoTmp);
 
      // Print memory properties of new allocation
      //VkMemoryPropertyFlags memPropFlags;
@@ -76,7 +76,7 @@ Image ResourceAllocator::createImage(const vk::ImageCreateInfo& imageInfo, const
      image.arrayLayers = imageInfo.arrayLayers;
      image.allocator = m_allocator;
 
-     return std::move(image);
+     return image;
 }
 
 void ResourceAllocator::destroyBuffer(const Buffer &buffer) const {

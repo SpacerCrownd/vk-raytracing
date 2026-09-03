@@ -45,7 +45,7 @@ static std::vector<shaderio::GltfLight> createGltfLights(const std::vector<app::
     return gltfLights;
 }
 
-static vk::SamplerCreateInfo getSampler(const tinygltf::Model model, int id) {
+static vk::SamplerCreateInfo getSampler(const tinygltf::Model& model, int id) {
     vk::SamplerCreateInfo samplerInfo{
         .magFilter = vk::Filter::eLinear,
         .minFilter = vk::Filter::eLinear,
@@ -137,8 +137,10 @@ void GltfSceneVulkan::copyImage(const vk::raii::CommandBuffer& cmd, const void* 
 }
 
 GltfSceneVulkan::GltfSceneVulkan(const ResourceAllocator &allocator,
+                                 StagingUploader &staging,
                                  SamplerPool &samplerPool,
                                  bool generateMipmaps) : m_allocator(allocator),
+                                                         m_staging(staging),
                                                          m_samplerPool(samplerPool),
                                                          m_generateMipmaps(generateMipmaps) {}
 
@@ -217,8 +219,19 @@ void GltfSceneVulkan::uploadTextureImages(const vk::raii::CommandBuffer &cmd, co
         m_images[i] = m_allocator.createImage(imageInfo, imageViewInfo, allocInfo);
 
         // copy data to allocated image
+        // layout transition to transfer dst optimal
+        utils::imageLayoutTransition(cmd,
+                          m_images[i].image,
+                          {},
+                          vk::PipelineStageFlagBits2::eTransfer,
+                          {},
+                          vk::AccessFlagBits2::eTransferWrite,
+                          vk::ImageLayout::eUndefined,
+                          vk::ImageLayout::eTransferDstOptimal);
 
     }
+
+    m_staging.uploadAppendedCmd(cmd);
 }
 
 void GltfSceneVulkan::createSamplers(const tinygltf::Model &model) {
@@ -268,7 +281,8 @@ void GltfSceneVulkan::createDefaultImage(int id, const std::array<uint8_t, 4> &c
 
     m_images[id] = m_allocator.createImage(imgInfo, imageViewInfo, allocInfo);
 
-    copyImage()
+    // append image to staging
+    m_staging.appendImage(m_images[id], color.data(), color.size(), TODO, TODO);
 }
 
 void GltfSceneVulkan::createVertexIndexBuffers() {
