@@ -45,7 +45,6 @@ Core::Core(const char* appName, const Window& window) : m_window(window)
 	createCommandObjects();
 	createSwapchain();
 	createSyncObjects();
-	createSamplers();
 };
 
 void Core::updateInstanceVersion() {
@@ -174,7 +173,7 @@ void Core::initResourceAllocator() {
 		.vulkanApiVersion = VK_API_VERSION_1_3,
 	};
 
-	m_pResourceAllocator = std::make_unique<ResourceAllocator>(allocatorCreateInfo, &*m_pDevice);
+	m_pResourceAllocator = std::make_unique<ResourceAllocator>(allocatorCreateInfo, *m_pDevice);
 	std::cout << "[INFO] VMA Allocator Created" << std::endl;
 }
 
@@ -323,15 +322,6 @@ void Core::selectPhysicalDevice() {
 		if (missingRequiredExtensions)
 			continue;
 
-		// Check device features
-		if (physicalDevice.m_features2.features.geometryShader == vk::False) {
-			continue;
-		}
-
-		if (physicalDevice.m_features2.features.tessellationShader == vk::False) {
-			continue;
-		}
-
 		physicalDevice.m_asProperties =
 			physicalDevice.m_physDevice.getProperties2<vk::PhysicalDeviceProperties2, vk::PhysicalDeviceAccelerationStructurePropertiesKHR>()
 				.get<vk::PhysicalDeviceAccelerationStructurePropertiesKHR>();
@@ -354,10 +344,10 @@ void Core::createLogicalDevice() {
 		vk::KHRSwapchainExtensionName,
 		vk::KHRSpirv14ExtensionName,
 		vk::KHRSynchronization2ExtensionName,
-		vk::KHRCreateRenderpass2ExtensionName,
 		vk::KHRRayTracingPipelineExtensionName,
 		vk::KHRAccelerationStructureExtensionName,
-		vk::KHRDeferredHostOperationsExtensionName
+		vk::KHRDeferredHostOperationsExtensionName,
+		vk::KHRPushDescriptorExtensionName
 	};
 
 	vk::StructureChain<
@@ -371,9 +361,10 @@ void Core::createLogicalDevice() {
 		{},
 		{
 			.descriptorIndexing = true,
-			.descriptorBindingVariableDescriptorCount = true,
+			.shaderSampledImageArrayNonUniformIndexing = true,
+			.descriptorBindingPartiallyBound = true,
 			.runtimeDescriptorArray = true,
-			.bufferDeviceAddress = true
+			.bufferDeviceAddress = true,
 		},
 		{
 			.synchronization2 = true,
@@ -416,8 +407,8 @@ void Core::createSwapchain() {
 	};
 
 	VmaAllocationCreateInfo allocationInfo = {
+		.flags = VMA_ALLOCATION_CREATE_DEDICATED_MEMORY_BIT,
 		.usage = VMA_MEMORY_USAGE_AUTO,
-		.requiredFlags = VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT,
 	};
 
 	vk::ImageViewCreateInfo imageViewInfo = {
@@ -530,9 +521,9 @@ void Core::createDepthResources() {
 		.usage = imageUsageFlags,
 	};
 
-	VmaAllocationCreateInfo allocationCreateInfo = {
+	VmaAllocationCreateInfo allocationInfo = {
+		.flags = VMA_ALLOCATION_CREATE_DEDICATED_MEMORY_BIT,
 		.usage = VMA_MEMORY_USAGE_AUTO,
-		.requiredFlags = VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT,
 	};
 
 	vk::ImageViewCreateInfo viewCreateInfo = {
@@ -544,7 +535,7 @@ void Core::createDepthResources() {
 		}
 	};
 
-	m_depthImage = m_pResourceAllocator->createImage(imageCreateInfo, viewCreateInfo, allocationCreateInfo);
+	m_depthImage = m_pResourceAllocator->createImage(imageCreateInfo, viewCreateInfo, allocationInfo);
 
 	// transition image to depth optimal
 	vk::ImageSubresourceRange subresourceRange = {
@@ -567,7 +558,7 @@ void Core::createDepthResources() {
 						  subresourceRange);
 	submitSingleTimeCommandBuffer(cmdBuf);
 }
-
+/*
 void Core::createSamplers() {
 	std::array<vk::SamplerCreateInfo, 2> createInfos{};
 
@@ -609,26 +600,25 @@ void Core::createSamplers() {
 		.unnormalizedCoordinates = vk::False,
 	};
 
-	for (size_t i = 0; i < m_samplers.size(); i++) {
-		m_samplers.emplace_back(m_pDevice->getVkDevice(), createInfos[i], nullptr);
-	}
-
 	std::cout << "[INFO] Initialized samplers" << std::endl;
 }
-
-void Core::prepareFrame() {
+*/
+bool Core::prepareFrame() {
 	auto fenceResult = m_pDevice->getVkDevice().waitForFences(*m_inFlightFences[m_currentFrameIndex], vk::True, UINT64_MAX);
 	VK_CHECK_RESULT(fenceResult, "Failed waiting for frame fence");
-	m_pDevice->getVkDevice().resetFences(*m_inFlightFences[m_currentFrameIndex]);
 
 	auto res = m_pSwapchain->AcquireNextImage(m_renderSemaphores[m_currentFrameIndex], m_currentImageIndex);
 	if (res == vk::Result::eErrorOutOfDateKHR) {
 		recreateSwapchain();
-		return;
+		return false;
 	}
+
 	if (res != vk::Result::eSuccess && res != vk::Result::eSuboptimalKHR) {
 		throw std::runtime_error("[ERROR] Failed to acquire next swapchain image");
 	}
+
+	m_pDevice->getVkDevice().resetFences(*m_inFlightFences[m_currentFrameIndex]);
+	return true;
 }
 
 void Core::submitFrame() {
@@ -695,48 +685,6 @@ void Core::presentFrame() {
 	}
 	
 	m_currentFrameIndex = (m_currentFrameIndex + 1) % MAX_FRAMES_IN_FLIGHT;
-}
-
-void Core::createBLAS(vk::raii::CommandBuffer& cmdBuff) {
-	// TODO: after model and scene loading -> create blas for each model in the scene
-
-}
-
-void Core::createTLAS(vk::raii::CommandBuffer& cmdBuff) {
-
-}
-
-void Core::createAccelerationStructure() {
-	const vk::CommandBufferAllocateInfo cmdBuffAllocateInfo = {
-		.sType = vk::StructureType::eCommandBufferAllocateInfo,
-		.commandPool = m_cmdPools[0],
-		.level = vk::CommandBufferLevel::ePrimary,
-		.commandBufferCount = 1,
-	};
-	auto cmdBuffers = vk::raii::CommandBuffers(m_pDevice->getVkDevice(), cmdBuffAllocateInfo);
-	auto cmdBuff = std::move(cmdBuffers.front());
-
-	createBLAS(cmdBuff);
-
-	constexpr auto flags = vk::AccessFlagBits::eAccelerationStructureReadKHR | vk::AccessFlagBits::eAccelerationStructureWriteKHR;
-	vk::MemoryBarrier memoryBarrier = {
-		.sType = vk::StructureType::eMemoryBarrier,
-		.srcAccessMask = flags,
-		.dstAccessMask = flags,
-	};
-	cmdBuff.pipelineBarrier(vk::PipelineStageFlagBits::eAccelerationStructureBuildKHR,
-		vk::PipelineStageFlagBits::eAccelerationStructureBuildKHR,
-		{}, memoryBarrier, {}, {});
-
-	createTLAS(cmdBuff);
-}
-
-void Core::createSBT() {
-
-}
-
-void Core::createRaytracingPipeline() {
-
 }
 
 vk::Extent2D Core::chooseSwapExtent(const vk::SurfaceCapabilitiesKHR& capabilities) {

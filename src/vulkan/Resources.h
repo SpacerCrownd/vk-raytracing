@@ -124,7 +124,7 @@ private:
 };
 
 struct AccelerationStructure {
-    vk::AccelerationStructureKHR accel{};
+    vk::raii::AccelerationStructureKHR accel{VK_NULL_HANDLE};
     vk::DeviceAddress address{};
     Buffer buffer{};
 };

@@ -14,13 +14,13 @@ ResourceAllocator::~ResourceAllocator() {
      vmaDestroyAllocator(m_allocator);
 }
 
-Buffer ResourceAllocator::createBuffer(const vk::BufferCreateInfo& buffInfo, const VmaAllocationCreateInfo& allocCreateInfo, vk::DeviceSize minAlignment) const {
+Buffer ResourceAllocator::createBuffer(const vk::BufferCreateInfo& buffInfo, const VmaAllocationCreateInfo& allocCreateInfo) const {
      Buffer buffer{};
 
      VmaAllocationInfo vmaAllocInfo{};
      VkBuffer vkBuffer{};
 
-     auto result = vmaCreateBufferWithAlignment(m_allocator, &*buffInfo, &allocCreateInfo, minAlignment, &vkBuffer, &buffer.allocation, &vmaAllocInfo);
+     auto result = vmaCreateBuffer(m_allocator, &*buffInfo, &allocCreateInfo, &vkBuffer, &buffer.allocation, &vmaAllocInfo);
 
      if (result != VK_SUCCESS) {
           throw std::runtime_error("Failed to create buffer");
@@ -30,21 +30,23 @@ Buffer ResourceAllocator::createBuffer(const vk::BufferCreateInfo& buffInfo, con
      buffer.bufferSize = vmaAllocInfo.size;
      buffer.pMapping = static_cast<uint8_t *>(vmaAllocInfo.pMappedData);
 
-     vk::BufferDeviceAddressInfo buffDeviceAddrInfo{
-          .buffer = buffer.buffer,
-     };
-     buffer.address = m_device.getVkDevice().getBufferAddress(buffDeviceAddrInfo);
+     if ((static_cast<VkBufferUsageFlags>(buffInfo.usage) & static_cast<VkBufferUsageFlags>(vk::BufferUsageFlagBits::eShaderDeviceAddress)) != 0) {
+          vk::BufferDeviceAddressInfo buffDeviceAddrInfo{
+               .buffer = buffer.buffer,
+          };
+          buffer.address = m_device.getVkDevice().getBufferAddress(buffDeviceAddrInfo);
+     }
 
      buffer.allocator = m_allocator;
 
      return buffer;
 }
 
-Image ResourceAllocator::createImage(const vk::ImageCreateInfo& imageInfo, const vk::ImageViewCreateInfo& viewInfo, const VmaAllocationCreateInfo &allocCreateInfo) const {
+Image ResourceAllocator::createImage(const vk::ImageCreateInfo& imageInfo, const vk::ImageViewCreateInfo& imageViewInfo, const VmaAllocationCreateInfo &allocCreateInfo) const {
      Image image = createImage(imageInfo, allocCreateInfo);
 
      // Create image view
-     vk::ImageViewCreateInfo viewInfoTmp = viewInfo;
+     vk::ImageViewCreateInfo viewInfoTmp = imageViewInfo;
      viewInfoTmp.image = image.image;
      viewInfoTmp.format = image.format;
      image.view = vk::raii::ImageView(m_device.getVkDevice(), viewInfoTmp);

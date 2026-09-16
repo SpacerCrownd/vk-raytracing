@@ -10,7 +10,7 @@ public:
     ResourceAllocator(const VmaAllocatorCreateInfo &allocatorInfo, const Device& device);
     ~ResourceAllocator();
 
-    Buffer createBuffer(const vk::BufferCreateInfo &buffInfo, const VmaAllocationCreateInfo &allocCreateInfo, vk::DeviceSize minAlignment = 0) const;
+    Buffer createBuffer(const vk::BufferCreateInfo &buffInfo, const VmaAllocationCreateInfo &allocCreateInfo) const;
     Image  createImage(const vk::ImageCreateInfo& imageInfo, const vk::ImageViewCreateInfo& imageViewInfo, const VmaAllocationCreateInfo& allocCreateInfo) const;
     Image  createImage(const vk::ImageCreateInfo& imageInfo, const VmaAllocationCreateInfo& allocCreateInfo) const;
 

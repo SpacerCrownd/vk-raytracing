@@ -33,14 +33,13 @@ public:
 	const ResourceAllocator&			  getResourceAllocator() const { return *m_pResourceAllocator; }
 	const Image&						  getDrawImage() const { return m_drawImage; }
 	const Image&						  getDepthImage() const { return m_depthImage; }
-    const std::vector<vk::raii::Sampler>& getSamplers() const { return m_samplers; }
 
 	vk::raii::CommandBuffer& beginCommandRecording();
 
 	vk::raii::CommandBuffer beginSingleTimeCommandBuffer();
 	vk::Result				submitSingleTimeCommandBuffer(const vk::raii::CommandBuffer& cmdBuf);
 
-	void prepareFrame();
+	bool prepareFrame(); // return true if successfully acquired new swapchain image, false if resized and recreated swapchain
 	void submitFrame();
 	void presentFrame();
 
@@ -78,8 +77,6 @@ private:
 	uint32_t m_currentFrameIndex{0};
 	uint32_t m_currentImageIndex{0};
 
-	std::vector<vk::raii::Sampler> m_samplers{};
-
 	// -- Raytracing objects --
 	// Raytracing pipeline components
 	vk::raii::Pipeline                              m_rtPipeline{VK_NULL_HANDLE};
@@ -105,14 +102,6 @@ private:
 	void createSyncObjects();
 	void createCommandObjects();
 	void createDepthResources();
-	void createSamplers();
-
-	// Raytracing initialization methods
-	void createBLAS(vk::raii::CommandBuffer &cmdBuff);
-	void createTLAS(vk::raii::CommandBuffer &cmdBuff);
-	void createSBT();
-	void createAccelerationStructure();
-	void createRaytracingPipeline();
 
 	// helper functions
 	void		 updateInstanceVersion();

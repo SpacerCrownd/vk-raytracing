@@ -10,7 +10,7 @@ int main() {
 	auto app = app::Renderer(WINDOW_WIDTH, WINDOW_HEIGHT, APP_NAME);
 
 	try {
-		app.Run();
+		app.run();
 	}
 	catch (const std::exception& e) {
 		std::cerr << e.what() << std::endl;

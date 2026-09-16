@@ -7,6 +7,7 @@
 
 #include <tinygltf/tiny_gltf.h>
 #include <glm/glm.hpp>
+#include "Camera.h"
 
 // scene data
 namespace app {
@@ -72,11 +73,14 @@ private:
 // RenderNode -> rendering node created from (nodeID, primIndex)
 class GltfScene { // NOTE: in case of scene editing implementation, add dirty flag tracking for optimized scene update
 public:
+    explicit GltfScene(Camera& camera);
+
     bool                         load(const std::filesystem::path& filename);
     const std::filesystem::path& getFilename() const { return m_filename; }
 
     const tinygltf::Model& getModel() const { return m_model; }
-    tinygltf::Model        getModel() { return m_model; }
+    tinygltf::Model&       getModel() { return m_model; }
+    Camera&                getCamera() {return m_camera;}
 
     const std::vector<glm::mat4>& getNodesWorldMatrices() const { return m_nodesWorldMatrices; }
     const std::vector<glm::mat4>& getNodesLocalMatrices() const { return m_nodesLocalMatrices; }
@@ -84,6 +88,7 @@ public:
 
     const std::vector<RenderPrimitive>& getRenderPrimitives() const { return m_renderPrimitives; }
     std::vector<RenderPrimitive>&       getRenderPrimitives() { return m_renderPrimitives; }
+    const RenderPrimitive&              getRenderPrimitive(size_t id) const { return m_renderPrimitives[id]; }
     size_t                              getNumRenderPrimitives() const { return m_renderPrimitives.size(); }
 
     const std::vector<RenderLight>& getRenderLights() const { return m_renderLights; }
@@ -113,7 +118,6 @@ public:
         }
     };
 
-    const DirtyFlags& getDirtyFlags() const { return m_dirtyFlags; }
     DirtyFlags&       getDirtyFlags() { return m_dirtyFlags; }
     void              clearDirtyFlags() { m_dirtyFlags.clear(); }
 
@@ -126,6 +130,8 @@ private:
     // gltf data
     tinygltf::Model       m_model;
     std::filesystem::path m_filename;
+
+    Camera m_camera;
 
     // Render data built from model
     RenderNodeRegistry           m_renderNodeRegistry;

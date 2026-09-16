@@ -3,7 +3,6 @@
 namespace ptvk {
 GraphicsPipeline::GraphicsPipeline(
         const vk::raii::Device &device,
-        GLFWwindow *window,
         const Shader& shader,
         uint32_t numImages,
         vk::Format colorFormat,
@@ -47,7 +46,10 @@ GraphicsPipeline::GraphicsPipeline(
 
     std::vector<vk::DynamicState> dynamicStates = {vk::DynamicState::eViewport, vk::DynamicState::eScissor};
     vk::PipelineDynamicStateCreateInfo dynamicState{ .dynamicStateCount = static_cast<uint32_t>(dynamicStates.size()), .pDynamicStates = dynamicStates.data() };
-    vk::PipelineViewportStateCreateInfo viewportState { .viewportCount = 1, .scissorCount = 1 };
+    vk::PipelineViewportStateCreateInfo viewportState {
+        .viewportCount = 1,
+        .scissorCount = 1
+    };
 
     vk::PipelineLayoutCreateInfo pipelineLayoutInfo{.setLayoutCount = 0, .pushConstantRangeCount = 0};
     m_pipelineLayout = vk::raii::PipelineLayout(device, pipelineLayoutInfo);

@@ -31,7 +31,7 @@ bool loadGltf(const std::filesystem::path &filename, tinygltf::Model &model) {
     if (!ret)
         throw std::runtime_error("[ERROR] Failed to parse glTF file: " + filename.string());
 
-    std::cout << ("[GltfLoader] Parsed " + filename.string()) << std::endl;
+    std::cout << ("[GltfLoader] Loaded " + filename.string()) << std::endl;
     return ret;
 }
 

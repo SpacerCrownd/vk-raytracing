@@ -75,8 +75,7 @@ void StagingUploader::releaseStaging() {
     m_copyBufferImageRegions.clear();
 }
 
-Buffer &StagingUploader::createStagingBuffer(const void *data, size_t size)
-{
+Buffer &StagingUploader::createStagingBuffer(const void *data, size_t size) {
     VmaAllocationCreateInfo allocInfo = {
         .flags = VMA_ALLOCATION_CREATE_HOST_ACCESS_SEQUENTIAL_WRITE_BIT |
                  VMA_ALLOCATION_CREATE_MAPPED_BIT,

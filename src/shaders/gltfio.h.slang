@@ -5,12 +5,12 @@
 
 // data structures shared by shaders and application classes
 namespace shaderio {
-struct VertexBuffer {
-    float3* positions;
-    float3* normals;
-    float3* tangents;
-    float4* colors;
-    float2* texCoords[2];
+struct Vertex {
+    float3 position;
+    float3 normal;
+    float2 texCoords;
+    float4 color;
+    float4 tangent;
 };
 
 struct GltfRenderNode { // object instances
@@ -20,9 +20,9 @@ struct GltfRenderNode { // object instances
     int      materialID;
 };
 
-struct GltfRenderPrimitive { // gltf calls submeshes primitives
-    uint3*       indices;
-    VertexBuffer vertexBuffer;
+struct GltfRenderPrimitive { // gltf calls submeshes -> primitives
+    uint3*  indices; // bda of array of tuple of indices of each triangle
+    Vertex* vertices; // bda of array of vertices
 };
 
 struct GltfTextureInfo {
@@ -36,8 +36,8 @@ struct GltfMaterial {
     float  roughness;                // roughness       20, 4
     int    baseColorTextureID = -1;  // texture index   24, 4
     int    normalTextureID    = -1;  //                 28, 4
-    int    roughnessTextureID = -1;  //                 32, 4
-    int    metallicTextureID  = -1;  //                 36, 4
+    int    roughnessTextureID = -1;  // green channel   32, 4
+    int    metallicTextureID  = -1;  // blue channel    36, 4
 }; // 40 bytes
 
 
@@ -60,6 +60,7 @@ struct GltfLight {
     float outerAngle;
 };
 
+// right now these don't change because these buffers are not resized/recreated but only contents are modified
 struct GltfSceneInfo {
     GltfRenderPrimitive* gltfPrimitives;
     GltfRenderNode*      gltfNodes;

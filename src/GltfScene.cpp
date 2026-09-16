@@ -1,4 +1,7 @@
 ﻿#include "GltfScene.h"
+
+#include <iostream>
+
 #include "GltfUtils.h"
 
 namespace app {
@@ -50,6 +53,8 @@ int RenderNodeRegistry::getRenderNodeID(int nodeID, int primIndex) const {
 //  Gltf Scene
 //
 
+GltfScene::GltfScene(Camera &camera) : m_camera(camera){}
+
 bool GltfScene::load(const std::filesystem::path& filename) {
     std::error_code errorCode;
     m_filename = std::filesystem::absolute(filename, errorCode);
@@ -58,12 +63,10 @@ bool GltfScene::load(const std::filesystem::path& filename) {
     }
 
     m_model = {};
-
     if (!gltfutils::loadGltf(m_filename, m_model)) {
         clearData();
         return false;
     }
-
     parseGltf();
     return true;
 }
@@ -86,6 +89,10 @@ void GltfScene::destroy() {
 void GltfScene::parseGltf() {
     clearData();
 
+    if(m_model.materials.empty()) {
+        m_model.materials.emplace_back();
+    }
+
     // populate render primitives with unique primitives
     auto primitiveKeyMap = buildPrimitiveKeyMap();
 
@@ -105,8 +112,7 @@ GltfScene::PrimitiveKeyMap GltfScene::buildPrimitiveKeyMap() {
             tinygltf::Primitive& primitive = m_model.meshes[i].primitives[j];
             const std::string& key = gltfutils::generatePrimitiveKey(primitive);
             auto [it, inserted] = primMap.try_emplace(key, static_cast<int>(primMap.size()));
-            if(inserted)
-            {
+            if(inserted) {
                 RenderPrimitive renderPrim;
                 renderPrim.pPrimitive = &primitive;
                 renderPrim.vertexCount = static_cast<int>(gltfutils::getVertexCount(m_model, primitive));
@@ -162,7 +168,7 @@ void GltfScene::createRenderNodesForNode(int nodeID,
 
             RenderNode renderNode;
             renderNode.worldMatrix  = worldMatrix;
-            renderNode.materialID   = primitive.material;
+            renderNode.materialID   = std::max(0, primitive.material);
             renderNode.renderPrimID = renderPrimID;
             renderNode.refNodeID    = nodeID;
 

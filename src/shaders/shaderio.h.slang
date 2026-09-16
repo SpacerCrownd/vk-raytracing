@@ -6,19 +6,18 @@
 namespace shaderio {
 
 enum DescriptorBindingPoints {
-    eTlas,
-    eOutImages,
-    eTextures,
+    eTlas = 0,
+    eOutImage,
+    eTextures = 0,
+    eSamplers,
     eEnvCube,
-    eSamplers
 };
 
 struct FrameData {
     float4x4 projectionMat;
     float4x4 viewMat;
-    float3   cameraPosition;
-    int      useSky;
-    float3   backgroundColor;
+    float4   cameraPosition;
+    float4   backgroundColor;
 };
 
 struct RtPushConstant {

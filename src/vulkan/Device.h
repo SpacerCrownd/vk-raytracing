@@ -7,7 +7,6 @@
 namespace ptvk {
 
 class Device {
-
 public:
 	Device(const PhysicalDevice &device,
 		std::vector<const char*> &devExtensions,

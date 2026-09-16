@@ -258,10 +258,6 @@ struct ImageMemoryBarrierParams {
 
 constexpr vk::ImageMemoryBarrier2 makeImageMemoryBarrier(const ImageMemoryBarrierParams& params) {
     vk::ImageMemoryBarrier2 barrier{
-        .srcStageMask = params.srcStageMask.value(),
-        .srcAccessMask = params.srcAccessMask.value(),
-        .dstStageMask = params.dstStageMask.value(),
-        .dstAccessMask = params.dstAccessMask.value(),
         .oldLayout = params.oldLayout,
         .newLayout = params.newLayout,
         .srcQueueFamilyIndex = vk::QueueFamilyIgnored,

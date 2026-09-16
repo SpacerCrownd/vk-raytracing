@@ -43,8 +43,6 @@ vk::Result submitSingleTimeCommands(const vk::raii::CommandBuffer& cmd, const vk
         return result;
     }
 
-    cmd.reset();
-
     return vk::Result::eSuccess;
 }
 }

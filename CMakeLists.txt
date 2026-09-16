@@ -58,69 +58,86 @@ add_executable(${PROJECT_NAME}
         src/vulkan/SamplerPool.cpp
         src/vulkan/StagingUploader.h
         src/vulkan/StagingUploader.cpp
+        src/vulkan/RtPipeline.cpp
+        src/vulkan/RtPipeline.h
+        src/vulkan/GltfSceneRt.cpp
+        src/vulkan/GltfSceneRt.h
 )
 
 # Shaders
-function(add_slang_shader_target TARGET)
-    cmake_parse_arguments(SHADER "" "PROFILE" "SOURCES;ENTRIES" ${ARGN})
-
-    if(NOT SHADER_SOURCES)
-        message(FATAL_ERROR "No SOURCES given to add_slang_shader_target")
-    endif()
-
-    if(NOT SHADER_ENTRIES)
-        message(FATAL_ERROR "No ENTRIES given to add_slang_shader_target")
-    endif()
+function(add_slang_shader TARGET SOURCE)
+    cmake_parse_arguments(SHADER "" "PROFILE" "ENTRIES" ${ARGN})
 
     if(NOT SHADER_PROFILE)
-        set(SHADER_PROFILE spirv_1_4) # default
+        set(SHADER_PROFILE spirv_1_4)
     endif()
 
-    set(SHADER_OUTPUTS "")
+    get_filename_component(FILE_NAME "${SOURCE}" NAME_WE)
 
-    set(SHADER_OUTPUT_DIR ${CMAKE_CURRENT_BINARY_DIR}/shaders)
+    set(OUTPUT_DIR
+            "${CMAKE_CURRENT_BINARY_DIR}/shaders"
+    )
 
-    foreach(SHADER_FILE ${SHADER_SOURCES})
-        get_filename_component(FILE_NAME ${SHADER_FILE} NAME_WE)
-        set(OUTPUT_FILE ${SHADER_OUTPUT_DIR}/${FILE_NAME}.spv)
+    set(OUTPUT_FILE
+            "${OUTPUT_DIR}/${FILE_NAME}.spv"
+    )
 
-        add_custom_command(
-                OUTPUT ${OUTPUT_FILE}
-                COMMAND ${CMAKE_COMMAND} -E make_directory ${SHADER_OUTPUT_DIR}
-                COMMAND ${SLANGC_EXECUTABLE} ${SHADER_FILE}
-                -target spirv
-                -profile ${SHADER_PROFILE}
-                -emit-spirv-directly
-                -fvk-use-entrypoint-name
-                ${SHADER_ENTRIES}
-                -o ${OUTPUT_FILE}
-                DEPENDS ${SHADER_FILE}
-                COMMENT "Compiling ${SHADER_FILE} -> ${OUTPUT_FILE}"
-                VERBATIM
-        )
+    add_custom_command(
+            OUTPUT "${OUTPUT_FILE}"
 
-        list(APPEND SHADER_OUTPUTS ${OUTPUT_FILE})
-    endforeach()
+            COMMAND
+            ${CMAKE_COMMAND} -E make_directory
+            "${OUTPUT_DIR}"
 
-    add_custom_target(${TARGET} DEPENDS ${SHADER_OUTPUTS})
+            COMMAND
+            ${SLANGC_EXECUTABLE}
+            "${SOURCE}"
+            -target spirv
+            -profile "${SHADER_PROFILE}"
+            -emit-spirv-directly
+            -fvk-use-entrypoint-name
+            ${SHADER_ENTRIES}
+            -o "${OUTPUT_FILE}"
+
+            DEPENDS "${SOURCE}"
+
+            COMMENT
+            "Compiling ${SOURCE} -> ${OUTPUT_FILE}"
+
+            VERBATIM
+    )
+
+    add_custom_target(
+            ${TARGET}
+            DEPENDS "${OUTPUT_FILE}"
+    )
 endfunction()
 
-set(SHADER_SOURCES
-        ${CMAKE_CURRENT_SOURCE_DIR}/src/shaders/testRaster.slang
-)
+add_slang_shader(
+        ${PROJECT_NAME}_raster_shaders
 
-add_slang_shader_target(
-        ${PROJECT_NAME}_shaders
-
-        SOURCES
-            ${SHADER_SOURCES}
+        "${CMAKE_CURRENT_SOURCE_DIR}/src/shaders/raster.slang"
 
         ENTRIES
-            -entry vertMain
-            -entry fragMain
+        -entry vertMain
+        -entry fragMain
 
         PROFILE
-            spirv_1_4
+        spirv_1_4
+)
+
+add_slang_shader(
+        ${PROJECT_NAME}_rt_shaders
+
+        "${CMAKE_CURRENT_SOURCE_DIR}/src/shaders/pathtrace.slang"
+
+        ENTRIES
+        -entry raygenMain
+        -entry missMain
+        -entry closestHitMain
+
+        PROFILE
+        spirv_1_4
 )
 
 target_include_directories(${PROJECT_NAME} PRIVATE "./vendor")
@@ -131,7 +148,7 @@ add_custom_command(TARGET ${PROJECT_NAME} POST_BUILD
         ${CMAKE_CURRENT_BINARY_DIR}/assets
 )
 
-add_dependencies(${PROJECT_NAME} ${PROJECT_NAME}_shaders)
+add_dependencies(${PROJECT_NAME} ${PROJECT_NAME}_rt_shaders ${PROJECT_NAME}_raster_shaders)
 
 # Libraries
 target_link_libraries(${PROJECT_NAME} PRIVATE Vulkan::Vulkan glfw glm::glm)

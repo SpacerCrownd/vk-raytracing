@@ -16,7 +16,7 @@ namespace ptvk {
         if (!file.is_open()) {
             std::cout << "[Error] Failed to open file " << shaderPath.c_str() << std::endl;
         }
-        std::cout << "[INFO] Shader loaded %s \n" << fileName.c_str() << std::endl;
+        std::cout << "[INFO] Shader loaded: " << fileName.c_str() << std::endl;
 
         std::vector<char> buffer(file.tellg());
 
