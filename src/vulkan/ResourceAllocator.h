@@ -20,8 +20,8 @@ public:
     void destroyImage(const Image &image) const;
 
 private:
-    VmaAllocator  m_allocator{};
     const Device& m_device;
+    VmaAllocator  m_allocator{};
 };
 }
 

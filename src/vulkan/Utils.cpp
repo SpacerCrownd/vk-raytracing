@@ -238,4 +238,24 @@ void blitImage(const vk::raii::CommandBuffer& cmd, vk::Image source, vk::Image d
 	};
 	cmd.blitImage2(blitInfo);
 }
+
+void cmdMemoryBarrier(const vk::raii::CommandBuffer &cmd,
+						vk::PipelineStageFlags2 srcStage,
+						vk::PipelineStageFlags2 dstStage,
+						vk::AccessFlags2 srcAccess,
+						vk::AccessFlagBits2 dstAccess)
+{
+	vk::MemoryBarrier2 memBarrier = {
+		.srcStageMask = srcStage,
+		.srcAccessMask = srcAccess,
+		.dstStageMask = dstStage,
+		.dstAccessMask = dstAccess
+	};
+	vk::DependencyInfo depInfo = {
+		.memoryBarrierCount = 1,
+		.pMemoryBarriers = &memBarrier,
+	};
+
+	cmd.pipelineBarrier2(depInfo);
+}
 }

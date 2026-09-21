@@ -2,7 +2,7 @@
 #include "gltfio.h.slang"
 
 [[vk::push_constant]]
-ConstantBuffer<shaderio::RtPushConstant> pushConstant;
+shaderio::RtPushConstant pushConstant;
 
 [[vk::binding(shaderio::DescriptorBindingPoints::eTextures, 0)]]
 Texture2D textures[];

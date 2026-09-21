@@ -12,7 +12,8 @@ public:
                     uint32_t numImages,
                     vk::Format colorFormat,
                     vk::Format depthFormat,
-                    bool enableDepthTesting);
+                    bool enableDepthTesting,
+                    std::vector<vk::DescriptorSetLayout> descLayouts);
 
     vk::PipelineLayout getLayout() { return m_pipelineLayout; }
 

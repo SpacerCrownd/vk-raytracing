@@ -54,8 +54,8 @@ private:
 
 	std::unique_ptr<PhysicalDevice>    m_pPhysDevice{};
 	std::unique_ptr<Device>            m_pDevice{};
-	std::unique_ptr<Swapchain>         m_pSwapchain{};
 	std::unique_ptr<ResourceAllocator> m_pResourceAllocator{};
+	std::unique_ptr<Swapchain>         m_pSwapchain{};
 
 	Image m_drawImage;
 	Image m_depthImage;
@@ -76,21 +76,6 @@ private:
 
 	uint32_t m_currentFrameIndex{0};
 	uint32_t m_currentImageIndex{0};
-
-	// -- Raytracing objects --
-	// Raytracing pipeline components
-	vk::raii::Pipeline                              m_rtPipeline{VK_NULL_HANDLE};
-	vk::raii::PipelineLayout                        m_rtPipelineLayout{VK_NULL_HANDLE};
-	std::vector<vk::raii::AccelerationStructureKHR> m_blas{};
-	vk::raii::AccelerationStructureKHR              m_tlas{VK_NULL_HANDLE};
-
-	// Shader binding table stuff
-	vk::raii::Buffer                  m_sbtBuffer{VK_NULL_HANDLE};
-	std::vector<uint8_t>              m_shaderHandles{};
-	vk::StridedDeviceAddressRegionKHR m_raygenRegion{};
-	vk::StridedDeviceAddressRegionKHR m_missRegion{};
-	vk::StridedDeviceAddressRegionKHR m_hitRegion{};
-	vk::StridedDeviceAddressRegionKHR m_callableRegion{}; // callable shader region
 
 	void createInstance(const char* appName);
 	void createDebugCallback();

@@ -1,5 +1,7 @@
 ﻿#include "GraphicsPipeline.h"
 
+#include "../shaders/shaderio.h.slang"
+
 namespace ptvk {
 GraphicsPipeline::GraphicsPipeline(
         const vk::raii::Device &device,
@@ -7,7 +9,8 @@ GraphicsPipeline::GraphicsPipeline(
         uint32_t numImages,
         vk::Format colorFormat,
         vk::Format depthFormat,
-        bool enableDepthTesting
+        bool enableDepthTesting,
+        std::vector<vk::DescriptorSetLayout> descLayouts
     ) : m_device(device), m_numImages(numImages)
 {
     vk::PipelineShaderStageCreateInfo shaderStages[] {
@@ -51,7 +54,18 @@ GraphicsPipeline::GraphicsPipeline(
         .scissorCount = 1
     };
 
-    vk::PipelineLayoutCreateInfo pipelineLayoutInfo{.setLayoutCount = 0, .pushConstantRangeCount = 0};
+    vk::PushConstantRange pushConstantRange = {
+        .stageFlags = vk::ShaderStageFlagBits::eAllGraphics,
+        .offset = 0,
+        .size = sizeof(shaderio::RasterPushConstant)
+    };
+
+    vk::PipelineLayoutCreateInfo pipelineLayoutInfo{
+        .setLayoutCount = 1,
+        .pSetLayouts = descLayouts.data(),
+        .pushConstantRangeCount = 1,
+        .pPushConstantRanges = &pushConstantRange,
+    };
     m_pipelineLayout = vk::raii::PipelineLayout(device, pipelineLayoutInfo);
 
     vk::PipelineDepthStencilStateCreateInfo depthStencil {

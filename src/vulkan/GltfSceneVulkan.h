@@ -27,8 +27,14 @@ public:
     const Buffer&               getRenderNodesBuffer(int frame) const {return m_bRenderNodes[frame];}
 
     const std::vector<vk::Sampler>& getSamplers() const {return m_samplers;}
+    const vk::Sampler&              getSampler(int idx) const {return m_samplers[idx];}
+    size_t                          getSamplerCount() const {return m_samplers.size();}
 
-    const Image& getTextureImage(int idx) const {return m_images[idx];}
+    const std::vector<Image>& getTextureImages() const {return m_images;}
+    const Image&              getTextureImage(int idx) const {return m_images[idx];}
+    size_t                    getTextureCount() const {return m_images.size();}
+
+    const Buffer& getSceneInfo(int frame) const { return m_bSceneInfo[frame]; }
 
 private:
     const ResourceAllocator &m_allocator;

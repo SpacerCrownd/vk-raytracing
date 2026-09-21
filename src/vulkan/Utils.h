@@ -46,6 +46,12 @@ void imageLayoutTransition(const vk::raii::CommandBuffer &cmd,
                             });
 void blitImage(const vk::raii::CommandBuffer& cmd, vk::Image source, vk::Image destination, vk::Extent2D srcSize, vk::Extent2D dstSize);
 
+void cmdMemoryBarrier(const vk::raii::CommandBuffer &cmd,
+                      vk::PipelineStageFlags2 srcStage,
+                      vk::PipelineStageFlags2 dstStage,
+                      vk::AccessFlags2 srcAccess,
+                      vk::AccessFlagBits2 dstAccess);
+
 // img barrier utils
 constexpr vk::AccessFlags2 inferAccessFromStage(vk::PipelineStageFlags2 stage, bool read) {
     vk::AccessFlags2 access{};

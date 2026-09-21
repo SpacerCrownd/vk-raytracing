@@ -20,7 +20,7 @@ static float3 colors[6] = float3[](
 );
 
 [[vk::push_constant]]
-ConstantBuffer<shaderio::RasterPushConstant> pushConstant;
+shaderio::RasterPushConstant pushConstant;
 
 [[vk::binding(shaderio::DescriptorBindingPoints::eTextures, 0)]]
 Texture2D textures[];

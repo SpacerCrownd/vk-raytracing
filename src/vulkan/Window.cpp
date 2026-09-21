@@ -3,8 +3,7 @@
 #include <iostream>
 
 namespace ptvk {
-void Window::glfwErrorCallback(const int error, const char* const description)
-{
+void Window::glfwErrorCallback(const int error, const char* const description) {
     std::cerr << "[ERROR] GLFW: " << description << " (code: " << error << ")" << std::endl;
 }
 
@@ -15,22 +14,19 @@ void Window::glfwKeyCallback(GLFWwindow* window, int key, int scancode, int acti
         callback(key, scancode, action, mods);
 }
 
-void Window::glfwCursorPositionCallback(GLFWwindow* window, const double xpos, const double ypos)
-{
+void Window::glfwCursorPositionCallback(GLFWwindow* window, const double xpos, const double ypos) {
     auto* const this_ = static_cast<Window*>(glfwGetWindowUserPointer(window));
     for (auto& callback : this_->onCursorPositionChanged)
         callback(xpos, ypos);
 }
 
-void Window::glfwMouseButtonCallback(GLFWwindow* window, const int button, const int action, const int mods)
-{
+void Window::glfwMouseButtonCallback(GLFWwindow* window, const int button, const int action, const int mods) {
     auto* const this_ = static_cast<Window*>(glfwGetWindowUserPointer(window));
     for (auto& callback : this_->onMouseButtonChanged)
         callback(button, action, mods);
 }
 
-void Window::glfwScrollCallback(GLFWwindow* window, const double xoffset, const double yoffset)
-{
+void Window::glfwScrollCallback(GLFWwindow* window, const double xoffset, const double yoffset) {
     auto* const this_ = static_cast<Window*>(glfwGetWindowUserPointer(window));
     for (auto& callback : this_->onScrollChanged)
         callback(xoffset, yoffset);
@@ -38,6 +34,10 @@ void Window::glfwScrollCallback(GLFWwindow* window, const double xoffset, const 
 
 void Window::glfwFramebufferSizeCallback(GLFWwindow *window, int width, int height) {
     auto* const this_ = static_cast<Window*>(glfwGetWindowUserPointer(window));
+
+    this_->m_width = width;
+    this_->m_height = height;
+
     for (auto& callback : this_->onFramebufferSizeChanged)
         callback(width, height);
 }

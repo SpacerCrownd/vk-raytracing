@@ -118,8 +118,8 @@ public:
         }
     };
 
-    DirtyFlags&       getDirtyFlags() { return m_dirtyFlags; }
-    void              clearDirtyFlags() { m_dirtyFlags.clear(); }
+    DirtyFlags& getDirtyFlags() { return m_dirtyFlags; }
+    void        clearDirtyFlags() { m_dirtyFlags.clear(); }
 
     void destroy();
 

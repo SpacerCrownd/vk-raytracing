@@ -46,7 +46,7 @@ static std::vector<shaderio::GltfLight> createGltfLights(const std::vector<app::
     return gltfLights;
 }
 
-static vk::SamplerCreateInfo getSampler(const tinygltf::Model& model, int id) {
+static vk::SamplerCreateInfo getSamplerInfo(const tinygltf::Model& model, int id) {
     vk::SamplerCreateInfo samplerInfo{
         .magFilter = vk::Filter::eLinear,
         .minFilter = vk::Filter::eLinear,
@@ -222,7 +222,7 @@ void GltfSceneVulkan::createSamplers(const tinygltf::Model &model) {
     }
 
     for(size_t j = m_samplers.size() - 1; j < model.samplers.size(); ++j) {
-        const vk::SamplerCreateInfo samplerInfo = getSampler(model, static_cast<int>(j));
+        const vk::SamplerCreateInfo samplerInfo = getSamplerInfo(model, static_cast<int>(j));
         m_samplers.push_back(m_samplerPool.acquireSampler(samplerInfo));
     }
     std::cout << "[INFO] Samplers created from glTF scene" << std::endl;
