@@ -38,8 +38,8 @@ public:
     explicit SamplerPool(const vk::raii::Device &device);
 
     vk::Sampler acquireSampler(const vk::SamplerCreateInfo &createInfo = {
-        .magFilter = vk::Filter::eLinear,
-        .minFilter = vk::Filter::eLinear
+        .magFilter = vk::Filter::eNearest,
+        .minFilter = vk::Filter::eNearest
     });
 
     void releaseSampler(vk::Sampler sampler);

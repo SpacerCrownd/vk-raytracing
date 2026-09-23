@@ -28,18 +28,18 @@ struct GltfRenderPrimitive { // gltf calls submeshes -> primitives
 struct GltfTextureInfo {
     int imageID;
     int samplerID;
-}; // 8 bytes
+};
 
 struct GltfMaterial {
-    float4 baseColor;                // albedo          0, 16
-    float  metallic;                 // metallicness    16, 4
-    float  roughness;                // roughness       20, 4
-    int    baseColorTextureID = -1;  // texture index   24, 4
-    int    normalTextureID    = -1;  //                 28, 4
-    int    roughnessTextureID = -1;  // green channel   32, 4
-    int    metallicTextureID  = -1;  // blue channel    36, 4
-}; // 40 bytes
-
+    float4 baseColor;              
+    float  metallic;                 
+    float  roughness;                 
+    float  normalTextureScale = 1;
+    int    baseColorTextureID = -1; 
+    int    normalTextureID    = -1; 
+    int    roughnessTextureID = -1; 
+    int    metallicTextureID  = -1;  
+};
 
 enum LightType {
     eDirectional,
@@ -50,14 +50,17 @@ enum LightType {
 struct GltfLight {
     float3 direction;
     int    type;
+
     float3 position;
-    float  radius;
+    float  _padding;
+
     float3 color;
     float  intensity;
 
-    float angularSizeOrInvRange;
-    float innerAngle;
-    float outerAngle;
+    float  range;
+    float  innerAngle;
+    float  outerAngle;
+    float  _padding1;
 };
 
 // right now these don't change because these buffers are not resized/recreated but only contents are modified

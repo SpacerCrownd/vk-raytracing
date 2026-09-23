@@ -125,7 +125,8 @@ public:
 
     int getNumTriangles() const { return m_numTriangles; }
 
-    // TODO: In the future add scene management methods (e.g. move render nodes, add, remove scene elements, lights, etc...)
+    void markLightDirty(int lightIndex);
+    void markNodeDirty(int nodeIndex); // needs to be called when modifying node transform in-editor
 private:
     // gltf data
     tinygltf::Model       m_model;
@@ -159,9 +160,6 @@ private:
     glm::mat4       computeNodeWorldMatrix(int nodeID) const;
 
     void setSceneElementsDefaultNames();
-
-    void markLightDirty(int lightIndex);
-    void markNodeDirty(int nodeIndex); // needs to be called when modifying node transform in-editor
 };
 }
 

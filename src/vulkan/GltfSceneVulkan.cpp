@@ -26,20 +26,13 @@ static std::vector<shaderio::GltfLight> createGltfLights(const std::vector<app::
         } else {
             gltfLight.color = glm::vec3(1, 1, 1);  // default color (white)
         }
+
         gltfLight.intensity = static_cast<float>(light.intensity);
         gltfLight.type = light.type == "point" ? shaderio::ePoint
                         : light.type == "spot"  ? shaderio::eSpot
                         : shaderio::eDirectional;
 
-        gltfLight.radius = light.extras.Has("radius") ? static_cast<float>(light.extras.Get("radius").GetNumberAsDouble()) : 0.0f;
-
-        if(gltfLight.type == shaderio::eDirectional) {
-            constexpr double sun_distance = 149597870.0;
-            double angularSizeRad = 2.0 * std::atan(gltfLight.radius / sun_distance);
-            gltfLight.angularSizeOrInvRange = static_cast<float>(angularSizeRad);
-        } else {
-            gltfLight.angularSizeOrInvRange = (light.range > 0.0) ? 1.0f / static_cast<float>(light.range) : 0.0f;
-        }
+        gltfLight.range = static_cast<float>(light.range);
 
         gltfLights.emplace_back(gltfLight);
     }
@@ -134,6 +127,7 @@ void GltfSceneVulkan::updateFromScene(app::GltfScene &scene, int frameNum) {
     if(!dirtyNodes.empty() || m_bRenderNodes[frameNum].buffer == VK_NULL_HANDLE) {
         uploadRenderNodes(scene, dirtyNodes, frameNum);
         dirtyFlags.renderNodesVkIDs.clear();
+        std::cout << "update node\n";
     }
 }
 
@@ -149,11 +143,13 @@ void GltfSceneVulkan::uploadTextureImages(const vk::raii::CommandBuffer &cmd, St
     for (size_t i = 0; i < model.images.size(); i++) {
         auto& image = model.images[i];
 
+        uint32_t mipLevels = m_generateMipmaps ? static_cast<uint32_t>(std::floor(std::log2(std::max(image.width, image.height)))) + 1 : 1;
+
         vk::ImageCreateInfo imageInfo {
             .imageType = vk::ImageType::e2D,
             .format = vk::Format::eR8G8B8A8Srgb,
             .extent = vk::Extent3D{ static_cast<uint32_t>(image.width),static_cast<uint32_t>(image.height), 1 },
-            .mipLevels = 1,
+            .mipLevels = mipLevels,
             .arrayLayers = 1,
             .samples = vk::SampleCountFlagBits::e1,
             .tiling = vk::ImageTiling::eOptimal,
@@ -162,12 +158,15 @@ void GltfSceneVulkan::uploadTextureImages(const vk::raii::CommandBuffer &cmd, St
             .initialLayout = vk::ImageLayout::eUndefined
         };
 
+        if (m_generateMipmaps)
+            imageInfo.usage |= vk::ImageUsageFlagBits::eTransferSrc;
+
         vk::ImageViewCreateInfo imageViewInfo = {
             .viewType = vk::ImageViewType::e2D,
             .subresourceRange = {
                 .aspectMask = vk::ImageAspectFlagBits::eColor,
                 .baseMipLevel = 0,
-                .levelCount = 1,
+                .levelCount = mipLevels,
                 .baseArrayLayer = 0,
                 .layerCount = 1,
             }
@@ -243,8 +242,7 @@ void GltfSceneVulkan::uploadTextureInfos(const tinygltf::Model &model) {
 
     vk::BufferCreateInfo bufferInfo = {
         .size = std::span(textureInfos).size_bytes(),
-        .usage = vk::BufferUsageFlagBits::eTransferDst
-               | vk::BufferUsageFlagBits::eStorageBuffer
+        .usage = vk::BufferUsageFlagBits::eStorageBuffer
              | vk::BufferUsageFlagBits::eShaderDeviceAddress,
     };
 
@@ -267,11 +265,9 @@ void GltfSceneVulkan::uploadTextureInfos(const tinygltf::Model &model) {
 }
 
 void GltfSceneVulkan::uploadMaterials(const tinygltf::Model &model) {
-    // default material evaluation is in-shader
     // create gltf materials and upload to gpu buffer
     std::vector<shaderio::GltfMaterial> gltfMaterials;
 
-    // there is at least one material
     for (const auto& srcMat : model.materials) {
         shaderio::GltfMaterial dstMat{};
 
@@ -287,20 +283,18 @@ void GltfSceneVulkan::uploadMaterials(const tinygltf::Model &model) {
 
         dstMat.metallic = static_cast<float>(pbr.metallicFactor);
         dstMat.roughness = static_cast<float>(pbr.roughnessFactor);
+        dstMat.baseColorTextureID = 0;
 
-        if (pbr.baseColorTexture.index >= 0)
-        {
+        if (pbr.baseColorTexture.index >= 0) {
             dstMat.baseColorTextureID = pbr.baseColorTexture.index;
         }
 
-        if (pbr.metallicRoughnessTexture.index >= 0)
-        {
+        if (pbr.metallicRoughnessTexture.index >= 0) {
             dstMat.metallicTextureID = pbr.metallicRoughnessTexture.index;
             dstMat.roughnessTextureID = pbr.metallicRoughnessTexture.index;
         }
 
-        if (srcMat.normalTexture.index >= 0)
-        {
+        if (srcMat.normalTexture.index >= 0) {
             dstMat.normalTextureID = srcMat.normalTexture.index;
         }
         gltfMaterials.push_back(dstMat);
@@ -345,10 +339,17 @@ void GltfSceneVulkan::createDefaultImage(StagingUploader &staging, int id) {
         }
     }
 
-    vk::ImageCreateInfo imgInfo = {
+    vk::ImageCreateInfo imgInfo{
+        .imageType = vk::ImageType::e2D,
         .format = vk::Format::eR8G8B8A8Unorm,
         .extent = {16, 16, 1},
-        .usage = vk::ImageUsageFlagBits::eSampled | vk::ImageUsageFlagBits::eTransferDst,
+        .mipLevels = 1,
+        .arrayLayers = 1,
+        .samples = vk::SampleCountFlagBits::e1,
+        .tiling = vk::ImageTiling::eOptimal,
+        .usage = vk::ImageUsageFlagBits::eSampled |
+                 vk::ImageUsageFlagBits::eTransferDst,
+        .initialLayout = vk::ImageLayout::eUndefined,
     };
 
     vk::ImageViewCreateInfo imageViewInfo = {
@@ -371,6 +372,7 @@ void GltfSceneVulkan::createDefaultImage(StagingUploader &staging, int id) {
     size_t size = imgInfo.extent.width * imgInfo.extent.height * imgInfo.extent.depth * 4;
     // append image to staging
     staging.appendImage(m_images[id], pixels.data(), size, vk::ImageLayout::eUndefined, vk::ImageLayout::eShaderReadOnlyOptimal);
+    std::cout << "[INFO] Default image created\n";
 }
 
 void GltfSceneVulkan::createVertexIndexBuffers(const app::GltfScene &scene) {
@@ -436,7 +438,7 @@ void GltfSceneVulkan::createVertexIndexBuffers(const app::GltfScene &scene) {
             shaderio::Vertex vertex = {
                 .position = glm::vec3(glm::make_vec3(&positionsBuffer[v * 3])),
                 .normal = glm::normalize(glm::vec3(normalsBuffer ? glm::make_vec3(&normalsBuffer[v * 3]) : glm::vec3(0.0f))),
-                .texCoords = texCoordsBuffer ? glm::make_vec2(&texCoordsBuffer[v * 2]) : glm::vec3(0.0f),
+                .texCoords = texCoordsBuffer ? glm::make_vec2(&texCoordsBuffer[v * 2]) : glm::vec2(0.0f),
                 .color = glm::vec4(1.0f),
                 .tangent = tangentsBuffer ? glm::make_vec4(&tangentsBuffer[v * 4]) : glm::vec4(0.0f),
             };
@@ -579,7 +581,7 @@ void GltfSceneVulkan::uploadRenderNodes(const app::GltfScene &scene, const std::
 
     if (m_bRenderNodes[frameNum].buffer == VK_NULL_HANDLE) {
         vk::BufferCreateInfo bufferInfo = {
-            .size = std::span(renderNodes).size_bytes(),
+            .size = sizeof(shaderio::GltfRenderNode) * renderNodes.size(),
             .usage = vk::BufferUsageFlagBits::eStorageBuffer
                    | vk::BufferUsageFlagBits::eShaderDeviceAddress
         };
@@ -605,6 +607,7 @@ void GltfSceneVulkan::uploadRenderNodes(const app::GltfScene &scene, const std::
         memcpy(m_bRenderNodes[frameNum].pMapping, gltfRenderNodes.data(), std::span(gltfRenderNodes).size_bytes());
     } else {
         for (int nodeID : dirtyNodes) {
+            std::cout << "updating render node\n";
             shaderio::GltfRenderNode gltfRenderNode = {
                 .objectToWorld = renderNodes[nodeID].worldMatrix,
                 .worldToObject = glm::inverse(renderNodes[nodeID].worldMatrix),

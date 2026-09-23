@@ -16,6 +16,7 @@ enum DescriptorBindingPoints {
 struct FrameData {
     float4x4 projectionMat;
     float4x4 viewMat;
+    float4x4 invViewProjMat;
     float4   cameraPosition; // float 4 for buffer alignment
     float4   backgroundColor;
 };

@@ -71,6 +71,9 @@ private:
 
 	// life cycle
 	void mainLoop();
+
+	void update();
+
 	void prepareFrameData(const vk::raii::CommandBuffer &cmd);
 	void draw();
 	void onResize(int width, int height);
@@ -81,7 +84,6 @@ private:
 
 	void cleanupScene();
 
-	void finalizeScene();
 	void loadShaders();
 	void createDescriptors();
 

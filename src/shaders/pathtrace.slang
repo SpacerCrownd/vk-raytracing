@@ -5,7 +5,7 @@
 shaderio::RtPushConstant pushConstant;
 
 [[vk::binding(shaderio::DescriptorBindingPoints::eTextures, 0)]]
-Texture2D textures[];
+Texture2D<float4> textures[];
 
 [[vk::binding(shaderio::DescriptorBindingPoints::eSamplers, 0)]]
 SamplerState samplers[];

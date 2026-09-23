@@ -65,6 +65,12 @@ add_executable(${PROJECT_NAME}
 )
 
 # Shaders
+
+file(GLOB_RECURSE SLANG_SOURCES
+        CONFIGURE_DEPENDS
+        "${CMAKE_CURRENT_SOURCE_DIR}/src/shaders/*.slang"
+)
+
 function(add_slang_shader TARGET SOURCE)
     cmake_parse_arguments(SHADER "" "PROFILE" "ENTRIES" ${ARGN})
 
@@ -94,12 +100,11 @@ function(add_slang_shader TARGET SOURCE)
             "${SOURCE}"
             -target spirv
             -profile "${SHADER_PROFILE}"
-            -emit-spirv-directly
             -fvk-use-entrypoint-name
             ${SHADER_ENTRIES}
             -o "${OUTPUT_FILE}"
 
-            DEPENDS "${SOURCE}"
+            DEPENDS "${SLANG_SOURCES}"
 
             COMMENT
             "Compiling ${SOURCE} -> ${OUTPUT_FILE}"

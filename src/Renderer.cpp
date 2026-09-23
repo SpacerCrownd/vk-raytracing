@@ -5,6 +5,7 @@
 
 #include <iostream>
 #include <glm/gtc/matrix_transform.hpp>
+#include <glm/gtx/string_cast.hpp>
 
 namespace app {
 Renderer::Renderer(int width, int height, const char* pAppName) : m_window(width, height, pAppName),
@@ -44,7 +45,9 @@ void Renderer::run() {
     //createRtPipeline();
 
     //initializeImGui();
-    if (!createScene("assets/sponza/sponza.glb")) {
+    //std::string file = "assets/basicmesh.glb";
+    std::string file = "assets/sponza/sponza.glb";
+    if (!createScene(file)) {
         cleanupScene();
     }
 
@@ -56,6 +59,11 @@ void Renderer::mainLoop() {
         draw();
         glfwPollEvents();
     }
+}
+
+void Renderer::update() {
+    m_camera.update();
+    m_pScene->updateNodeWorldMatrices(); // updates render nodes that were modified
 }
 
 void Renderer::draw() {
@@ -102,7 +110,7 @@ void Renderer::draw() {
     if (m_currentPipeline == eRaster) {
         // prepare to start dynamic rendering
         //cmdBuffer.clearColorImage(swapchainImage, vk::ImageLayout::eTransferDstOptimal, clearColor, imageRange);
-        vk::ClearValue clearColor = vk::ClearColorValue(1.0f, 1.0f, 1.0f, 1.0f);
+        vk::ClearValue clearColor = vk::ClearColorValue(.0f, .0f, .0f, 1.0f);
         vk::ClearValue depthValue = vk::ClearDepthStencilValue(1.0f, 0);
         vk::RenderingAttachmentInfo colorAttachmentInfo = {
             .imageView = drawImage.view,
@@ -487,15 +495,16 @@ void Renderer::initializeImGui() {
 void Renderer::prepareFrameData(const vk::raii::CommandBuffer& cmd) {
     int frame = m_vkCore.getCurrentFrameIndex();
     // sync scene changes with gpu
-
+    m_pVkScene->updateFromScene(*m_pScene, frame);
 
     // update frame data buffer
     auto [width, height, depth] = m_vkCore.getDrawImage().extent;
-    glm::mat4x4 projMat = glm::perspectiveRH_ZO(90.0f, static_cast<float>(width)/static_cast<float>(height), 0.1f, 1000.0f);
+    glm::mat4x4 projMat = glm::perspectiveRH_ZO(glm::radians(90.0f), static_cast<float>(width)/static_cast<float>(height), 0.1f, 1000.0f);
     projMat[1][1] *= -1; // flip y
     shaderio::FrameData frameData = {
         .projectionMat = projMat,
         .viewMat = m_camera.getViewMatrix(),
+        .invViewProjMat = glm::inverse(projMat * m_camera.getViewMatrix()),
         .cameraPosition = glm::vec4(m_camera.position, 0),
         .backgroundColor = glm::vec4(0,0,0,0),
     };
@@ -505,6 +514,7 @@ void Renderer::prepareFrameData(const vk::raii::CommandBuffer& cmd) {
     if (m_currentPipeline == eRaster) {
         m_rasterPushConstant.frameData = reinterpret_cast<shaderio::FrameData *>(m_bFrameData[frame].address);
         m_rasterPushConstant.sceneInfo = reinterpret_cast<shaderio::GltfSceneInfo *>(m_pVkScene->getSceneInfo(frame).address);
+
         cmd.pushConstants<shaderio::RasterPushConstant>(
             m_pGraphicsPipeline->getLayout(),
             vk::ShaderStageFlagBits::eAllGraphics,
@@ -519,7 +529,6 @@ void Renderer::prepareFrameData(const vk::raii::CommandBuffer& cmd) {
     } else {
         // rt
     }
-
 
     // update tlas
 }

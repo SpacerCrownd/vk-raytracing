@@ -164,7 +164,7 @@ void imageLayoutTransition(const vk::raii::CommandBuffer &cmd,
 						   vk::AccessFlags2 dstAccessMask,
 						   vk::ImageLayout oldLayout,
 						   vk::ImageLayout newLayout,
-						   vk::ImageSubresourceRange subresourceRange)
+						   const vk::ImageSubresourceRange &subresourceRange)
 {
 	vk::ImageMemoryBarrier2 imageBarrier {
 		.srcStageMask = srcStageMask,

@@ -15,23 +15,30 @@ void Camera::update() {
 }
 
 void Camera::onKeyChanged(int key, int scan, int action, int mods) {
-
     if (action == GLFW_PRESS) {
         //printf("Pressed Key code: %d\n", key);
         if (key == GLFW_KEY_W) {
-            velocity.z = -1;
+            velocity.z = -speed;
         }
 
         if (key == GLFW_KEY_A) {
-            velocity.x = -1;
+            velocity.x = -speed;
         }
 
         if (key == GLFW_KEY_S) {
-            velocity.z = 1;
+            velocity.z = speed;
         }
 
         if (key == GLFW_KEY_D) {
-            velocity.x = 1;
+            velocity.x = speed;
+        }
+
+        if (key == GLFW_KEY_E) {
+            velocity.y = speed;
+        }
+
+        if (key == GLFW_KEY_Q) {
+            velocity.y = -speed;
         }
     }
 
@@ -51,6 +58,14 @@ void Camera::onKeyChanged(int key, int scan, int action, int mods) {
 
         if (key == GLFW_KEY_D) {
             velocity.x = 0;
+        }
+
+        if (key == GLFW_KEY_E) {
+            velocity.y = 0;
+        }
+
+        if (key == GLFW_KEY_Q) {
+            velocity.y = 0;
         }
     }
 }
@@ -83,9 +98,9 @@ void Camera::onCursorPositionChanged(double xpos, double ypos) {
     lastY = ypos;
 
     // apply drag to camera
-    double sensitivity{0.1};
+    double sensitivity{0.005};
     yaw   += static_cast<float>(dx) * static_cast<float>(sensitivity);
-    pitch += static_cast<float>(dy) * static_cast<float>(sensitivity);
+    pitch -= static_cast<float>(dy) * static_cast<float>(sensitivity);
 
     // optional clamp
     pitch = std::clamp(pitch, -89.0f, 89.0f);

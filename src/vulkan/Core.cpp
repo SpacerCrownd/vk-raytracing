@@ -204,7 +204,7 @@ void Core::selectPhysicalDevice() {
 		  << '\n';
 
 		if (apiVersion < vk::ApiVersion13) {
-			throw std::runtime_error("API version lower than 1.3");
+			continue;
 		}
 
 		// Queue Families

@@ -97,6 +97,10 @@ void GltfScene::parseGltf() {
     auto primitiveKeyMap = buildPrimitiveKeyMap();
 
     // assume there is only one scene in gltf
+    m_nodesLocalMatrices.resize(m_model.scenes[0].nodes.size(), glm::mat4(1.0f));
+    m_nodesWorldMatrices.resize(m_model.scenes[0].nodes.size());
+    m_nodeParents.resize(m_model.scenes.size(), -1);
+
     for(auto& sceneNodeID : m_model.scenes[0].nodes) {
         // create render nodes for each root node in the scene
         createRenderNodesForNode(sceneNodeID, glm::mat4(1.0f), primitiveKeyMap);
@@ -129,7 +133,8 @@ void GltfScene::createRenderNodesForNode(int nodeID,
                                          const glm::mat4& parentMat,
                                          PrimitiveKeyMap& primitiveKeyMap) {
     const auto& node = m_model.nodes[nodeID];
-    glm::mat4 worldMatrix = parentMat * gltfutils::getNodeTransformMatrix(node);
+    m_nodesLocalMatrices[nodeID] = gltfutils::getNodeTransformMatrix(node);
+    glm::mat4 worldMatrix = parentMat * m_nodesLocalMatrices[nodeID];
 
     if(node.light > -1) {
         RenderLight renderLight;
@@ -143,15 +148,6 @@ void GltfScene::createRenderNodesForNode(int nodeID,
                 light.color = {1.0f, 1.0f, 1.0f};
             }
 
-            // Add a default radius if the light has no radius
-            if(!light.extras.Has("radius")) {
-                if(!light.extras.IsObject()) {  // Avoid overwriting other extras
-                    light.extras = tinygltf::Value(tinygltf::Value::Object());
-                }
-                auto extras = light.extras.Get<tinygltf::Value::Object>();
-                extras["radius"] = tinygltf::Value(0.);
-                light.extras = tinygltf::Value(extras);
-            }
             renderLight.worldMatrix = worldMatrix;
             renderLight.nodeID      = nodeID;
 
@@ -177,7 +173,9 @@ void GltfScene::createRenderNodesForNode(int nodeID,
         }
     }
 
+    m_nodesWorldMatrices[nodeID] = worldMatrix;
     for(const auto& child : node.children) {
+        m_nodeParents[child] = nodeID;
         createRenderNodesForNode(child, worldMatrix, primitiveKeyMap);
     }
 }
@@ -298,9 +296,8 @@ void GltfScene::markLightDirty(int lightIndex) {
 }
 
 void GltfScene::markNodeDirty(int nodeIndex) {
-    if(nodeIndex >= 0 || nodeIndex < static_cast<int>(m_model.nodes.size())) {
+    if(nodeIndex >= 0 && nodeIndex <static_cast<int>(m_model.nodes.size())) {
         m_dirtyFlags.nodeIDs.insert(nodeIndex);
-
         const tinygltf::Node& node = m_model.nodes[nodeIndex];
 
         if(node.light >= 0)

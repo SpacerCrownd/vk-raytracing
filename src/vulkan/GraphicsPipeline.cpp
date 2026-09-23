@@ -18,15 +18,36 @@ GraphicsPipeline::GraphicsPipeline(
         shader.createShaderStage(vk::ShaderStageFlagBits::eFragment, "fragMain")
     };
 
-    vk::PipelineVertexInputStateCreateInfo   vertexInputInfo;
-    vk::PipelineInputAssemblyStateCreateInfo inputAssembly { .topology = vk::PrimitiveTopology::eTriangleList};
+    // vertex description
+    vk::VertexInputBindingDescription vertBinding = {
+        .binding = 0,
+        .stride = sizeof(shaderio::Vertex),
+        .inputRate = vk::VertexInputRate::eVertex
+    };
+    std::vector<vk::VertexInputAttributeDescription> vertexAttributes {
+        {.location = 0, .binding = 0, .format = vk::Format::eR32G32B32Sfloat},
+        {.location = 1, .binding = 0, .format = vk::Format::eR32G32B32Sfloat, .offset = offsetof(shaderio::Vertex, normal)},
+        {.location = 2, .binding = 0, .format = vk::Format::eR32G32Sfloat, .offset = offsetof(shaderio::Vertex, texCoords)},
+        {.location = 3, .binding = 0, .format = vk::Format::eR32G32B32A32Sfloat, .offset = offsetof(shaderio::Vertex, color)},
+        {.location = 4, .binding = 0, .format = vk::Format::eR32G32B32A32Sfloat, .offset = offsetof(shaderio::Vertex, tangent)}
+    };
+
+    vk::PipelineVertexInputStateCreateInfo   vertexInputInfo = {
+        .vertexBindingDescriptionCount = 1,
+        .pVertexBindingDescriptions = &vertBinding,
+        .vertexAttributeDescriptionCount = static_cast<uint32_t>(vertexAttributes.size()),
+        .pVertexAttributeDescriptions = vertexAttributes.data()
+    };
+    vk::PipelineInputAssemblyStateCreateInfo inputAssembly {
+        .topology = vk::PrimitiveTopology::eTriangleList,
+    };
 
     vk::PipelineRasterizationStateCreateInfo rasterizer {
         .depthClampEnable        = vk::False,
         .rasterizerDiscardEnable = vk::False,
         .polygonMode             = vk::PolygonMode::eFill,
         .cullMode                = vk::CullModeFlagBits::eBack,
-        .frontFace               = vk::FrontFace::eClockwise,
+        .frontFace               = vk::FrontFace::eCounterClockwise,
         .depthBiasEnable         = vk::False,
         .lineWidth               = 1.0f
     };
@@ -37,8 +58,15 @@ GraphicsPipeline::GraphicsPipeline(
     };
 
     vk::PipelineColorBlendAttachmentState colorBlendAttachment {
-        .blendEnable    = vk::False,
-        .colorWriteMask = vk::ColorComponentFlagBits::eR | vk::ColorComponentFlagBits::eG | vk::ColorComponentFlagBits::eB | vk::ColorComponentFlagBits::eA};
+        .blendEnable = vk::False,
+        .srcColorBlendFactor = vk::BlendFactor::eSrcAlpha,
+        .dstColorBlendFactor = vk::BlendFactor::eOne,
+        .colorBlendOp = vk::BlendOp::eAdd,
+        .srcAlphaBlendFactor = vk::BlendFactor::eOne,
+        .dstAlphaBlendFactor = vk::BlendFactor::eZero,
+        .alphaBlendOp = vk::BlendOp::eAdd,
+        .colorWriteMask = vk::ColorComponentFlagBits::eR | vk::ColorComponentFlagBits::eG | vk::ColorComponentFlagBits::eB | vk::ColorComponentFlagBits::eA,
+    };
 
     vk::PipelineColorBlendStateCreateInfo colorBlending {
         .logicOpEnable = vk::False,
