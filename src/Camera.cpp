@@ -1,20 +1,24 @@
 ﻿#include "Camera.h"
 
 #include <algorithm>
-#include <ostream>
+#include <iostream>
 
-#include "glm/gtc/matrix_transform.hpp"
-#include "glm/gtx/quaternion.hpp"
+#include <glm/gtc/matrix_transform.hpp>
+#include <glm/gtx/quaternion.hpp>
 
 namespace app {
 Camera::Camera(glm::vec3 pos) : position(pos) {}
 
-void Camera::update() {
+void Camera::update(double deltaTime) {
+    if (glm::length(velocity) > 0) {
+        changed = true;
+    }
+
     glm::mat4 cameraRotation = getRotationMatrix();
-    position += glm::vec3(cameraRotation * glm::vec4(velocity * 0.5f, 0.f));
+    position += glm::vec3(cameraRotation * glm::vec4(velocity * static_cast<float>(deltaTime), 0.f));
 }
 
-void Camera::onKeyChanged(int key, int scan, int action, int mods) {
+void Camera::onKeyChanged(int key, int scancode, int action, int mods) {
     if (action == GLFW_PRESS) {
         //printf("Pressed Key code: %d\n", key);
         if (key == GLFW_KEY_W) {
@@ -76,12 +80,14 @@ void Camera::onMouseButtonChanged(GLFWwindow* window, int button, int action, in
         if (action == GLFW_PRESS)
         {
             glfwGetCursorPos(window, &lastX, &lastY);
+            glfwSetInputMode(window, GLFW_CURSOR, GLFW_CURSOR_DISABLED);
             dragging = true;
             //std::cout << "Dragging" << std::endl;
         }
         else if (action == GLFW_RELEASE)
         {
             dragging = false;
+            glfwSetInputMode(window, GLFW_CURSOR, GLFW_CURSOR_NORMAL);
             //std::cout << "Stopped Dragging" << std::endl;
         }
     }
@@ -98,15 +104,23 @@ void Camera::onCursorPositionChanged(double xpos, double ypos) {
     lastY = ypos;
 
     // apply drag to camera
-    double sensitivity{0.005};
     yaw   += static_cast<float>(dx) * static_cast<float>(sensitivity);
     pitch -= static_cast<float>(dy) * static_cast<float>(sensitivity);
 
-    // optional clamp
-    pitch = std::clamp(pitch, -89.0f, 89.0f);
+    pitch = std::clamp(pitch, glm::radians(-89.0f), glm::radians(89.0f));
 
+    if (dx > 0 || dy > 0)
+        changed = true;
     //std::cout << "pitch: " << pitch << std::endl;
     //std::cout << "yaw: " << yaw << std::endl;
+}
+
+void Camera::onScroll(double xoffset, double yoffset) {
+    if (yoffset < 0) {
+        speed = std::max(speed - 0.5f, 1.0f);
+    } else if (yoffset > 0) {
+        speed += 0.5f;
+    }
 }
 
 glm::mat4 Camera::getViewMatrix() const {

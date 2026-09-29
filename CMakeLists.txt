@@ -33,35 +33,37 @@ FetchContent_MakeAvailable(glm)
 
 add_executable(${PROJECT_NAME}
         src/TinygltfImpl.cpp
-        src/vulkan/Core.cpp
-        src/vulkan/Utils.cpp
-        src/vulkan/Commands.cpp
-        src/vulkan/Device.cpp
-        src/vulkan/Shader.cpp
-        src/vulkan/Swapchain.cpp
-        src/vulkan/Window.cpp
-        src/vulkan/PhysicalDevice.cpp
-        src/vulkan/ResourceAllocator.cpp
+        src/vulk/Core.cpp
+        src/vulk/Utils.cpp
+        src/vulk/Commands.cpp
+        src/vulk/Device.cpp
+        src/vulk/Shader.cpp
+        src/vulk/Swapchain.cpp
+        src/Window.cpp
+        src/vulk/PhysicalDevice.cpp
+        src/vulk/ResourceAllocator.cpp
         src/main.cpp
         src/Renderer.cpp
         src/Camera.cpp
         src/GltfUtils.cpp
         src/GltfScene.cpp
-        src/vulkan/GraphicsPipeline.cpp
-        src/vulkan/GraphicsPipeline.h
-        src/vulkan/ImguiVulkan.cpp
-        src/vulkan/ImguiVulkan.h
-        src/vulkan/GltfSceneVulkan.cpp
-        src/vulkan/GltfSceneVulkan.h
-        src/vulkan/GltfSceneVulkan.cpp
-        src/vulkan/SamplerPool.h
-        src/vulkan/SamplerPool.cpp
-        src/vulkan/StagingUploader.h
-        src/vulkan/StagingUploader.cpp
-        src/vulkan/RtPipeline.cpp
-        src/vulkan/RtPipeline.h
-        src/vulkan/GltfSceneRt.cpp
-        src/vulkan/GltfSceneRt.h
+        src/vulk/GraphicsPipeline.cpp
+        src/vulk/GraphicsPipeline.h
+        src/vulk/ImguiVulkan.cpp
+        src/vulk/ImguiVulkan.h
+        src/vulk/GltfSceneVk.cpp
+        src/vulk/GltfSceneVk.h
+        src/vulk/GltfSceneVk.cpp
+        src/vulk/SamplerPool.h
+        src/vulk/SamplerPool.cpp
+        src/vulk/StagingUploader.h
+        src/vulk/StagingUploader.cpp
+        src/vulk/RtPipeline.cpp
+        src/vulk/RtPipeline.h
+        src/vulk/GltfSceneRt.cpp
+        src/vulk/GltfSceneRt.h
+        src/vulk/AccelerationStructure.cpp
+        src/vulk/AccelerationStructure.h
 )
 
 # Shaders
@@ -139,7 +141,7 @@ add_slang_shader(
         ENTRIES
         -entry raygenMain
         -entry missMain
-        -entry closestHitMain
+        -entry closesthitMain
 
         PROFILE
         spirv_1_4

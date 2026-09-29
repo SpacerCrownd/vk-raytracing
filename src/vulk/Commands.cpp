@@ -18,7 +18,7 @@ vk::raii::CommandBuffer beginSingleTimeCommands(const vk::raii::Device &device, 
     return std::move(cmd);
 }
 
-vk::raii::CommandBuffer createSingleTimeCommands(vk::raii::Device &device, vk::raii::CommandPool &cmdPool) {
+vk::raii::CommandBuffer createSingleTimeCommands(const vk::raii::Device &device, const vk::raii::CommandPool &cmdPool) {
     auto cmd = beginSingleTimeCommands(device, cmdPool);
     return std::move(cmd);
 }

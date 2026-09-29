@@ -8,7 +8,7 @@
 namespace ptvk {
 class StagingUploader {
 public:
-    StagingUploader(const ResourceAllocator& allocator);
+    explicit StagingUploader(const ResourceAllocator& allocator);
 
     void appendImage(const Image &image,
                      const void *data,

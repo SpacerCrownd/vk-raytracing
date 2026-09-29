@@ -3,11 +3,6 @@
 
 #include <vulkan/vulkan_raii.hpp>
 
-#include <GLFW/glfw3.h>
-#define GLFW_INCLUDE_VULKAN
-#define GLM_FORCE_RADIANS
-#define GLM_FORCE_DEPTH_ZERO_TO_ONE
-
 constexpr uint32_t MAX_FRAMES_IN_FLIGHT = 2;
 
 #ifdef NDEBUG

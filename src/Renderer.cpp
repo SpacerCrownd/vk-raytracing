@@ -1,11 +1,11 @@
 ﻿#include "Renderer.h"
 #include "GltfUtils.h"
-#include "vulkan/Utils.h"
-#include "vulkan/Shader.h"
+#include "vulk/Utils.h"
+#include "vulk/Shader.h"
 
-#include <iostream>
 #include <glm/gtc/matrix_transform.hpp>
 #include <glm/gtx/string_cast.hpp>
+#include <iostream>
 
 namespace app {
 Renderer::Renderer(int width, int height, const char* pAppName) : m_window(width, height, pAppName),
@@ -28,6 +28,10 @@ Renderer::Renderer(int width, int height, const char* pAppName) : m_window(width
         onResize(width, height);
     });
 
+    m_window.addOnScrollChanged([this](double xoffset, double yoffset) {
+        m_camera.onScroll(xoffset, yoffset);
+    });
+
     m_pSamplerPool = std::make_unique<ptvk::SamplerPool>(m_vkCore.getDevice().getVkDevice());
     m_pStaging = std::make_unique<ptvk::StagingUploader>(m_vkCore.getResourceAllocator());
 }
@@ -41,33 +45,40 @@ void Renderer::run() {
     createFrameDataBuffers();
     loadShaders();
     createGraphicsPipeline();
-    //createAccelerationStructures();
-    //createRtPipeline();
+    createRtPipeline();
 
-    //initializeImGui();
-    //std::string file = "assets/basicmesh.glb";
-    std::string file = "assets/sponza/sponza.glb";
-    if (!createScene(file)) {
+    std::vector<std::string> files = {
+        "assets/sponza/sponza.glb",
+        "assets/basicmesh.glb",
+        "assets/DirectionalLight.glb"
+    };
+
+    if (!createScene(files[0])) {
         cleanupScene();
     }
+    //initializeImGui();
 
     mainLoop();
 }
 
 void Renderer::mainLoop() {
     while (!glfwWindowShouldClose(m_window.getWindow())) {
+        update();
         draw();
         glfwPollEvents();
     }
 }
 
 void Renderer::update() {
-    m_camera.update();
-    m_pScene->updateNodeWorldMatrices(); // updates render nodes that were modified
+    double currentFrameTime = glfwGetTime();
+    m_deltaTime = currentFrameTime - m_lastFrameTime;
+    m_lastFrameTime = currentFrameTime;
+
+    m_camera.update(m_deltaTime);
 }
 
 void Renderer::draw() {
-    if (!m_pScene) {
+    if (!m_pSceneVk) {
         return; // no valid scene loaded, don't render
     }
 
@@ -95,19 +106,19 @@ void Renderer::draw() {
     // get draw image
     auto& drawImage = m_vkCore.getDrawImage();
 
-    // transition draw image for use depending on pipeline used + synchronize with fif for image reuse
-    ptvk::utils::imageLayoutTransition(
-        cmdBuffer,
-        drawImage.image,
-        vk::PipelineStageFlagBits2::eTransfer | vk::PipelineStageFlagBits2::eRayTracingShaderKHR | vk::PipelineStageFlagBits2::eColorAttachmentOutput,
-        vk::PipelineStageFlagBits2::eRayTracingShaderKHR | vk::PipelineStageFlagBits2::eColorAttachmentOutput,
-        vk::AccessFlagBits2::eTransferRead | vk::AccessFlagBits2::eShaderWrite | vk::AccessFlagBits2::eColorAttachmentWrite,
-        vk::AccessFlagBits2::eShaderWrite | vk::AccessFlagBits2::eColorAttachmentWrite,
-        vk::ImageLayout::eUndefined,
-        m_currentPipeline == eRaster ? vk::ImageLayout::eColorAttachmentOptimal : vk::ImageLayout::eGeneral,
-        subresourceRange);
-
     if (m_currentPipeline == eRaster) {
+        // transition draw image for use depending on pipeline used + synchronize with fif for image reuse
+        ptvk::utils::imageLayoutTransition(
+            cmdBuffer,
+            drawImage.image,
+            vk::PipelineStageFlagBits2::eTransfer | vk::PipelineStageFlagBits2::eColorAttachmentOutput,
+            vk::PipelineStageFlagBits2::eColorAttachmentOutput,
+            vk::AccessFlagBits2::eTransferRead | vk::AccessFlagBits2::eColorAttachmentWrite,
+            vk::AccessFlagBits2::eColorAttachmentWrite,
+            vk::ImageLayout::eUndefined,
+            vk::ImageLayout::eColorAttachmentOptimal,
+            subresourceRange);
+
         // prepare to start dynamic rendering
         //cmdBuffer.clearColorImage(swapchainImage, vk::ImageLayout::eTransferDstOptimal, clearColor, imageRange);
         vk::ClearValue clearColor = vk::ClearColorValue(.0f, .0f, .0f, 1.0f);
@@ -144,13 +155,13 @@ void Renderer::draw() {
         cmdBuffer.beginRendering(renderingInfo);
 
         // bind pipeline
-        m_pGraphicsPipeline->bind(cmdBuffer);
+        m_pOpaqueRasterPipeline->bind(cmdBuffer);
 
         cmdBuffer.setViewport(0, vk::Viewport(0.0f, 0.0f, static_cast<float>(swapchainExtent.width), static_cast<float>(swapchainExtent.height), 0.0f, 1.0f));
         cmdBuffer.setScissor(0, vk::Rect2D(vk::Offset2D(0, 0), swapchainExtent));
 
         cmdBuffer.bindDescriptorSets(vk::PipelineBindPoint::eGraphics,
-            m_pGraphicsPipeline->getLayout(),
+            m_pOpaqueRasterPipeline->getLayout(),
             0,
             *m_textureDescriptorSet,
             nullptr);
@@ -173,19 +184,39 @@ void Renderer::draw() {
                 .renderNodeID = nodeID,
                 .renderPrimID = rnode.renderPrimID
             };
-            cmdBuffer.pushConstants<NodeData>(m_pGraphicsPipeline->getLayout(), vk::ShaderStageFlagBits::eAllGraphics, offset, pushConst);
+            cmdBuffer.pushConstants<NodeData>(m_pOpaqueRasterPipeline->getLayout(), vk::ShaderStageFlagBits::eAllGraphics, offset, pushConst);
 
-            cmdBuffer.bindVertexBuffers(0, m_pVkScene->getVertexBuffers()[rnode.renderPrimID].buffer, {0});
-            cmdBuffer.bindIndexBuffer(m_pVkScene->getIndexBuffers()[rnode.renderPrimID].buffer, 0, vk::IndexType::eUint32);
+            cmdBuffer.bindVertexBuffers(0, m_pSceneVk->getVertexBuffers()[rnode.renderPrimID].buffer, {0});
+            cmdBuffer.bindIndexBuffer(m_pSceneVk->getIndexBuffers()[rnode.renderPrimID].buffer, 0, vk::IndexType::eUint32);
             cmdBuffer.drawIndexed(subMesh.indexCount, 1, 0, 0, 0);
         }
 
         cmdBuffer.endRendering();
 
     } else if (m_currentPipeline == eRaytracing) {
+        ptvk::utils::imageLayoutTransition(
+            cmdBuffer,
+            drawImage.image,
+            vk::PipelineStageFlagBits2::eTransfer | vk::PipelineStageFlagBits2::eRayTracingShaderKHR ,
+            vk::PipelineStageFlagBits2::eRayTracingShaderKHR,
+            vk::AccessFlagBits2::eTransferRead | vk::AccessFlagBits2::eShaderWrite,
+            vk::AccessFlagBits2::eShaderWrite,
+            vk::ImageLayout::eUndefined,
+            vk::ImageLayout::eGeneral,
+            subresourceRange);
 
+        m_pRtPipeline->bind(cmdBuffer);
+        // bind texture descriptor set
+        cmdBuffer.bindDescriptorSets(vk::PipelineBindPoint::eRayTracingKHR,
+            m_pRtPipeline->getLayout(),
+            0,
+            *m_textureDescriptorSet,
+            nullptr);
 
         pushRtDescriptors(cmdBuffer);
+
+        const vk::Extent2D extent = m_vkCore.getSwapchain().GetExtent();
+        cmdBuffer.traceRaysKHR(m_pRtPipeline->raygenRegion, m_pRtPipeline->missRegion, m_pRtPipeline->hitRegion, m_pRtPipeline->callableRegion, extent.width, extent.height, 1);
     }
 
     // --
@@ -233,40 +264,41 @@ void Renderer::onResize(int width, int height) {
 }
 
 void Renderer::handleResize() {
-
+    // any functions that need to be called after vulk core resize logic goes here
 }
 
 bool Renderer::createScene(const std::filesystem::path &filename) {
-    m_pScene = std::make_unique<GltfScene>(m_camera);
-    m_pScene->load(filename);
+    m_pScene = std::make_unique<GltfScene>();
 
-    m_pVkScene = std::make_unique<ptvk::GltfSceneVulkan>(m_vkCore.getResourceAllocator(), *m_pSamplerPool, false);
-    m_pRtScene = std::make_unique<ptvk::GltfSceneRt>(m_vkCore.getResourceAllocator(),
-                                                     m_vkCore.getDevice().getVkDevice());
+    if (!m_pScene->load(filename)) {
+        return false;
+    }
 
-    // create vulkan resources for loaded scene
+    m_pSceneVk = std::make_unique<ptvk::GltfSceneVk>(m_vkCore.getResourceAllocator(), *m_pSamplerPool, false);
+    m_pSceneRt = std::make_unique<ptvk::GltfSceneRt>(m_vkCore.getResourceAllocator(), m_vkCore.getDevice());
+
+    // create vulk resources for loaded scene
 
     auto cmd = m_vkCore.beginSingleTimeCommandBuffer();
 
-    m_pVkScene->createVkResources(cmd, *m_pStaging, *m_pScene);
+    m_pSceneVk->createVkResources(cmd, *m_pStaging, *m_pScene);
 
     m_vkCore.submitSingleTimeCommandBuffer(cmd);
     m_pStaging->releaseStaging(); // release staging resources
-
 
     //cmd = m_vkCore.beginSingleTimeCommandBuffer();
     //m_pRtScene->create(cmd, m_scene, *m_pVkScene, vk::BuildAccelerationStructureFlagBitsKHR::ePreferFastTrace);
 
     // populate texture and sampler descriptor set
 
-    int imgCount = m_pVkScene->getTextureCount();
-    if (imgCount > m_maxTextures) {
+    int imgCount = static_cast<int>(m_pSceneVk->getTextureCount());
+    if (static_cast<uint32_t>(imgCount) > m_maxTextures) {
         std::cout << std::format("Scene requires {} textures but descriptor set supports {}\n", imgCount, m_maxTextures);
         return false;
     }
 
-    int samplerCount = m_pVkScene->getSamplerCount();
-    if (samplerCount > m_maxSamplers) {
+    int samplerCount = static_cast<int>(m_pSceneVk->getSamplerCount());
+    if (static_cast<uint32_t>(samplerCount) > m_maxSamplers) {
         std::cout << std::format("Scene requires {} samplers but descriptor set supports {}\n", samplerCount, m_maxSamplers);
         return false;
     }
@@ -275,8 +307,8 @@ bool Renderer::createScene(const std::filesystem::path &filename) {
 
     // write textures into descriptor
     std::vector<vk::DescriptorImageInfo> textureWriteInfos;
-    for (size_t i = 0; i < imgCount; i++) {
-        const auto &img = m_pVkScene->getTextureImage(i);
+    for (int i = 0; i < imgCount; i++) {
+        const auto &img = m_pSceneVk->getTextureImage(i);
         textureWriteInfos.push_back({
             .imageView = img.view,
             .imageLayout = vk::ImageLayout::eShaderReadOnlyOptimal
@@ -295,8 +327,8 @@ bool Renderer::createScene(const std::filesystem::path &filename) {
 
     // write samplers into descriptor
     std::vector<vk::DescriptorImageInfo> samplerWriteInfos;
-    for (size_t i = 0; i < samplerCount; i++) {
-        const auto &sampler = m_pVkScene->getSampler(i);
+    for (int i = 0; i < samplerCount; i++) {
+        const auto &sampler = m_pSceneVk->getSampler(i);
         samplerWriteInfos.push_back({
             .sampler = sampler,
         });
@@ -313,16 +345,17 @@ bool Renderer::createScene(const std::filesystem::path &filename) {
     writes.push_back(samplerWrite);
 
     m_vkCore.getDevice().getVkDevice().updateDescriptorSets(writes, {});
+
+    createAccelerationStructures();
     return true;
 }
 
 void Renderer::cleanupScene() {
     m_vkCore.deviceWaitIdle();
     // TODO clean up ui related to scene
-
     m_pScene.reset();
-    m_pVkScene.reset();
-    m_pRtScene.reset();
+    m_pSceneVk.reset();
+    m_pSceneRt.reset();
 }
 
 void Renderer::loadShaders() {
@@ -421,14 +454,14 @@ void Renderer::createDescriptors() {
 }
 
 void Renderer::pushRtDescriptors(const vk::raii::CommandBuffer& cmd) {
-    vk::WriteDescriptorSetAccelerationStructureKHR descAccel {
-        .accelerationStructureCount = 1,
-        .pAccelerationStructures = &*m_pRtScene->getTlas()
-    };
-
     std::array<vk::WriteDescriptorSet, 2> writes{};
 
     // TLAS
+    vk::WriteDescriptorSetAccelerationStructureKHR descAccel {
+        .accelerationStructureCount = 1,
+        .pAccelerationStructures = &*m_pSceneRt->getTlas()
+    };
+
     writes[0] = vk::WriteDescriptorSet{
         .pNext = &descAccel,
         .dstBinding = shaderio::DescriptorBindingPoints::eTlas,
@@ -477,15 +510,22 @@ void Renderer::createGraphicsPipeline() {
     auto colorFormat = m_vkCore.getDrawImage().format;
     auto depthFormat = m_vkCore.getDepthFormat();
     std::vector<vk::DescriptorSetLayout> layouts {m_textureDescriptorLayout};
-    m_pGraphicsPipeline = std::make_unique<ptvk::GraphicsPipeline>(m_vkCore.getDevice().getVkDevice(), *m_pRasterShader, 1, colorFormat, depthFormat, m_enableDepth, layouts);
+    m_pOpaqueRasterPipeline = std::make_unique<ptvk::GraphicsPipeline>(m_vkCore.getDevice().getVkDevice(), *m_pRasterShader, 1, colorFormat, depthFormat, m_enableDepth, false, layouts);
 }
 
 void Renderer::createAccelerationStructures() {
+    m_pSceneRt->createBLAS(m_vkCore, *m_pScene, *m_pSceneVk, enableDebugging ? vk::BuildAccelerationStructureFlagBitsKHR::ePreferFastBuild : vk::BuildAccelerationStructureFlagBitsKHR::ePreferFastTrace);
+    std::cout << "[INFO] All Mesh Blas created and built" << std::endl;
 
+    vk::raii::CommandBuffer cmd = m_vkCore.beginSingleTimeCommandBuffer();
+    m_pSceneRt->createTLAS(cmd, *m_pScene, *m_pSceneVk, vk::BuildAccelerationStructureFlagBitsKHR::eAllowUpdate | (enableDebugging ? vk::BuildAccelerationStructureFlagBitsKHR::ePreferFastBuild : vk::BuildAccelerationStructureFlagBitsKHR::ePreferFastTrace));
+    m_vkCore.submitSingleTimeCommandBuffer(cmd);
+    std::cout << "[INFO] Tlas created and built" << std::endl;
 }
 
 void Renderer::createRtPipeline() {
-
+    std::vector<vk::DescriptorSetLayout> layouts {m_textureDescriptorLayout, m_rtDescriptorLayout};
+    m_pRtPipeline = std::make_unique<ptvk::RtPipeline>(m_vkCore.getDevice(), m_vkCore.getResourceAllocator(), *m_pRtShader, layouts);
 }
 
 void Renderer::initializeImGui() {
@@ -493,18 +533,28 @@ void Renderer::initializeImGui() {
 }
 
 void Renderer::prepareFrameData(const vk::raii::CommandBuffer& cmd) {
-    int frame = m_vkCore.getCurrentFrameIndex();
+    int frame = static_cast<int>(m_vkCore.getCurrentFrameIndex());
     // sync scene changes with gpu
-    m_pVkScene->updateFromScene(*m_pScene, frame);
+    bool changed = false;
+    changed |= m_pScene->updateNodeWorldMatrices(); // updates render nodes that were modified
+    changed |= m_pSceneVk->updateFromScene(*m_pScene, frame);
+    changed |= m_pSceneRt->syncTLAS(cmd, *m_pScene);
+    changed |= m_camera.changed;
+    m_camera.changed = false;
+    if (changed) {
+        m_frameCount = -1;
+        m_totalSamples = 0;
+    }
+    m_frameCount++;
 
     // update frame data buffer
     auto [width, height, depth] = m_vkCore.getDrawImage().extent;
-    glm::mat4x4 projMat = glm::perspectiveRH_ZO(glm::radians(90.0f), static_cast<float>(width)/static_cast<float>(height), 0.1f, 1000.0f);
+    glm::mat4x4 projMat = glm::perspectiveRH_ZO(glm::radians(60.0f), static_cast<float>(width)/static_cast<float>(height), 0.1f, 1000.0f);
     projMat[1][1] *= -1; // flip y
     shaderio::FrameData frameData = {
-        .projectionMat = projMat,
-        .viewMat = m_camera.getViewMatrix(),
-        .invViewProjMat = glm::inverse(projMat * m_camera.getViewMatrix()),
+        .viewProjMatrix = projMat * m_camera.getViewMatrix(),
+        .projInvMatrix = glm::inverse(projMat),
+        .viewInvMatrix = glm::inverse(m_camera.getViewMatrix()),
         .cameraPosition = glm::vec4(m_camera.position, 0),
         .backgroundColor = glm::vec4(0,0,0,0),
     };
@@ -513,24 +563,32 @@ void Renderer::prepareFrameData(const vk::raii::CommandBuffer& cmd) {
     // update push constant
     if (m_currentPipeline == eRaster) {
         m_rasterPushConstant.frameData = reinterpret_cast<shaderio::FrameData *>(m_bFrameData[frame].address);
-        m_rasterPushConstant.sceneInfo = reinterpret_cast<shaderio::GltfSceneInfo *>(m_pVkScene->getSceneInfo(frame).address);
+        m_rasterPushConstant.sceneInfo = reinterpret_cast<shaderio::GltfSceneInfo *>(m_pSceneVk->getSceneInfo(frame).address);
 
         cmd.pushConstants<shaderio::RasterPushConstant>(
-            m_pGraphicsPipeline->getLayout(),
+            m_pOpaqueRasterPipeline->getLayout(),
             vk::ShaderStageFlagBits::eAllGraphics,
             0,
             m_rasterPushConstant);
-
-        ptvk::utils::cmdMemoryBarrier(cmd,
-                        vk::PipelineStageFlagBits2::eTransfer,
-                          vk::PipelineStageFlagBits2::eRayTracingShaderKHR | vk::PipelineStageFlagBits2::eAllGraphics,
-                       vk::AccessFlagBits2::eTransferWrite,
-                         vk::AccessFlagBits2::eShaderRead);
     } else {
         // rt
+        m_rtPushConstant.frameData = reinterpret_cast<shaderio::FrameData *>(m_bFrameData[frame].address);
+        m_rtPushConstant.frameCount = m_frameCount;
+        m_rtPushConstant.totalSamples = m_totalSamples;
+        m_totalSamples += m_rtPushConstant.numSamples;
+
+        cmd.pushConstants<shaderio::RtPushConstant>(
+            m_pRtPipeline->getLayout(),
+            vk::ShaderStageFlagBits::eAll,
+            0,
+            m_rtPushConstant
+        );
     }
 
-    // update tlas
+    ptvk::utils::cmdMemoryBarrier(cmd,
+                        vk::PipelineStageFlagBits2::eTransfer,
+                        vk::PipelineStageFlagBits2::eRayTracingShaderKHR | vk::PipelineStageFlagBits2::eAllGraphics,
+                       vk::AccessFlagBits2::eTransferWrite,
+                       vk::AccessFlagBits2::eShaderRead);
 }
-
 }

@@ -2,7 +2,9 @@
 #define VK_RAYTRACING_PHYSICAL_DEVICE_H
 
 #include "Vulkan.h"
+
 #include <vector>
+
 namespace ptvk {
 struct PhysicalDevice {
     vk::raii::PhysicalDevice m_physDevice = VK_NULL_HANDLE;

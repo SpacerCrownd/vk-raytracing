@@ -1,8 +1,9 @@
 ﻿#ifndef VK_RAYTRACING_GLTFUTILS_H
 #define VK_RAYTRACING_GLTFUTILS_H
 
+#include "vulk/Vulkan.h"
+
 #include <filesystem>
-#include <vulkan/vulkan.hpp>
 #include <glm/glm.hpp>
 #include <tinygltf/tiny_gltf.h>
 

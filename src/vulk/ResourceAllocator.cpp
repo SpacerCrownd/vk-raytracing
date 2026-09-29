@@ -42,6 +42,34 @@ Buffer ResourceAllocator::createBuffer(const vk::BufferCreateInfo& buffInfo, con
      return buffer;
 }
 
+Buffer ResourceAllocator::createBufferWithAlignment(const vk::BufferCreateInfo& buffInfo, const VmaAllocationCreateInfo& allocCreateInfo, vk::DeviceSize minAlignment) const {
+     Buffer buffer{};
+
+     VmaAllocationInfo vmaAllocInfo{};
+     VkBuffer vkBuffer{};
+
+     auto result = vmaCreateBufferWithAlignment(m_allocator, &*buffInfo, &allocCreateInfo, minAlignment, &vkBuffer, &buffer.allocation, &vmaAllocInfo);
+
+     if (result != VK_SUCCESS) {
+          throw std::runtime_error("Failed to create buffer");
+     }
+
+     buffer.buffer = vkBuffer;
+     buffer.bufferSize = vmaAllocInfo.size;
+     buffer.pMapping = static_cast<uint8_t *>(vmaAllocInfo.pMappedData);
+
+     if ((static_cast<VkBufferUsageFlags>(buffInfo.usage) & static_cast<VkBufferUsageFlags>(vk::BufferUsageFlagBits::eShaderDeviceAddress)) != 0) {
+          vk::BufferDeviceAddressInfo buffDeviceAddrInfo{
+               .buffer = buffer.buffer,
+          };
+          buffer.address = m_device.getVkDevice().getBufferAddress(buffDeviceAddrInfo);
+     }
+
+     buffer.allocator = m_allocator;
+
+     return buffer;
+}
+
 Image ResourceAllocator::createImage(const vk::ImageCreateInfo& imageInfo, const vk::ImageViewCreateInfo& imageViewInfo, const VmaAllocationCreateInfo &allocCreateInfo) const {
      Image image = createImage(imageInfo, allocCreateInfo);
 
@@ -79,6 +107,33 @@ Image ResourceAllocator::createImage(const vk::ImageCreateInfo& imageInfo, const
      image.allocator = m_allocator;
 
      return image;
+}
+
+AccelerationStructure ResourceAllocator::createAccelerationStructure(vk::AccelerationStructureCreateInfoKHR &createInfo) const {
+     AccelerationStructure accelStruct{};
+
+     vk::BufferCreateInfo buffInfo = {
+          .size = createInfo.size,
+          .usage = vk::BufferUsageFlagBits::eAccelerationStructureStorageKHR | vk::BufferUsageFlagBits::eShaderDeviceAddress,
+
+     };
+
+     VmaAllocationCreateInfo allocInfo = {
+          .usage = VMA_MEMORY_USAGE_AUTO_PREFER_DEVICE
+     };
+
+     accelStruct.buffer = std::move(createBuffer(buffInfo, allocInfo));
+     createInfo.buffer = accelStruct.buffer.buffer;
+
+     accelStruct.accel = m_device.getVkDevice().createAccelerationStructureKHR(createInfo);
+
+     vk::AccelerationStructureDeviceAddressInfoKHR accelDeviceAddrInfo{
+          .accelerationStructure = accelStruct.accel,
+     };
+
+     accelStruct.address = m_device.getVkDevice().getAccelerationStructureAddressKHR(accelDeviceAddrInfo);
+
+     return accelStruct;
 }
 
 void ResourceAllocator::destroyBuffer(const Buffer &buffer) const {

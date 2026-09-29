@@ -13,6 +13,7 @@ public:
                     vk::Format colorFormat,
                     vk::Format depthFormat,
                     bool enableDepthTesting,
+                    bool enableBlending,
                     std::vector<vk::DescriptorSetLayout> descLayouts);
 
     vk::PipelineLayout getLayout() { return m_pipelineLayout; }

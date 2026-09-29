@@ -1,6 +1,7 @@
 ﻿#include "GraphicsPipeline.h"
-
 #include "../shaders/shaderio.h.slang"
+
+#include <iostream>
 
 namespace ptvk {
 GraphicsPipeline::GraphicsPipeline(
@@ -10,6 +11,7 @@ GraphicsPipeline::GraphicsPipeline(
         vk::Format colorFormat,
         vk::Format depthFormat,
         bool enableDepthTesting,
+        bool enableBlending,
         std::vector<vk::DescriptorSetLayout> descLayouts
     ) : m_device(device), m_numImages(numImages)
 {
@@ -58,9 +60,9 @@ GraphicsPipeline::GraphicsPipeline(
     };
 
     vk::PipelineColorBlendAttachmentState colorBlendAttachment {
-        .blendEnable = vk::False,
+        .blendEnable = enableBlending,
         .srcColorBlendFactor = vk::BlendFactor::eSrcAlpha,
-        .dstColorBlendFactor = vk::BlendFactor::eOne,
+        .dstColorBlendFactor = vk::BlendFactor::eOneMinusSrcAlpha,
         .colorBlendOp = vk::BlendOp::eAdd,
         .srcAlphaBlendFactor = vk::BlendFactor::eOne,
         .dstAlphaBlendFactor = vk::BlendFactor::eZero,
@@ -128,6 +130,7 @@ GraphicsPipeline::GraphicsPipeline(
     };
 
     m_pipeline = vk::raii::Pipeline(device, nullptr, pipelineCreateInfoChain.get<vk::GraphicsPipelineCreateInfo>());
+    std::cout << "[INFO] Graphics Pipeline Created" << std::endl;
 }
 
 void GraphicsPipeline::bind(const vk::raii::CommandBuffer &cmdBuffer) {

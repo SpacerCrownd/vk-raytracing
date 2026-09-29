@@ -174,7 +174,7 @@ void imageLayoutTransition(const vk::raii::CommandBuffer &cmd,
 		.oldLayout = oldLayout,
 		.newLayout = newLayout,
 		.image = image,
-		.subresourceRange = subresourceRange
+		.subresourceRange = subresourceRange,
 	};
 
 	vk::DependencyInfo depInfo {

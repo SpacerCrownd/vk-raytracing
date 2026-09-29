@@ -2,6 +2,7 @@
 #define VK_RAYTRACING_SHADER_H
 
 #include "Vulkan.h"
+
 #include <vector>
 
 namespace ptvk {

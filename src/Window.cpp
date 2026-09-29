@@ -1,8 +1,7 @@
 ﻿#include "Window.h"
-#include "../Renderer.h"
 #include <iostream>
 
-namespace ptvk {
+namespace app {
 void Window::glfwErrorCallback(const int error, const char* const description) {
     std::cerr << "[ERROR] GLFW: " << description << " (code: " << error << ")" << std::endl;
 }
@@ -78,6 +77,10 @@ Window::Window(int width, int height, const char* pName) : m_width(width), m_hei
     m_window = glfwCreateWindow(width, height, pName, nullptr, nullptr);
 
     glfwSetWindowUserPointer(m_window, this);
+
+    if (glfwRawMouseMotionSupported()) {
+        glfwSetInputMode(m_window, GLFW_RAW_MOUSE_MOTION, GLFW_TRUE);
+    }
 
     glfwSetCursorPosCallback(m_window, glfwCursorPositionCallback);
     glfwSetMouseButtonCallback(m_window, glfwMouseButtonCallback);

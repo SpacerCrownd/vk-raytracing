@@ -1,10 +1,10 @@
-﻿#include <iostream>
+﻿#include "GltfSceneVk.h"
 
-#include "GltfSceneVulkan.h"
-#include "Utils.h"
 #include "../shaders/gltfio.h.slang"
 #include "../GltfUtils.h"
-#include "glm/gtc/type_ptr.hpp"
+
+#include <glm/gtc/type_ptr.hpp>
+#include <iostream>
 
 namespace ptvk {
 static std::vector<shaderio::GltfLight> createGltfLights(const std::vector<app::RenderLight> &renderLights,
@@ -70,17 +70,17 @@ static vk::SamplerCreateInfo getSamplerInfo(const tinygltf::Model& model, int id
     return samplerInfo;
 }
 
-GltfSceneVulkan::GltfSceneVulkan(const ResourceAllocator &allocator,
+GltfSceneVk::GltfSceneVk(const ResourceAllocator &allocator,
                                  SamplerPool &samplerPool,
                                  bool generateMipmaps) : m_allocator(allocator),
                                                          m_samplerPool(samplerPool),
                                                          m_generateMipmaps(generateMipmaps) {}
 
-GltfSceneVulkan::~GltfSceneVulkan() {
+GltfSceneVk::~GltfSceneVk() {
     destroy();
 }
 
-void GltfSceneVulkan::destroy() {
+void GltfSceneVk::destroy() {
     for (auto sampler : m_samplers) {
         m_samplerPool.releaseSampler(sampler);
     }
@@ -97,7 +97,7 @@ void GltfSceneVulkan::destroy() {
     m_samplers.clear();
 }
 
-void GltfSceneVulkan::createVkResources(const vk::raii::CommandBuffer &cmd, StagingUploader &staging, app::GltfScene &scene) {
+void GltfSceneVk::createVkResources(const vk::raii::CommandBuffer &cmd, StagingUploader &staging, app::GltfScene &scene) {
     auto& model = scene.getModel();
     createSamplers(model);
     uploadTextureImages(cmd, staging, model);
@@ -111,8 +111,11 @@ void GltfSceneVulkan::createVkResources(const vk::raii::CommandBuffer &cmd, Stag
     }
 }
 
-void GltfSceneVulkan::updateFromScene(app::GltfScene &scene, int frameNum) {
+bool GltfSceneVk::updateFromScene(app::GltfScene &scene, int frameNum) {
     auto& dirtyFlags = scene.getDirtyFlags();
+
+    if (dirtyFlags.isEmpty())
+        return false;
 
     // update lights
     const auto& dirtyLights = dirtyFlags.lightIDs;
@@ -129,9 +132,11 @@ void GltfSceneVulkan::updateFromScene(app::GltfScene &scene, int frameNum) {
         dirtyFlags.renderNodesVkIDs.clear();
         std::cout << "update node\n";
     }
+
+    return true;
 }
 
-void GltfSceneVulkan::uploadTextureImages(const vk::raii::CommandBuffer &cmd, StagingUploader &staging, tinygltf::Model &model) {
+void GltfSceneVk::uploadTextureImages(const vk::raii::CommandBuffer &cmd, StagingUploader &staging, tinygltf::Model &model) {
     // if no images create default image for default texture
     if (model.images.empty()) {
         std::cout << "[INFO] No texture images found in glTF file, creating default texture image" << std::endl;
@@ -215,7 +220,7 @@ void GltfSceneVulkan::uploadTextureImages(const vk::raii::CommandBuffer &cmd, St
     std::cout << "[INFO] glTF scene texture images upload appended successfully" << std::endl;
 }
 
-void GltfSceneVulkan::createSamplers(const tinygltf::Model &model) {
+void GltfSceneVk::createSamplers(const tinygltf::Model &model) {
     if(m_samplers.empty()) {
         m_samplers.push_back(m_samplerPool.acquireSampler());
     }
@@ -227,7 +232,7 @@ void GltfSceneVulkan::createSamplers(const tinygltf::Model &model) {
     std::cout << "[INFO] Samplers created from glTF scene" << std::endl;
 }
 
-void GltfSceneVulkan::uploadTextureInfos(const tinygltf::Model &model) {
+void GltfSceneVk::uploadTextureInfos(const tinygltf::Model &model) {
     std::vector<shaderio::GltfTextureInfo> textureInfos;
 
     // add default texture if no textures
@@ -264,7 +269,7 @@ void GltfSceneVulkan::uploadTextureInfos(const tinygltf::Model &model) {
     std::cout << "[INFO] Texture infos created and uploaded to gpu buffer" << std::endl;
 }
 
-void GltfSceneVulkan::uploadMaterials(const tinygltf::Model &model) {
+void GltfSceneVk::uploadMaterials(const tinygltf::Model &model) {
     // create gltf materials and upload to gpu buffer
     std::vector<shaderio::GltfMaterial> gltfMaterials;
 
@@ -328,14 +333,14 @@ void GltfSceneVulkan::uploadMaterials(const tinygltf::Model &model) {
     std::cout << "[INFO] Materials created and uploaded to gpu buffer" << std::endl;
 }
 
-void GltfSceneVulkan::createDefaultImage(StagingUploader &staging, int id) {
+void GltfSceneVk::createDefaultImage(StagingUploader &staging, int id) {
     //checkerboard image
-    uint32_t black = glm::packUnorm4x8(glm::vec4(0, 0, 0, 0));
+    uint32_t white = glm::packUnorm4x8(glm::vec4(1, 1, 1, 1));
     uint32_t magenta = glm::packUnorm4x8(glm::vec4(1, 0, 1, 1));
     std::array<uint32_t, 16 * 16> pixels{}; //16x16 checkerboard texture
     for (int x = 0; x < 16; x++) {
         for (int y = 0; y < 16; y++) {
-            pixels[y*16 + x] = ((x % 2) ^ (y % 2)) ? magenta : black;
+            pixels[y*16 + x] = ((x % 2) ^ (y % 2)) ? magenta : white;
         }
     }
 
@@ -375,7 +380,7 @@ void GltfSceneVulkan::createDefaultImage(StagingUploader &staging, int id) {
     std::cout << "[INFO] Default image created\n";
 }
 
-void GltfSceneVulkan::createVertexIndexBuffers(const app::GltfScene &scene) {
+void GltfSceneVk::createVertexIndexBuffers(const app::GltfScene &scene) {
     std::vector<shaderio::GltfRenderPrimitive> renderPrimitives;
 
     size_t numPrimitives = scene.getNumRenderPrimitives();
@@ -491,14 +496,11 @@ void GltfSceneVulkan::createVertexIndexBuffers(const app::GltfScene &scene) {
         // Indices
         //////
         std::vector<uint32_t> indices{};
-        size_t indexCount = 0;
 
         if (primitive.indices > -1) {
             const tinygltf::Accessor& accessor = model.accessors[primitive.indices];
             const tinygltf::BufferView& bufferView = model.bufferViews[accessor.bufferView];
             const tinygltf::Buffer& buffer = model.buffers[bufferView.buffer];
-
-            indexCount = accessor.count;
 
             switch (accessor.componentType) {
                 case TINYGLTF_PARAMETER_TYPE_UNSIGNED_INT: {
@@ -572,7 +574,7 @@ void GltfSceneVulkan::createVertexIndexBuffers(const app::GltfScene &scene) {
     memcpy(m_bRenderPrimitives.pMapping, renderPrimitives.data(), std::span(renderPrimitives).size_bytes());
 }
 
-void GltfSceneVulkan::uploadRenderNodes(const app::GltfScene &scene, const std::unordered_set<int>& dirtyNodes, int frameNum) {
+void GltfSceneVk::uploadRenderNodes(const app::GltfScene &scene, const std::unordered_set<int>& dirtyNodes, int frameNum) {
     const auto& renderNodes = scene.getRenderNodes();
     if (renderNodes.empty()) {
         std::cout << "[INFO] Scene contains no render nodes" << std::endl;
@@ -621,7 +623,7 @@ void GltfSceneVulkan::uploadRenderNodes(const app::GltfScene &scene, const std::
     }
 }
 
-void GltfSceneVulkan::uploadRenderLights(const app::GltfScene &scene, const std::unordered_set<int>& dirtyLights, int frameNum) {
+void GltfSceneVk::uploadRenderLights(const app::GltfScene &scene, const std::unordered_set<int>& dirtyLights, int frameNum) {
     const auto& renderLights = scene.getRenderLights();
     if (renderLights.empty()) {
         std::cout << "[INFO] Scene contains no render lights" << std::endl;
@@ -659,7 +661,7 @@ void GltfSceneVulkan::uploadRenderLights(const app::GltfScene &scene, const std:
     }
 }
 
-void GltfSceneVulkan::uploadSceneInfo(const app::GltfScene &scene, int frameNum) {
+void GltfSceneVk::uploadSceneInfo(const app::GltfScene &scene, int frameNum) {
     // Buffer references
     shaderio::GltfSceneInfo sceneInfo = {
         .gltfPrimitives = reinterpret_cast<shaderio::GltfRenderPrimitive *>(m_bRenderPrimitives.address),

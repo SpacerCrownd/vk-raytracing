@@ -1,18 +1,17 @@
 ﻿#ifndef VK_RAYTRACING_APPLICATION_H
 #define VK_RAYTRACING_APPLICATION_H
 
-#include "vulkan/Core.h"
-#include "vulkan/Shader.h"
-#include "vulkan/GraphicsPipeline.h"
-#include "vulkan/GltfSceneVulkan.h"
-#include "vulkan/SamplerPool.h"
-#include "vulkan/RtPipeline.h"
-#include "vulkan/GltfSceneRt.h"
-
-#include "Camera.h"
+#include "vulk/Core.h"
+#include "vulk/Shader.h"
+#include "vulk/GraphicsPipeline.h"
+#include "vulk/GltfSceneVk.h"
+#include "vulk/SamplerPool.h"
+#include "vulk/RtPipeline.h"
+#include "vulk/GltfSceneRt.h"
+#include "shaders/shaderio.h.slang"
 #include "GltfScene.h"
 
-#include "shaders/shaderio.h.slang"
+#include "Camera.h"
 
 namespace app {
 enum PipelineType {
@@ -30,10 +29,10 @@ public:
 	void run();
 
 private:
-	ptvk::Window m_window;
+	Window m_window;
 	ptvk::Core m_vkCore;
 
-	std::unique_ptr<ptvk::GraphicsPipeline> m_pGraphicsPipeline{};
+	std::unique_ptr<ptvk::GraphicsPipeline> m_pOpaqueRasterPipeline{};
 	std::unique_ptr<ptvk::RtPipeline>	    m_pRtPipeline{};
 
 	std::unique_ptr<ptvk::StagingUploader>	m_pStaging{};
@@ -46,11 +45,16 @@ private:
 
 	Camera									m_camera{glm::vec3(0.0)};
 	std::unique_ptr<GltfScene>				m_pScene{};
-	std::unique_ptr<ptvk::GltfSceneVulkan>	m_pVkScene{};
-	std::unique_ptr<ptvk::GltfSceneRt>		m_pRtScene{};
+	std::unique_ptr<ptvk::GltfSceneVk>		m_pSceneVk{};
+	std::unique_ptr<ptvk::GltfSceneRt>		m_pSceneRt{};
 
 	uint32_t m_maxTextures{10000};
 	uint32_t m_maxSamplers{0};
+
+	int    m_frameCount{-1};
+	int    m_totalSamples{0};
+	double m_lastFrameTime{0};
+	double m_deltaTime{0};
 
 	// 2 descriptor sets
 	// 0 - Textures and samplers
@@ -67,7 +71,7 @@ private:
 
 	// config parameters
 	bool			m_enableDepth = true;
-	PipelineType	m_currentPipeline = eRaster;
+	PipelineType	m_currentPipeline = eRaytracing;
 
 	// life cycle
 	void mainLoop();

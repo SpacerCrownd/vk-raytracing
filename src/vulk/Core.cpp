@@ -6,11 +6,10 @@
 #include <iostream>
 
 namespace ptvk {
-static VKAPI_ATTR vk::Bool32 VKAPI_CALL DebugCallback(
-	vk::DebugUtilsMessageSeverityFlagBitsEXT severity,
-	vk::DebugUtilsMessageTypeFlagsEXT type,
-	const vk::DebugUtilsMessengerCallbackDataEXT* pCallbackData,
-	void* pUserData)
+static VKAPI_ATTR vk::Bool32 VKAPI_CALL DebugCallback(vk::DebugUtilsMessageSeverityFlagBitsEXT severity,
+													  vk::DebugUtilsMessageTypeFlagsEXT type,
+													  const vk::DebugUtilsMessengerCallbackDataEXT* pCallbackData,
+													  void* pUserData)
 {
 	std::cout << "[Debug Callback] " << pCallbackData->pMessage << std::endl;
 
@@ -34,7 +33,7 @@ static VKAPI_ATTR vk::Bool32 VKAPI_CALL DebugCallback(
 	return vk::False;
 }
 
-Core::Core(const char* appName, const Window& window) : m_window(window)
+Core::Core(const char* appName, const app::Window& window) : m_window(window)
 {
 	createInstance(appName);
 	if (enableDebugging) { createDebugCallback(); }
@@ -165,7 +164,7 @@ void Core::initResourceAllocator() {
 	};
 
 	VmaAllocatorCreateInfo allocatorCreateInfo = {
-		.flags = VMA_ALLOCATOR_CREATE_BUFFER_DEVICE_ADDRESS_BIT,
+		.flags = VMA_ALLOCATOR_CREATE_BUFFER_DEVICE_ADDRESS_BIT | VMA_ALLOCATOR_CREATE_EXT_MEMORY_BUDGET_BIT,
 		.physicalDevice = *m_pPhysDevice->m_physDevice,
 		.device = *m_pDevice->getVkDevice(),
 		.pVulkanFunctions = &vulkanFunctions,
@@ -392,6 +391,7 @@ void Core::createSwapchain() {
 	vk::Extent3D drawImageExtent = {extent.width, extent.height, 1};
 
 	vk::ImageUsageFlags imageUsageFlags = vk::ImageUsageFlagBits::eColorAttachment
+	| vk::ImageUsageFlagBits::eStorage
 	| vk::ImageUsageFlagBits::eSampled
 	| vk::ImageUsageFlagBits::eTransferSrc
 	| vk::ImageUsageFlagBits::eTransferDst;
@@ -407,8 +407,8 @@ void Core::createSwapchain() {
 	};
 
 	VmaAllocationCreateInfo allocationInfo = {
-		.flags = VMA_ALLOCATION_CREATE_DEDICATED_MEMORY_BIT,
-		.usage = VMA_MEMORY_USAGE_AUTO,
+		.usage = VMA_MEMORY_USAGE_AUTO_PREFER_DEVICE,
+		.requiredFlags = VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT
 	};
 
 	vk::ImageViewCreateInfo imageViewInfo = {
@@ -558,6 +558,7 @@ void Core::createDepthResources() {
 						  subresourceRange);
 	submitSingleTimeCommandBuffer(cmdBuf);
 }
+
 /*
 void Core::createSamplers() {
 	std::array<vk::SamplerCreateInfo, 2> createInfos{};
@@ -603,6 +604,7 @@ void Core::createSamplers() {
 	std::cout << "[INFO] Initialized samplers" << std::endl;
 }
 */
+
 bool Core::prepareFrame() {
 	auto fenceResult = m_pDevice->getVkDevice().waitForFences(*m_inFlightFences[m_currentFrameIndex], vk::True, UINT64_MAX);
 	VK_CHECK_RESULT(fenceResult, "Failed waiting for frame fence");

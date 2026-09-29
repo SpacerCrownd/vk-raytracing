@@ -7,7 +7,6 @@
 
 #include <tinygltf/tiny_gltf.h>
 #include <glm/glm.hpp>
-#include "Camera.h"
 
 // scene data
 namespace app {
@@ -73,18 +72,19 @@ private:
 // RenderNode -> rendering node created from (nodeID, primIndex)
 class GltfScene { // NOTE: in case of scene editing implementation, add dirty flag tracking for optimized scene update
 public:
-    explicit GltfScene(Camera& camera);
+    GltfScene() = default;
+    ~GltfScene() = default;
 
     bool                         load(const std::filesystem::path& filename);
     const std::filesystem::path& getFilename() const { return m_filename; }
 
     const tinygltf::Model& getModel() const { return m_model; }
     tinygltf::Model&       getModel() { return m_model; }
-    Camera&                getCamera() {return m_camera;}
 
     const std::vector<glm::mat4>& getNodesWorldMatrices() const { return m_nodesWorldMatrices; }
     const std::vector<glm::mat4>& getNodesLocalMatrices() const { return m_nodesLocalMatrices; }
-    void                          updateNodeWorldMatrices();
+
+    bool updateNodeWorldMatrices();
 
     const std::vector<RenderPrimitive>& getRenderPrimitives() const { return m_renderPrimitives; }
     std::vector<RenderPrimitive>&       getRenderPrimitives() { return m_renderPrimitives; }
@@ -127,12 +127,11 @@ public:
 
     void markLightDirty(int lightIndex);
     void markNodeDirty(int nodeIndex); // needs to be called when modifying node transform in-editor
+
 private:
     // gltf data
     tinygltf::Model       m_model;
     std::filesystem::path m_filename;
-
-    Camera m_camera;
 
     // Render data built from model
     RenderNodeRegistry           m_renderNodeRegistry;

@@ -6,7 +6,7 @@
 namespace ptvk {
 vk::raii::CommandPool   createTransientCommandPool(const vk::raii::Device& device, uint32_t queueFamilyIndex);
 vk::raii::CommandBuffer beginSingleTimeCommands(const vk::raii::Device& device, const vk::raii::CommandPool& cmdPool);
-vk::raii::CommandBuffer createSingleTimeCommands(vk::raii::Device& device, vk::raii::CommandPool& cmdPool);
+vk::raii::CommandBuffer createSingleTimeCommands(const vk::raii::Device& device, const vk::raii::CommandPool& cmdPool);
 vk::Result              submitSingleTimeCommands(const vk::raii::CommandBuffer &cmd, const vk::raii::Device& device, const vk::raii::Queue& queue);
 }
 

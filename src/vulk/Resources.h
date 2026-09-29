@@ -1,8 +1,9 @@
 ﻿#ifndef VK_RAYTRACING_RESOURCES_H
 #define VK_RAYTRACING_RESOURCES_H
 
-#include <vma/vk_mem_alloc.h>
 #include "Vulkan.h"
+
+#include <vma/vk_mem_alloc.h>
 
 namespace ptvk {
 struct Buffer {
@@ -10,7 +11,7 @@ struct Buffer {
     vk::DeviceSize    bufferSize{};
     vk::DeviceAddress address{}; // buffer address in shader (Buffer Device Address extension)
     VmaAllocation     allocation{};
-    VmaAllocator      allocator;
+    VmaAllocator      allocator{};
     uint8_t*          pMapping{};
 
     Buffer() = default;
@@ -68,7 +69,7 @@ struct Image {
     uint32_t            mipLevels{};
     uint32_t            arrayLayers{};
     VmaAllocation       allocation{};
-    VmaAllocator        allocator;
+    VmaAllocator        allocator{};
 
     Image() = default;
     ~Image() {
@@ -121,12 +122,6 @@ private:
             vmaDestroyImage(allocator, image, allocation);
         }
     }
-};
-
-struct AccelerationStructure {
-    vk::raii::AccelerationStructureKHR accel{VK_NULL_HANDLE};
-    vk::DeviceAddress address{};
-    Buffer buffer{};
 };
 }
 

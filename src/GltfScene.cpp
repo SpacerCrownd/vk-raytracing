@@ -1,8 +1,6 @@
 ﻿#include "GltfScene.h"
-
-#include <iostream>
-
 #include "GltfUtils.h"
+#include <iostream>
 
 namespace app {
 //
@@ -52,8 +50,6 @@ int RenderNodeRegistry::getRenderNodeID(int nodeID, int primIndex) const {
 //
 //  Gltf Scene
 //
-
-GltfScene::GltfScene(Camera &camera) : m_camera(camera){}
 
 bool GltfScene::load(const std::filesystem::path& filename) {
     std::error_code errorCode;
@@ -180,10 +176,10 @@ void GltfScene::createRenderNodesForNode(int nodeID,
     }
 }
 
-void GltfScene::updateNodeWorldMatrices() {
-    // return if no nodes were modified
+bool GltfScene::updateNodeWorldMatrices() {
+    // return false if no nodes were modified
     if (m_dirtyFlags.nodeIDs.empty()) {
-        return;
+        return false;
     }
 
     // update local matrices
@@ -249,6 +245,8 @@ void GltfScene::updateNodeWorldMatrices() {
     for (auto nodeID : nodesToUpdate){
         updateNodeTransformMat(nodeID);
     }
+
+    return true;
 }
 
 glm::mat4 GltfScene::computeNodeWorldMatrix(int nodeID) const {

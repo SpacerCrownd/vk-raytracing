@@ -5,17 +5,17 @@
 #include "StagingUploader.h"
 #include "../GltfScene.h"
 
-
 namespace ptvk {
-class GltfSceneVulkan {
+class GltfSceneVk {
 public:
-    GltfSceneVulkan(const ResourceAllocator &allocator,
+    GltfSceneVk(const ResourceAllocator &allocator,
                     SamplerPool &samplerPool,
                     bool generateMipmaps);
-    ~GltfSceneVulkan();
+    ~GltfSceneVk();
 
     void createVkResources(const vk::raii::CommandBuffer &cmd, StagingUploader &staging, app::GltfScene &scene);
-    void updateFromScene(app::GltfScene &scene, int frameNum);
+
+    bool updateFromScene(app::GltfScene &scene, int frameNum);
     void destroy();
 
     const std::vector<Buffer>&  getVertexBuffers() const {return m_bVertices;}

@@ -50,17 +50,12 @@ enum LightType {
 struct GltfLight {
     float3 direction;
     int    type;
-
     float3 position;
-    float  _padding;
-
-    float3 color;
     float  intensity;
-
+    float3 color;
     float  range;
     float  innerAngle;
     float  outerAngle;
-    float  _padding1;
 };
 
 // right now these don't change because these buffers are not resized/recreated but only contents are modified

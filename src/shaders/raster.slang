@@ -100,8 +100,7 @@ VertexOutput vertMain(shaderio::Vertex input) {
 
     VertexOutput output;
     output.worldPos = pos;
-    output.pos = mul(pushConst.frameData->projectionMat,
-                    mul(pushConst.frameData->viewMat, float4(pos, 1.0)));
+    output.pos = mul(pushConst.frameData->viewProjMatrix, float4(pos, 1.0));
     output.color = input.color;
     output.texCoords = input.texCoords;
 
@@ -120,13 +119,14 @@ float4 fragMain(VertexOutput vertIn) : SV_Target {
     float3 albedo = material.baseColor.xyz;
     float metallic = saturate(material.metallic);
     float roughness = clamp(material.roughness, 0.04f, 1.0f);
+    float opacity = 1.0f;
 
     if (material.baseColorTextureID >= 0) {
         shaderio::GltfTextureInfo texInfo = pushConst.sceneInfo->gltfTexturesInfos[material.baseColorTextureID];
         Texture2D texture = textures[NonUniformResourceIndex(texInfo.imageID)];
         SamplerState sampler = samplers[NonUniformResourceIndex(texInfo.samplerID)];
         float4 texel = texture.Sample(sampler, vertIn.texCoords);
-
+        opacity = texel.w;
         albedo *= texel.xyz;
     }
 
@@ -177,11 +177,12 @@ float4 fragMain(VertexOutput vertIn) : SV_Target {
         }
 
         // GGX
-        float3 radiance = light.color * light.intensity / 1000 * attenuation;
+        float3 radiance = light.color * light.intensity * attenuation;
         Lo += evaluateBRDF(albedo, metallic, roughness, N, V, L) * radiance;
     }
-
+    float3 ambient = albedo * float3(0.02f);
     float3 color = Lo;
+    float exposure = .005f;
 
-    return float4(tonemapACES(color), 1.0f);
+    return float4(tonemapACES(exposure * color) + ambient, opacity);
 }

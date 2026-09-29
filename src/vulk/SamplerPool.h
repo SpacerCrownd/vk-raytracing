@@ -1,10 +1,10 @@
 ﻿#ifndef VK_RAYTRACING_SAMPLERPOOL_H
 #define VK_RAYTRACING_SAMPLERPOOL_H
 
-#include <unordered_map>
-
 #include "Vulkan.h"
 #include "Utils.h"
+
+#include <unordered_map>
 
 namespace ptvk {
 struct SamplerState {

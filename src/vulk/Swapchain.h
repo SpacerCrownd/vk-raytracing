@@ -3,11 +3,9 @@
 
 #include "Vulkan.h"
 #include "Device.h"
-
 #include <vector>
 
 namespace ptvk {
-
 class Swapchain {
 public:
     Swapchain(const Device& device, vk::Extent2D extent, vk::raii::SurfaceKHR& surface);

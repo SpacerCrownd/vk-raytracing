@@ -4,7 +4,6 @@
 #include "gltfio.h.slang"
 
 namespace shaderio {
-
 enum DescriptorBindingPoints {
     eTlas = 0,
     eOutImage,
@@ -14,9 +13,9 @@ enum DescriptorBindingPoints {
 };
 
 struct FrameData {
-    float4x4 projectionMat;
-    float4x4 viewMat;
-    float4x4 invViewProjMat;
+    float4x4 viewProjMatrix;
+    float4x4 projInvMatrix;
+    float4x4 viewInvMatrix;
     float4   cameraPosition; // float 4 for buffer alignment
     float4   backgroundColor;
 };

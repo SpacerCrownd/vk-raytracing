@@ -1,22 +1,18 @@
 #ifndef VULKAN_CORE_H
 #define VULKAN_CORE_H
 
+#include "../Window.h"
+
 #include "Vulkan.h"
 #include "ResourceAllocator.h"
 #include "Device.h"
 #include "Swapchain.h"
-#include "Window.h"
 #include "PhysicalDevice.h"
 
 namespace ptvk {
-
-enum {
-
-	};
-
 class Core {
 public:
-	Core(const char *appName, const Window& window);
+	Core(const char *appName, const app::Window& window);
 	~Core() = default;
 
 	bool framebufferResized = false;
@@ -46,10 +42,10 @@ public:
 private:
 	InstanceVersion m_instanceVersion;
 
-	const Window&                    m_window;
+	const app::Window&               m_window;
 	vk::raii::Context                m_context{};
 	vk::raii::Instance               m_instance{VK_NULL_HANDLE};
-	vk::raii::SurfaceKHR             m_surface{VK_NULL_HANDLE}; // vulkan window abstraction
+	vk::raii::SurfaceKHR             m_surface{VK_NULL_HANDLE}; // vulk window abstraction
 	vk::raii::DebugUtilsMessengerEXT m_debugMessenger{VK_NULL_HANDLE};
 
 	std::unique_ptr<PhysicalDevice>    m_pPhysDevice{};

@@ -1,10 +1,13 @@
 ﻿#ifndef VK_RAYTRACING_WINDOW_H
 #define VK_RAYTRACING_WINDOW_H
 
-#include "Vulkan.h"
+#define GLFW_INCLUDE_VULKAN
+#define GLM_FORCE_RADIANS
+#define GLM_FORCE_DEPTH_ZERO_TO_ONE
+#include <GLFW/glfw3.h>
 #include <functional>
 
-namespace ptvk {
+namespace app {
 
 class Window {
 public:
@@ -13,7 +16,6 @@ public:
 
     GLFWwindow* getWindow() const { return m_window; }
 
-    void run();
     void addOnKeyChanged(std::function<void(int key, int scancode, int action, int mods)> callback);
     void addOnCursorPositionChanged(std::function<void(double xpos, double ypos)> callback);
     void addOnMouseButtonChanged(std::function<void(int button, int action, int mods)> callback);
