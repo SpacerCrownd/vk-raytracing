@@ -32,6 +32,31 @@ float3 tonemapACES(float3 x) {
     return saturate((x * (a * x + b)) / (x * (c * x + d) + e));
 }
 
+float3 sampleNormalMap(
+    Texture2D normalTexture,
+    SamplerState normalSampler,
+    float2 uv,
+    float3 N,
+    float4 tangent,
+    float normalScale)
+{
+    float3 normalSample = normalTexture.Sample(normalSampler, uv).xyz;
+    float3 tangentNormal = normalSample * 2.0f - 1.0f;
+
+    tangentNormal.xy *= normalScale;
+
+    tangentNormal.z = sqrt(saturate(1.0f - dot(tangentNormal.xy, tangentNormal.xy)));
+
+    float3 T = normalize(tangent.xyz);
+    T = normalize(T - N * dot(N, T));
+
+    float3 B = tangent.w * cross(N, T);
+
+    float3x3 TBN = float3x3(T, B, N);
+
+    return normalize(mul(tangentNormal, TBN));
+}
+
 float3 fresnelSchlick(float cosTheta, float3 F0) {
     return F0 + (1.0f - F0) * pow(1.0f - cosTheta, 5.0f);
 }
@@ -130,7 +155,32 @@ float4 fragMain(VertexOutput vertIn) : SV_Target {
         albedo *= texel.xyz;
     }
 
+    if (material.metallicRoughnessTextureID >= 0) {
+        shaderio::GltfTextureInfo texInfo = pushConst.sceneInfo->gltfTexturesInfos[material.baseColorTextureID];
+        Texture2D texture = textures[NonUniformResourceIndex(texInfo.imageID)];
+        SamplerState sampler = samplers[NonUniformResourceIndex(texInfo.samplerID)];
+        float4 texel = texture.Sample(sampler, vertIn.texCoords);
+        roughness = texel.y;
+        metallic = texel.z;
+    }
+
     float3 N = normalize(vertIn.normal);
+
+    if (material.normalTextureID >= 0) {
+        shaderio::GltfTextureInfo texInfo = scn->gltfTexturesInfos[material.normalTextureID];
+
+        Texture2D texture = textures[NonUniformResourceIndex(texInfo.imageID)];
+        SamplerState sampler = samplers[NonUniformResourceIndex(texInfo.samplerID)];
+
+        N = sampleNormalMap(
+            texture,
+            sampler,
+            vertIn.texCoords,
+            N,
+            vertIn.tangent,
+            material.normalTextureScale
+        );
+    }
 
     float3 V = normalize(pushConst.frameData->cameraPosition.xyz - vertIn.worldPos);
 
@@ -177,12 +227,12 @@ float4 fragMain(VertexOutput vertIn) : SV_Target {
         }
 
         // GGX
-        float3 radiance = light.color * light.intensity * attenuation;
-        Lo += evaluateBRDF(albedo, metallic, roughness, N, V, L) * radiance;
+        float3 Li = light.color * light.intensity * attenuation;
+        Lo += evaluateBRDF(albedo, metallic, roughness, N, V, L) * Li;
     }
     float3 ambient = albedo * float3(0.02f);
-    float3 color = Lo;
-    float exposure = .005f;
+    float3 color = Lo + ambient;
+    float exposure = exp2(pushConst.frameData->exposureEV);
 
-    return float4(tonemapACES(exposure * color) + ambient, opacity);
+    return float4(tonemapACES(exposure * color), opacity);
 }

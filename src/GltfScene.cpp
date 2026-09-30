@@ -93,9 +93,9 @@ void GltfScene::parseGltf() {
     auto primitiveKeyMap = buildPrimitiveKeyMap();
 
     // assume there is only one scene in gltf
-    m_nodesLocalMatrices.resize(m_model.scenes[0].nodes.size(), glm::mat4(1.0f));
-    m_nodesWorldMatrices.resize(m_model.scenes[0].nodes.size());
-    m_nodeParents.resize(m_model.scenes.size(), -1);
+    m_nodesLocalMatrices.resize(m_model.nodes.size(), glm::mat4(1.0f));
+    m_nodesWorldMatrices.resize(m_model.nodes.size());
+    m_nodeParents.resize(m_model.nodes.size(), -1);
 
     for(auto& sceneNodeID : m_model.scenes[0].nodes) {
         // create render nodes for each root node in the scene

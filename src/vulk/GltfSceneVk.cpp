@@ -5,6 +5,7 @@
 
 #include <glm/gtc/type_ptr.hpp>
 #include <iostream>
+#include <set>
 
 namespace ptvk {
 static std::vector<shaderio::GltfLight> createGltfLights(const std::vector<app::RenderLight> &renderLights,
@@ -137,6 +138,19 @@ bool GltfSceneVk::updateFromScene(app::GltfScene &scene, int frameNum) {
 }
 
 void GltfSceneVk::uploadTextureImages(const vk::raii::CommandBuffer &cmd, StagingUploader &staging, tinygltf::Model &model) {
+    // find srgb images first (emissive, base color)
+    std::set<int> srgbImages;
+    for (const auto& material : model.materials) {
+        int baseColorIdx = material.pbrMetallicRoughness.baseColorTexture.index;
+        int emissiveIdx = material.emissiveTexture.index;
+
+        if (baseColorIdx > -1)
+            srgbImages.insert(model.textures[baseColorIdx].source);
+
+        if (emissiveIdx > -1)
+            srgbImages.insert(model.textures[emissiveIdx].source);
+    }
+
     // if no images create default image for default texture
     if (model.images.empty()) {
         std::cout << "[INFO] No texture images found in glTF file, creating default texture image" << std::endl;
@@ -147,13 +161,13 @@ void GltfSceneVk::uploadTextureImages(const vk::raii::CommandBuffer &cmd, Stagin
     // load all images in the scene
     for (size_t i = 0; i < model.images.size(); i++) {
         auto& image = model.images[i];
-
+        bool isSrgb = srgbImages.contains(i);
         uint32_t mipLevels = m_generateMipmaps ? static_cast<uint32_t>(std::floor(std::log2(std::max(image.width, image.height)))) + 1 : 1;
 
         vk::ImageCreateInfo imageInfo {
             .imageType = vk::ImageType::e2D,
-            .format = vk::Format::eR8G8B8A8Srgb,
-            .extent = vk::Extent3D{ static_cast<uint32_t>(image.width),static_cast<uint32_t>(image.height), 1 },
+            .format = isSrgb ? vk::Format::eR8G8B8A8Srgb : vk::Format::eR8G8B8A8Unorm,
+            .extent = vk::Extent3D{ .width = static_cast<uint32_t>(image.width),.height = static_cast<uint32_t>(image.height), .depth = 1 },
             .mipLevels = mipLevels,
             .arrayLayers = 1,
             .samples = vk::SampleCountFlagBits::e1,
@@ -185,7 +199,7 @@ void GltfSceneVk::uploadTextureImages(const vk::raii::CommandBuffer &cmd, Stagin
         m_images.push_back(m_allocator.createImage(imageInfo, imageViewInfo, allocInfo));
 
         unsigned char *buffer = nullptr;
-        VkDeviceSize bufferSize = 0;
+        vk::DeviceSize bufferSize = 0;
 
         // convert rgb images to rgba
         bool deleteBuffer = false;
@@ -209,7 +223,7 @@ void GltfSceneVk::uploadTextureImages(const vk::raii::CommandBuffer &cmd, Stagin
             bufferSize = image.image.size();
         }
 
-        staging.appendImage(m_images[i], buffer, bufferSize, vk::ImageLayout::eUndefined, vk::ImageLayout::eShaderReadOnlyOptimal);
+        staging.appendImage(m_images[i], buffer, bufferSize, vk::ImageLayout::eUndefined, vk::ImageLayout::eTransferDstOptimal);
 
         if (deleteBuffer) {
             delete[] buffer;
@@ -218,6 +232,92 @@ void GltfSceneVk::uploadTextureImages(const vk::raii::CommandBuffer &cmd, Stagin
 
     staging.uploadAppendedCmd(cmd);
     std::cout << "[INFO] glTF scene texture images upload appended successfully" << std::endl;
+
+    if (m_generateMipmaps) {
+        for (auto& image : m_images) {
+            vk::ImageMemoryBarrier2 barrier = {
+                .srcStageMask = vk::PipelineStageFlagBits2::eTransfer,
+                .srcAccessMask = vk::AccessFlagBits2::eTransferWrite,
+                .dstStageMask = vk::PipelineStageFlagBits2::eTransfer,
+                .dstAccessMask = vk::AccessFlagBits2::eTransferRead,
+                .oldLayout = vk::ImageLayout::eTransferDstOptimal,
+                .newLayout = vk::ImageLayout::eTransferSrcOptimal,
+                .image = image.image,
+                .subresourceRange = {
+                    .aspectMask = vk::ImageAspectFlagBits::eColor,
+                    .levelCount = 1,
+                    .layerCount = 1
+                }
+            };
+
+            vk::DependencyInfo dependencyInfo = {
+                .imageMemoryBarrierCount = 1,
+                .pImageMemoryBarriers = &barrier
+            };
+
+            int32_t mipWidth = image.extent.width;
+            int32_t mipHeight = image.extent.height;
+
+            for (uint32_t j = 1; j < image.mipLevels; j++) {
+                barrier.subresourceRange.baseMipLevel = j - 1;
+                barrier.srcStageMask = vk::PipelineStageFlagBits2::eTransfer;
+                barrier.srcAccessMask = vk::AccessFlagBits2::eTransferWrite;
+                barrier.dstStageMask = vk::PipelineStageFlagBits2::eTransfer;
+                barrier.dstAccessMask = vk::AccessFlagBits2::eTransferRead;
+                barrier.oldLayout = vk::ImageLayout::eTransferDstOptimal;
+                barrier.newLayout = vk::ImageLayout::eTransferSrcOptimal;
+
+                cmd.pipelineBarrier2(dependencyInfo);
+
+                vk::ImageBlit2 blitRegion{
+                    .srcSubresource = {
+                        .aspectMask = vk::ImageAspectFlagBits::eColor,
+                        .mipLevel = j - 1,
+                        .baseArrayLayer = 0,
+                        .layerCount = 1,
+                    },
+                    .dstSubresource = {
+                        .aspectMask = vk::ImageAspectFlagBits::eColor,
+                        .mipLevel = j,
+                        .baseArrayLayer = 0,
+                        .layerCount = 1
+                    },
+                };
+                blitRegion.srcOffsets[0] = vk::Offset3D(0, 0, 0);
+                blitRegion.srcOffsets[1] = vk::Offset3D(mipWidth, mipHeight, 1);
+                blitRegion.dstOffsets[0] = vk::Offset3D(0, 0, 0);
+                blitRegion.dstOffsets[1] = vk::Offset3D( mipWidth > 1 ? mipWidth/2 : 1, mipHeight > 1 ? mipHeight/2 : 1, 1);
+
+                vk::BlitImageInfo2 blitInfo{
+                    .srcImage = image.image,
+                    .srcImageLayout = vk::ImageLayout::eTransferSrcOptimal,
+                    .dstImage = image.image,
+                    .dstImageLayout = vk::ImageLayout::eTransferDstOptimal,
+                    .regionCount = 1,
+                    .pRegions = &blitRegion,
+                    .filter = vk::Filter::eLinear,
+                };
+                cmd.blitImage2(blitInfo);
+
+                barrier.srcStageMask = vk::PipelineStageFlagBits2::eTransfer;
+                barrier.srcAccessMask = vk::AccessFlagBits2::eTransferRead;
+                barrier.dstStageMask = vk::PipelineStageFlagBits2::eFragmentShader | vk::PipelineStageFlagBits2::eRayTracingShaderKHR;
+                barrier.dstAccessMask = vk::AccessFlagBits2::eShaderRead;
+                barrier.oldLayout = vk::ImageLayout::eTransferSrcOptimal;
+                barrier.newLayout = vk::ImageLayout::eShaderReadOnlyOptimal;
+
+                cmd.pipelineBarrier2(dependencyInfo);
+
+                if (1 < mipWidth) {
+                    mipWidth /= 2;
+                }
+                if (1 < mipHeight) {
+                    mipHeight /= 2;
+                }
+            }
+        }
+    }
+    std::cout << "[INFO] mipmap creation commands registered" << std::endl;
 }
 
 void GltfSceneVk::createSamplers(const tinygltf::Model &model) {
@@ -288,27 +388,46 @@ void GltfSceneVk::uploadMaterials(const tinygltf::Model &model) {
 
         dstMat.metallic = static_cast<float>(pbr.metallicFactor);
         dstMat.roughness = static_cast<float>(pbr.roughnessFactor);
-        dstMat.baseColorTextureID = 0;
+
+        dstMat.alphaMode = srcMat.alphaMode == "OPAQUE" ? 0 : (srcMat.alphaMode == "MASK" ? 1 : 2);
+        dstMat.alphaCutoff = static_cast<float>(srcMat.alphaCutoff);
+        dstMat.doubleSided = srcMat.doubleSided ? 1 : 0;
+        dstMat.occlusionStrength = static_cast<float>(srcMat.occlusionTexture.strength);
+
+        if (!srcMat.emissiveFactor.empty()) {
+            dstMat.emissiveColor = glm::make_vec3(srcMat.emissiveFactor.data());
+        }
 
         if (pbr.baseColorTexture.index >= 0) {
             dstMat.baseColorTextureID = pbr.baseColorTexture.index;
         }
 
         if (pbr.metallicRoughnessTexture.index >= 0) {
-            dstMat.metallicTextureID = pbr.metallicRoughnessTexture.index;
-            dstMat.roughnessTextureID = pbr.metallicRoughnessTexture.index;
+            dstMat.metallicRoughnessTextureID = pbr.metallicRoughnessTexture.index;
         }
 
         if (srcMat.normalTexture.index >= 0) {
             dstMat.normalTextureID = srcMat.normalTexture.index;
+            dstMat.normalTextureScale = static_cast<float>(srcMat.normalTexture.scale);
         }
+
+        if (srcMat.occlusionTexture.index >= 0) {
+            dstMat.occlusionTextureID = srcMat.occlusionTexture.index;
+        }
+
+        if (srcMat.emissiveTexture.index >= 0) {
+            dstMat.emissiveTextureID = srcMat.emissiveTexture.index;
+        }
+
+        //std::cout << "Metallic " << dstMat.metallic << " id " << dstMat.metallicRoughnessTextureID << std::endl;
+        //std::cout << "Roughness " << dstMat.roughness << " id " << dstMat.metallicRoughnessTextureID << std::endl;
+
         gltfMaterials.push_back(dstMat);
     }
 
     vk::BufferCreateInfo bufferInfo = {
         .size = std::span(gltfMaterials).size_bytes(),
-        .usage = vk::BufferUsageFlagBits::eTransferDst
-               | vk::BufferUsageFlagBits::eStorageBuffer
+        .usage = vk::BufferUsageFlagBits::eStorageBuffer
                | vk::BufferUsageFlagBits::eShaderDeviceAddress,
     };
 

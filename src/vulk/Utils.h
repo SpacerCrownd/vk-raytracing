@@ -245,11 +245,11 @@ struct ImageMemoryBarrierParams {
     vk::ImageLayout newLayout = vk::ImageLayout::eUndefined;
 
     vk::ImageSubresourceRange subresourceRange{
-        vk::ImageAspectFlagBits::eColor,
-        0,
-        vk::RemainingMipLevels,
-        0,
-        vk::RemainingArrayLayers
+        .aspectMask = vk::ImageAspectFlagBits::eColor,
+        .baseMipLevel = 0,
+        .levelCount = vk::RemainingMipLevels,
+        .baseArrayLayer = 0,
+        .layerCount = vk::RemainingArrayLayers
     };
 
     std::optional<vk::PipelineStageFlags2> srcStageMask;

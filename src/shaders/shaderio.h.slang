@@ -16,8 +16,8 @@ struct FrameData {
     float4x4 viewProjMatrix;
     float4x4 projInvMatrix;
     float4x4 viewInvMatrix;
-    float4   cameraPosition; // float 4 for buffer alignment
-    float4   backgroundColor;
+    float3   cameraPosition;
+    int      exposureEV;
 };
 
 struct RtPushConstant {

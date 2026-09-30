@@ -54,8 +54,7 @@ void StagingUploader::uploadAppendedCmd(const vk::raii::CommandBuffer &cmd) {
 
     // for each copy info, set regions by region count
     size_t regionOffset = 0;
-    for(size_t i = 0; i < m_copyBufferImageInfos.size(); i++)
-    {
+    for(size_t i = 0; i < m_copyBufferImageInfos.size(); i++) {
         m_copyBufferImageInfos[i].pRegions = &m_copyBufferImageRegions[regionOffset];
         regionOffset += m_copyBufferImageInfos[i].regionCount;
         cmd.copyBufferToImage2(m_copyBufferImageInfos[i]);

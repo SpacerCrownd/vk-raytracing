@@ -30,15 +30,30 @@ struct GltfTextureInfo {
     int samplerID;
 };
 
+enum AlphaMode {
+  eAlphaModeOpaque,
+  eAlphaModeMask,
+  eAlphaModeBlend,
+};
+
 struct GltfMaterial {
-    float4 baseColor;              
-    float  metallic;                 
-    float  roughness;                 
+    float4 baseColor = float4(1);
+    float3 emissiveColor = float3(0);
     float  normalTextureScale = 1;
-    int    baseColorTextureID = -1; 
-    int    normalTextureID    = -1; 
-    int    roughnessTextureID = -1; 
-    int    metallicTextureID  = -1;  
+
+    float  metallic = 1;
+    float  roughness = 1;
+    int    alphaMode = AlphaMode::eAlphaModeOpaque;
+    float  alphaCutoff = 0.5f;
+
+    float  occlusionStrength = 1;
+    int    doubleSided = 0;
+
+    int baseColorTextureID = -1;
+    int normalTextureID    = -1;
+    int occlusionTextureID = -1;
+    int metallicRoughnessTextureID = -1;
+    int emissiveTextureID = -1;
 };
 
 enum LightType {

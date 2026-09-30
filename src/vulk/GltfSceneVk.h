@@ -51,7 +51,7 @@ private:
     Buffer                                   m_bRenderPrimitives{};
     std::array<Buffer, MAX_FRAMES_IN_FLIGHT> m_bSceneInfo{};
 
-    bool m_generateMipmaps{false}; // TODO
+    bool m_generateMipmaps{true};
 
     void uploadTextureImages(const vk::raii::CommandBuffer &cmd, StagingUploader &staging, tinygltf::Model &model);
     void createSamplers(const tinygltf::Model &model);

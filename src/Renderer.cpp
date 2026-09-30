@@ -48,12 +48,12 @@ void Renderer::run() {
     createRtPipeline();
 
     std::vector<std::string> files = {
-        "assets/sponza/sponza.glb",
         "assets/basicmesh.glb",
-        "assets/DirectionalLight.glb"
+        "assets/DirectionalLight.glb",
+        "assets/sponza.glb",
     };
 
-    if (!createScene(files[0])) {
+    if (!createScene(files[2])) {
         cleanupScene();
     }
     //initializeImGui();
@@ -274,7 +274,7 @@ bool Renderer::createScene(const std::filesystem::path &filename) {
         return false;
     }
 
-    m_pSceneVk = std::make_unique<ptvk::GltfSceneVk>(m_vkCore.getResourceAllocator(), *m_pSamplerPool, false);
+    m_pSceneVk = std::make_unique<ptvk::GltfSceneVk>(m_vkCore.getResourceAllocator(), *m_pSamplerPool, true);
     m_pSceneRt = std::make_unique<ptvk::GltfSceneRt>(m_vkCore.getResourceAllocator(), m_vkCore.getDevice());
 
     // create vulk resources for loaded scene
@@ -556,7 +556,7 @@ void Renderer::prepareFrameData(const vk::raii::CommandBuffer& cmd) {
         .projInvMatrix = glm::inverse(projMat),
         .viewInvMatrix = glm::inverse(m_camera.getViewMatrix()),
         .cameraPosition = glm::vec4(m_camera.position, 0),
-        .backgroundColor = glm::vec4(0,0,0,0),
+        .exposureEV = m_camera.exposureEV
     };
     cmd.updateBuffer<shaderio::FrameData>(m_bFrameData[frame].buffer, 0, frameData);
 

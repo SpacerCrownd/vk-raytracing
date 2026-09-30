@@ -22,7 +22,8 @@ bool loadGltf(const std::filesystem::path &filename, tinygltf::Model &model) {
     else if (extension == ".gltf")
         ret = loader.LoadASCIIFromFile(&model, &err, &warn, filename.string());
     else
-        throw std::runtime_error("[ERROR] Tried to load unsupported file format.\n Currently supported file formats: .glb, .gltf.");
+        throw std::runtime_error(
+            "[ERROR] Tried to load unsupported file format.\n Currently supported file formats: .glb, .gltf.");
 
     if (!warn.empty())
         std::cout << ("[WARNING] Warn: " + warn) << std::endl;
@@ -83,24 +84,23 @@ vk::SamplerAddressMode extractWrapMode(int wrapMode) {
     }
 }
 
-std::string generatePrimitiveKey(const tinygltf::Primitive& primitive)
-{
+std::string generatePrimitiveKey(const tinygltf::Primitive &primitive) {
     std::stringstream string;
-    for(const auto& kv : primitive.attributes) {
+    for (const auto &kv: primitive.attributes) {
         string << kv.first << ":" << kv.second << " ";
     }
     string << "indices:" << primitive.indices;
     return string.str();
 }
 
-void getNodeTRS(const tinygltf::Node& node, glm::vec3& translation, glm::quat& rotation, glm::vec3& scale) {
+void getNodeTRS(const tinygltf::Node &node, glm::vec3 &translation, glm::quat &rotation, glm::vec3 &scale) {
     // Initialize translation, rotation, and scale to default values
     translation = glm::vec3(0.0f, 0.0f, 0.0f);
     rotation = glm::quat(1.0f, 0.0f, 0.0f, 0.0f);
     scale = glm::vec3(1.0f, 1.0f, 1.0f);
 
     // Check if the node has a matrix defined
-    if(node.matrix.size() == 16) {
+    if (node.matrix.size() == 16) {
         glm::mat4 matrix = glm::make_mat4(node.matrix.data());
         glm::vec3 skew;
         glm::vec4 perspective;
@@ -109,12 +109,12 @@ void getNodeTRS(const tinygltf::Node& node, glm::vec3& translation, glm::quat& r
     }
 
     // Retrieve translation if available
-    if(node.translation.size() == 3) {
+    if (node.translation.size() == 3) {
         translation = glm::make_vec3(node.translation.data());
     }
 
     // Retrieve rotation if available
-    if(node.rotation.size() == 4) {
+    if (node.rotation.size() == 4) {
         rotation.x = static_cast<float>(node.rotation[0]);
         rotation.y = static_cast<float>(node.rotation[1]);
         rotation.z = static_cast<float>(node.rotation[2]);
@@ -122,13 +122,13 @@ void getNodeTRS(const tinygltf::Node& node, glm::vec3& translation, glm::quat& r
     }
 
     // Retrieve scale if available
-    if(node.scale.size() == 3) {
+    if (node.scale.size() == 3) {
         scale = glm::make_vec3(node.scale.data());
     }
 }
 
 glm::mat4 getNodeTransformMatrix(const tinygltf::Node &node) {
-    if(node.matrix.size() == 16) {
+    if (node.matrix.size() == 16) {
         return glm::make_mat4(node.matrix.data());
     }
 
@@ -141,14 +141,13 @@ glm::mat4 getNodeTransformMatrix(const tinygltf::Node &node) {
 }
 
 size_t getVertexCount(const tinygltf::Model &model, const tinygltf::Primitive &primitive) {
-    const tinygltf::Accessor& vertexAccessor = model.accessors.at(primitive.attributes.at("POSITION"));
+    const tinygltf::Accessor &vertexAccessor = model.accessors.at(primitive.attributes.at("POSITION"));
     return vertexAccessor.count;
 }
 
 size_t getIndexCount(const tinygltf::Model &model, const tinygltf::Primitive &primitive) {
-    if(primitive.indices > -1)
-    {
-        const tinygltf::Accessor& indexAccessor = model.accessors[primitive.indices];
+    if (primitive.indices > -1) {
+        const tinygltf::Accessor &indexAccessor = model.accessors[primitive.indices];
         return indexAccessor.count;
     }
     return getVertexCount(model, primitive);

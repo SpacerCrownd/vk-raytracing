@@ -402,6 +402,7 @@ void Core::createSwapchain() {
 		.extent = drawImageExtent,
 		.mipLevels = 1,
 		.arrayLayers = 1,
+		.samples = vk::SampleCountFlagBits::e4,
 		.tiling = vk::ImageTiling::eOptimal,
 		.usage = imageUsageFlags,
 	};
@@ -517,6 +518,7 @@ void Core::createDepthResources() {
 		.extent = extent,
 		.mipLevels = 1,
 		.arrayLayers = 1,
+		.samples = vk::SampleCountFlagBits::e4,
 		.tiling = vk::ImageTiling::eOptimal,
 		.usage = imageUsageFlags,
 	};
