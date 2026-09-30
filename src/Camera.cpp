@@ -10,6 +10,8 @@ namespace app {
 Camera::Camera(glm::vec3 pos) : position(pos) {}
 
 void Camera::update(double deltaTime) {
+    updateVelocity();
+
     if (glm::length(velocity) > 0) {
         changed = true;
     }
@@ -18,60 +20,39 @@ void Camera::update(double deltaTime) {
     position += glm::vec3(cameraRotation * glm::vec4(velocity * static_cast<float>(deltaTime), 0.f));
 }
 
-void Camera::onKeyChanged(int key, int scancode, int action, int mods) {
-    if (action == GLFW_PRESS) {
-        //printf("Pressed Key code: %d\n", key);
-        if (key == GLFW_KEY_W) {
-            velocity.z = -speed;
-        }
+void Camera::updateVelocity()
+{
+    velocity = glm::vec3(0.0f);
 
-        if (key == GLFW_KEY_A) {
-            velocity.x = -speed;
-        }
+    if (keys.w) velocity.z = -speed;
+    if (keys.s) velocity.z = speed;
 
-        if (key == GLFW_KEY_S) {
-            velocity.z = speed;
-        }
+    if (keys.a) velocity.x = -speed;
+    if (keys.d) velocity.x = speed;
 
-        if (key == GLFW_KEY_D) {
-            velocity.x = speed;
-        }
+    if (keys.e) velocity.y = speed;
+    if (keys.q) velocity.y = -speed;
+}
 
-        if (key == GLFW_KEY_E) {
-            velocity.y = speed;
-        }
+void Camera::onKeyChanged(int key, int scancode, int action, int mods)
+{
+    if (key == GLFW_KEY_W)
+        keys.w = action != GLFW_RELEASE;
 
-        if (key == GLFW_KEY_Q) {
-            velocity.y = -speed;
-        }
-    }
+    if (key == GLFW_KEY_A)
+        keys.a = action != GLFW_RELEASE;
 
-    if (action == GLFW_RELEASE) {
-        //printf("Released Key code: %d\n", key);
-        if (key == GLFW_KEY_W) {
-            velocity.z = 0;
-        }
+    if (key == GLFW_KEY_S)
+        keys.s = action != GLFW_RELEASE;
 
-        if (key == GLFW_KEY_A) {
-            velocity.x = 0;
-        }
+    if (key == GLFW_KEY_D)
+        keys.d = action != GLFW_RELEASE;
 
-        if (key == GLFW_KEY_S) {
-            velocity.z = 0;
-        }
+    if (key == GLFW_KEY_E)
+        keys.e = action != GLFW_RELEASE;
 
-        if (key == GLFW_KEY_D) {
-            velocity.x = 0;
-        }
-
-        if (key == GLFW_KEY_E) {
-            velocity.y = 0;
-        }
-
-        if (key == GLFW_KEY_Q) {
-            velocity.y = 0;
-        }
-    }
+    if (key == GLFW_KEY_Q)
+        keys.q = action != GLFW_RELEASE;
 }
 
 void Camera::onMouseButtonChanged(GLFWwindow* window, int button, int action, int mods) {

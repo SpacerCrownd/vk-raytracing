@@ -15,15 +15,26 @@ public:
     glm::vec3   position;
     float       pitch{0.f};
     float       yaw{0.f};
-    float       speed{2.5f};
+    float       speed{5.0f};
 
-    double sensitivity{0.005f};
+    double sensitivity{0.001f};
 
     bool    dragging{false};
     double  lastX{0.f};
     double  lastY{0.f};
 
     bool changed{false};
+
+    int exposureEV{0};
+
+    struct {
+        bool w = false;
+        bool a = false;
+        bool s = false;
+        bool d = false;
+        bool e = false;
+        bool q = false;
+    } keys;
 
     glm::mat4 getViewMatrix() const;
     glm::mat4 getRotationMatrix() const;
@@ -33,6 +44,8 @@ public:
     void onCursorPositionChanged(double xpos, double ypos);
     void onScroll(double xoffset, double yoffset);
     void update(double deltaTime);
+
+    void updateVelocity();
 };
 }
 
