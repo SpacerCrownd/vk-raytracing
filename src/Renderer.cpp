@@ -78,12 +78,16 @@ void Renderer::update() {
 }
 
 void Renderer::draw() {
+    if (m_vkCore.resizeRequested) {
+        m_vkCore.recreateSwapchain();
+        resetFrameCounter();
+    }
+
     if (!m_pSceneVk) {
         return; // no valid scene loaded, don't render
     }
 
     if (!m_vkCore.prepareFrame()) {
-        handleResize();
         return;
     }
 
@@ -103,6 +107,7 @@ void Renderer::draw() {
     uint32_t imgIndex = m_vkCore.getCurrentImageIndex();
     const auto& swapchainImage = m_vkCore.getSwapchain().GetSwapchainImage(static_cast<int>(imgIndex));
     auto swapchainExtent = m_vkCore.getSwapchain().GetExtent();
+
     // get draw image
     auto& drawImage = m_vkCore.getDrawImage();
 
@@ -111,12 +116,24 @@ void Renderer::draw() {
         ptvk::utils::imageLayoutTransition(
             cmdBuffer,
             drawImage.image,
-            vk::PipelineStageFlagBits2::eTransfer | vk::PipelineStageFlagBits2::eColorAttachmentOutput,
+            vk::PipelineStageFlagBits2::eTransfer,
             vk::PipelineStageFlagBits2::eColorAttachmentOutput,
-            vk::AccessFlagBits2::eTransferRead | vk::AccessFlagBits2::eColorAttachmentWrite,
+            vk::AccessFlagBits2::eTransferRead,
             vk::AccessFlagBits2::eColorAttachmentWrite,
             vk::ImageLayout::eUndefined,
             vk::ImageLayout::eColorAttachmentOptimal,
+            subresourceRange);
+
+        // synchronize depth image usage
+        ptvk::utils::imageLayoutTransition(
+            cmdBuffer,
+            m_vkCore.getDepthImage().image,
+            vk::PipelineStageFlagBits2::eEarlyFragmentTests | vk::PipelineStageFlagBits2::eLateFragmentTests,
+            vk::PipelineStageFlagBits2::eEarlyFragmentTests | vk::PipelineStageFlagBits2::eLateFragmentTests,
+            vk::AccessFlagBits2::eDepthStencilAttachmentRead | vk::AccessFlagBits2::eDepthStencilAttachmentWrite,
+            vk::AccessFlagBits2::eDepthStencilAttachmentRead | vk::AccessFlagBits2::eDepthStencilAttachmentWrite,
+            vk::ImageLayout::eDepthAttachmentOptimal,
+            vk::ImageLayout::eDepthAttachmentOptimal,
             subresourceRange);
 
         // prepare to start dynamic rendering
@@ -193,15 +210,16 @@ void Renderer::draw() {
 
         cmdBuffer.endRendering();
 
-    } else if (m_currentPipeline == eRaytracing) {
+    }
+    else if (m_currentPipeline == eRaytracing) {
         ptvk::utils::imageLayoutTransition(
             cmdBuffer,
             drawImage.image,
-            vk::PipelineStageFlagBits2::eTransfer | vk::PipelineStageFlagBits2::eRayTracingShaderKHR ,
+            vk::PipelineStageFlagBits2::eTransfer,
             vk::PipelineStageFlagBits2::eRayTracingShaderKHR,
-            vk::AccessFlagBits2::eTransferRead | vk::AccessFlagBits2::eShaderWrite,
-            vk::AccessFlagBits2::eShaderWrite,
-            vk::ImageLayout::eUndefined,
+            vk::AccessFlagBits2::eTransferRead,
+            vk::AccessFlagBits2::eShaderWrite | vk::AccessFlagBits2::eShaderRead,
+            vk::ImageLayout::eTransferSrcOptimal,
             vk::ImageLayout::eGeneral,
             subresourceRange);
 
@@ -260,11 +278,7 @@ void Renderer::draw() {
 }
 
 void Renderer::onResize(int width, int height) {
-    m_vkCore.framebufferResized = true;
-}
-
-void Renderer::handleResize() {
-    // any functions that need to be called after vulk core resize logic goes here
+    m_vkCore.resizeRequested = true;
 }
 
 bool Renderer::createScene(const std::filesystem::path &filename) {
@@ -532,6 +546,11 @@ void Renderer::initializeImGui() {
 
 }
 
+void Renderer::resetFrameCounter() {
+    m_frameCount = -1;
+    m_totalSamples = 0;
+}
+
 void Renderer::prepareFrameData(const vk::raii::CommandBuffer& cmd) {
     int frame = static_cast<int>(m_vkCore.getCurrentFrameIndex());
     // sync scene changes with gpu
@@ -542,8 +561,7 @@ void Renderer::prepareFrameData(const vk::raii::CommandBuffer& cmd) {
     changed |= m_camera.changed;
     m_camera.changed = false;
     if (changed) {
-        m_frameCount = -1;
-        m_totalSamples = 0;
+        resetFrameCounter();
     }
     m_frameCount++;
 
@@ -573,7 +591,7 @@ void Renderer::prepareFrameData(const vk::raii::CommandBuffer& cmd) {
     } else {
         // rt
         m_rtPushConstant.frameData = reinterpret_cast<shaderio::FrameData *>(m_bFrameData[frame].address);
-        m_rtPushConstant.frameCount = m_frameCount;
+        m_rtPushConstant.sceneInfo = reinterpret_cast<shaderio::GltfSceneInfo *>(m_pSceneVk->getSceneInfo(frame).address);
         m_rtPushConstant.totalSamples = m_totalSamples;
         m_totalSamples += m_rtPushConstant.numSamples;
 

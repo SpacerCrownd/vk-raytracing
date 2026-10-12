@@ -28,13 +28,14 @@ GraphicsPipeline::GraphicsPipeline(
     };
     std::vector<vk::VertexInputAttributeDescription> vertexAttributes {
         {.location = 0, .binding = 0, .format = vk::Format::eR32G32B32Sfloat},
-        {.location = 1, .binding = 0, .format = vk::Format::eR32G32B32Sfloat, .offset = offsetof(shaderio::Vertex, normal)},
-        {.location = 2, .binding = 0, .format = vk::Format::eR32G32Sfloat, .offset = offsetof(shaderio::Vertex, texCoords)},
-        {.location = 3, .binding = 0, .format = vk::Format::eR32G32B32A32Sfloat, .offset = offsetof(shaderio::Vertex, color)},
-        {.location = 4, .binding = 0, .format = vk::Format::eR32G32B32A32Sfloat, .offset = offsetof(shaderio::Vertex, tangent)}
+        {.location = 1, .binding = 0, .format = vk::Format::eR32Sfloat, .offset = offsetof(shaderio::Vertex, u)},
+        {.location = 2, .binding = 0, .format = vk::Format::eR32G32B32Sfloat, .offset = offsetof(shaderio::Vertex, normal)},
+        {.location = 3, .binding = 0, .format = vk::Format::eR32Sfloat, .offset = offsetof(shaderio::Vertex, v)},
+        {.location = 4, .binding = 0, .format = vk::Format::eR32G32B32A32Sfloat, .offset = offsetof(shaderio::Vertex, color)},
+        {.location = 5, .binding = 0, .format = vk::Format::eR32G32B32A32Sfloat, .offset = offsetof(shaderio::Vertex, tangent)}
     };
 
-    vk::PipelineVertexInputStateCreateInfo   vertexInputInfo = {
+    vk::PipelineVertexInputStateCreateInfo vertexInputInfo = {
         .vertexBindingDescriptionCount = 1,
         .pVertexBindingDescriptions = &vertBinding,
         .vertexAttributeDescriptionCount = static_cast<uint32_t>(vertexAttributes.size()),

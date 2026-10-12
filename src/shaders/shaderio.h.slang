@@ -23,10 +23,10 @@ struct FrameData {
 struct RtPushConstant {
     FrameData*      frameData;
     GltfSceneInfo*  sceneInfo;
-    int             maxDepth     = 3;
-    int             frameCount   = 0;
-    int             numSamples   = 1;
+    int             maxDepth     = 5;
+    int             numSamples   = 2;
     int             totalSamples = 0;
+    int             maxSamples = 100;
 };
 
 struct RasterPushConstant {

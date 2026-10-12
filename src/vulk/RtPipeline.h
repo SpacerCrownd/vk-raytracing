@@ -32,7 +32,7 @@ private:
     Buffer m_sbtBuffer;
 
 
-    void createShaderBindingTable(vk::RayTracingPipelineCreateInfoKHR& createInfo);
+    void createShaderBindingTable(const vk::RayTracingPipelineCreateInfoKHR& createInfo);
 };
 }
 

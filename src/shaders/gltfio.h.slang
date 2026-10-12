@@ -7,8 +7,9 @@
 namespace shaderio {
 struct Vertex {
     float3 position;
+    float  u;
     float3 normal;
-    float2 texCoords;
+    float  v;
     float4 color;
     float4 tangent;
 };

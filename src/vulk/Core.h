@@ -15,7 +15,7 @@ public:
 	Core(const char *appName, const app::Window& window);
 	~Core() = default;
 
-	bool framebufferResized = false;
+	bool resizeRequested = false;
 
 	void deviceWaitIdle();
 	void recreateSwapchain();
@@ -53,8 +53,8 @@ private:
 	std::unique_ptr<ResourceAllocator> m_pResourceAllocator{};
 	std::unique_ptr<Swapchain>         m_pSwapchain{};
 
-	Image m_drawImage;
-	Image m_depthImage;
+	Image m_drawImage{};
+	Image m_depthImage{};
 
 	// graphics queue
 	vk::raii::Queue m_queue{VK_NULL_HANDLE};
@@ -82,7 +82,6 @@ private:
 	void createSwapchain();
 	void createSyncObjects();
 	void createCommandObjects();
-	void createDepthResources();
 
 	// helper functions
 	void		 updateInstanceVersion();

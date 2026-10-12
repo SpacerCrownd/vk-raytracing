@@ -12,14 +12,22 @@ RtPipeline::RtPipeline(const Device &device,
     enum StageIndices {
         eRaygen,
         eMiss,
+        eMissShadow,
         eClosestHit,
-        eShaderGroupCount
+        eClosestHitShadow,
+        eAnyHit,
+        eAnyHitShadow,
+        eShaderStageCount
     };
 
-    std::array<vk::PipelineShaderStageCreateInfo, eShaderGroupCount> stageInfos{
+    std::array<vk::PipelineShaderStageCreateInfo, eShaderStageCount> stageInfos{
         shader.createShaderStage(vk::ShaderStageFlagBits::eRaygenKHR, "raygenMain"),
         shader.createShaderStage(vk::ShaderStageFlagBits::eMissKHR, "missMain"),
+        shader.createShaderStage(vk::ShaderStageFlagBits::eMissKHR, "missShadow"),
         shader.createShaderStage(vk::ShaderStageFlagBits::eClosestHitKHR, "closesthitMain"),
+        shader.createShaderStage(vk::ShaderStageFlagBits::eClosestHitKHR, "closesthitShadow"),
+        shader.createShaderStage(vk::ShaderStageFlagBits::eAnyHitKHR, "anyhitMain"),
+        shader.createShaderStage(vk::ShaderStageFlagBits::eAnyHitKHR, "anyhitShadow"),
     };
 
     vk::RayTracingShaderGroupCreateInfoKHR groupInfo{
@@ -38,10 +46,22 @@ RtPipeline::RtPipeline(const Device &device,
     groupInfo.generalShader = eMiss;
     shaderGroups.push_back(groupInfo);
 
+    groupInfo.type = vk::RayTracingShaderGroupTypeKHR::eGeneral;
+    groupInfo.generalShader = eMissShadow;
+    shaderGroups.push_back(groupInfo);
+
     groupInfo.type = vk::RayTracingShaderGroupTypeKHR::eTrianglesHitGroup;
     groupInfo.generalShader = vk::ShaderUnusedKHR;
     groupInfo.closestHitShader = eClosestHit;
+    groupInfo.anyHitShader = eAnyHit;
     shaderGroups.push_back(groupInfo);
+
+    groupInfo.type = vk::RayTracingShaderGroupTypeKHR::eTrianglesHitGroup;
+    groupInfo.generalShader = vk::ShaderUnusedKHR;
+    groupInfo.closestHitShader = eClosestHitShadow;
+    groupInfo.anyHitShader = eAnyHitShadow;
+    shaderGroups.push_back(groupInfo);
+
 
     vk::PushConstantRange pushConstantRange{
         .stageFlags = vk::ShaderStageFlagBits::eAll,
@@ -63,7 +83,7 @@ RtPipeline::RtPipeline(const Device &device,
         .pStages = stageInfos.data(),
         .groupCount = static_cast<uint32_t>(shaderGroups.size()),
         .pGroups = shaderGroups.data(),
-        .maxPipelineRayRecursionDepth = 1,
+        .maxPipelineRayRecursionDepth = 2,
         .layout = m_pipelineLayout,
     };
 
@@ -77,10 +97,8 @@ void RtPipeline::bind(const vk::raii::CommandBuffer &cmdBuffer) {
     cmdBuffer.bindPipeline(vk::PipelineBindPoint::eRayTracingKHR, m_pipeline);
 }
 
-void RtPipeline::createShaderBindingTable(vk::RayTracingPipelineCreateInfoKHR &rtPipelineInfo) {
+void RtPipeline::createShaderBindingTable(const vk::RayTracingPipelineCreateInfoKHR &rtPipelineInfo) {
     auto alignUp = [](auto value, size_t alignment) noexcept { return ((value + alignment - 1) & ~(alignment - 1)); };
-
-    auto& device = m_device.getVkDevice();
 
     const auto& physDevice = m_device.getPhysicalDevice();
     uint32_t handleSize = physDevice.m_rtProperties.shaderGroupHandleSize;
@@ -95,10 +113,18 @@ void RtPipeline::createShaderBindingTable(vk::RayTracingPipelineCreateInfoKHR &r
     shaderHandles = m_pipeline.getRayTracingShaderGroupHandlesKHR<uint8_t>(0, groupCount, dataSize);
     uint32_t callableSize = 0;
 
+    uint32_t raygenSize = handleSizeAligned;
+    uint32_t missSize = 2 * handleSizeAligned;
+    uint32_t hitSize = 2 * handleSizeAligned;
+
+    uint32_t raygenStride = handleSizeAligned;
+    uint32_t missStride = handleSizeAligned;
+    uint32_t hitStride = handleSizeAligned;
+
     uint32_t raygenOffset = 0;
-    uint32_t missOffset = alignUp(handleSizeAligned, baseAlignment);
-    uint32_t hitOffset = alignUp(missOffset + handleSizeAligned, baseAlignment);
-    uint32_t callableOffset = alignUp(hitOffset + handleSizeAligned, baseAlignment);
+    uint32_t missOffset = alignUp(raygenOffset + raygenSize, baseAlignment);
+    uint32_t hitOffset = alignUp(missOffset + missSize, baseAlignment);
+    uint32_t callableOffset = alignUp(hitOffset + hitSize, baseAlignment);
 
     size_t bufferSize = callableOffset + callableSize;
 
@@ -111,22 +137,24 @@ void RtPipeline::createShaderBindingTable(vk::RayTracingPipelineCreateInfoKHR &r
         .usage = VMA_MEMORY_USAGE_AUTO_PREFER_DEVICE,
         .requiredFlags = VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT
     };
-    m_sbtBuffer = m_allocator.createBuffer(buffInfo, allocInfo);
+    m_sbtBuffer = m_allocator.createBufferWithAlignment(buffInfo, allocInfo, baseAlignment);
 
-    memcpy(m_sbtBuffer.pMapping + raygenOffset, shaderHandles.data() + 0 * handleSize, handleSize);
+    memcpy(m_sbtBuffer.pMapping + raygenOffset + raygenStride * 0, shaderHandles.data() + 0 * handleSize, handleSize);
     raygenRegion.deviceAddress = m_sbtBuffer.address + raygenOffset;
-    raygenRegion.stride = handleSizeAligned;
-    raygenRegion.size = handleSizeAligned;
+    raygenRegion.stride = raygenStride;
+    raygenRegion.size = raygenSize;
 
-    memcpy(m_sbtBuffer.pMapping + missOffset, shaderHandles.data() + 1 * handleSize, handleSize);
+    memcpy(m_sbtBuffer.pMapping + missOffset + missStride * 0, shaderHandles.data() + 1 * handleSize, handleSize); // main miss region
+    memcpy(m_sbtBuffer.pMapping + missOffset + missStride * 1, shaderHandles.data() + 2 * handleSize, handleSize); // shadow miss region
     missRegion.deviceAddress = m_sbtBuffer.address + missOffset;
-    missRegion.stride = handleSizeAligned;
-    missRegion.size = handleSizeAligned;
+    missRegion.stride = missStride;
+    missRegion.size = missSize;
 
-    memcpy(m_sbtBuffer.pMapping + hitOffset, shaderHandles.data() + 2 * handleSize, handleSize);
+    memcpy(m_sbtBuffer.pMapping + hitOffset + hitStride * 0, shaderHandles.data() + 3 * handleSize, handleSize); // hit region
+    memcpy(m_sbtBuffer.pMapping + hitOffset + hitStride * 1, shaderHandles.data() + 4 * handleSize, handleSize); // shadow hit region
     hitRegion.deviceAddress = m_sbtBuffer.address + hitOffset;
-    hitRegion.stride = handleSizeAligned;
-    hitRegion.size = handleSizeAligned;
+    hitRegion.stride = hitStride;
+    hitRegion.size = hitSize;
 
     callableRegion.deviceAddress = 0;
     callableRegion.stride = 0;

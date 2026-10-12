@@ -43,7 +43,7 @@ private:
 
 };
 
-AccelerationStructureGeometryInfo primitiveToGeometry(const GltfSceneVk &sceneVk, const app::RenderPrimitive &submesh, uint32_t primID);
+AccelerationStructureGeometryInfo primitiveToGeometry(const GltfSceneVk &sceneVk, const app::RenderPrimitive &submesh, uint32_t primID, bool isOpaque);
 }
 
 

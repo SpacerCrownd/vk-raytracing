@@ -133,10 +133,8 @@ uint32_t Device::getQueueFamilyIndex(vk::QueueFlags flags) const {
             }
         }
     }
+
     // For other queue types or if no separate compute queue is present, return the first one to support the requested flags
-
-    printf("Check %d\n", static_cast<int>(m_physicalDevice.m_queueFamilyProperties.size()));
-
     for (uint32_t i = 0; i < static_cast<uint32_t>(m_physicalDevice.m_queueFamilyProperties.size()); i++)
     {
         if (m_physicalDevice.m_queueFamilyProperties[i].queueFlags & flags)

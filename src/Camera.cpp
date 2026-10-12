@@ -90,8 +90,9 @@ void Camera::onCursorPositionChanged(double xpos, double ypos) {
 
     pitch = std::clamp(pitch, glm::radians(-89.0f), glm::radians(89.0f));
 
-    if (dx > 0 || dy > 0)
+    if (dx != 0.0 || dy != 0.0) {
         changed = true;
+    }
     //std::cout << "pitch: " << pitch << std::endl;
     //std::cout << "yaw: " << yaw << std::endl;
 }

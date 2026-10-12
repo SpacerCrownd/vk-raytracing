@@ -103,6 +103,7 @@ function(add_slang_shader TARGET SOURCE)
             -target spirv
             -profile "${SHADER_PROFILE}"
             -fvk-use-entrypoint-name
+
             ${SHADER_ENTRIES}
             -o "${OUTPUT_FILE}"
 
@@ -142,6 +143,10 @@ add_slang_shader(
         -entry raygenMain
         -entry missMain
         -entry closesthitMain
+        -entry anyhitMain
+        -entry missShadow
+        -entry closesthitShadow
+        -entry anyhitShadow
 
         PROFILE
         spirv_1_4

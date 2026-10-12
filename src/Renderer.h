@@ -71,7 +71,7 @@ private:
 
 	// config parameters
 	bool			m_enableDepth = true;
-	PipelineType	m_currentPipeline = eRaster;
+	PipelineType	m_currentPipeline = PipelineType::eRaytracing;
 
 	// life cycle
 	void mainLoop();
@@ -99,6 +99,8 @@ private:
 	void createRtPipeline();
 
 	void initializeImGui();
+
+	void resetFrameCounter();
 };
 }
 

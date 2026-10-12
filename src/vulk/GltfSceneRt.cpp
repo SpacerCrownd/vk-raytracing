@@ -33,7 +33,7 @@ void GltfSceneRt::createBLAS(Core &vkCore,
         auto& currBuildData = m_blasBuildData[primID];
         currBuildData.type = vk::AccelerationStructureTypeKHR::eBottomLevel;
 
-        AccelerationStructureGeometryInfo geoInfo = primitiveToGeometry(sceneVk, renderPrimitives[primID], primID);
+        AccelerationStructureGeometryInfo geoInfo = primitiveToGeometry(sceneVk, renderPrimitives[primID], primID, scene.getModel().materials[renderPrimitives[primID].pPrimitive->material].alphaMode == "OPAQUE");
         currBuildData.addGeometry(geoInfo);
         vk::AccelerationStructureBuildSizesInfoKHR sizeInfo = currBuildData.finalizeGeometry(device, flags);
 
@@ -207,8 +207,9 @@ bool GltfSceneRt::syncTLAS(const vk::raii::CommandBuffer &cmd, app::GltfScene &s
 }
 
 AccelerationStructureGeometryInfo primitiveToGeometry(const GltfSceneVk &sceneVk,
-                                                                   const app::RenderPrimitive &submesh,
-                                                                   uint32_t primID)
+                                                      const app::RenderPrimitive &submesh,
+                                                      uint32_t primID,
+                                                      bool isOpaque)
 {
     uint32_t numTriangles = submesh.indexCount / 3;
 
@@ -231,8 +232,11 @@ AccelerationStructureGeometryInfo primitiveToGeometry(const GltfSceneVk &sceneVk
     geometryInfo.geometry = {
         .geometryType = vk::GeometryTypeKHR::eTriangles,
         .geometry = geometryData,
-        .flags = vk::GeometryFlagBitsKHR::eOpaque | vk::GeometryFlagBitsKHR::eNoDuplicateAnyHitInvocation
+        .flags = vk::GeometryFlagBitsKHR::eNoDuplicateAnyHitInvocation
     };
+
+    if (isOpaque)
+        geometryInfo.geometry.flags |= vk::GeometryFlagBitsKHR::eOpaque;
 
     geometryInfo.rangeInfo = {
         .primitiveCount = numTriangles

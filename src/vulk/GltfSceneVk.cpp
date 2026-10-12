@@ -560,9 +560,10 @@ void GltfSceneVk::createVertexIndexBuffers(const app::GltfScene &scene) {
 
         for (size_t v = 0; v < vertexCount; v++) {
             shaderio::Vertex vertex = {
-                .position = glm::vec3(glm::make_vec3(&positionsBuffer[v * 3])),
-                .normal = glm::normalize(glm::vec3(normalsBuffer ? glm::make_vec3(&normalsBuffer[v * 3]) : glm::vec3(0.0f))),
-                .texCoords = texCoordsBuffer ? glm::make_vec2(&texCoordsBuffer[v * 2]) : glm::vec2(0.0f),
+                .position = glm::vec4(glm::make_vec3(&positionsBuffer[v * 3]), 1.0f),
+                .u = texCoordsBuffer ? texCoordsBuffer[v * 2] : 0.0f,
+                .normal = glm::normalize(glm::vec4(normalsBuffer ? glm::make_vec3(&normalsBuffer[v * 3]) : glm::vec3(0.0f), .0f)),
+                .v = texCoordsBuffer ? texCoordsBuffer[v * 2 + 1] : 0.0f,
                 .color = glm::vec4(1.0f),
                 .tangent = tangentsBuffer ? glm::make_vec4(&tangentsBuffer[v * 4]) : glm::vec4(0.0f),
             };
