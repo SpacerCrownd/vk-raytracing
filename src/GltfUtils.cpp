@@ -127,6 +127,24 @@ void getNodeTRS(const tinygltf::Node &node, glm::vec3 &translation, glm::quat &r
     }
 }
 
+void setNodeTRS(tinygltf::Node &node, glm::vec3 &translation, glm::quat &rotation, glm::vec3 &scale) {
+    if(!glm::all(glm::epsilonEqual(translation, glm::vec3(0.0f), 1e-6f)))
+        node.translation = {translation.x, translation.y, translation.z};
+    else
+        node.translation.clear();
+
+    if(!glm::all(glm::epsilonEqual(rotation, glm::quat(1.0f, 0.0f, 0.0f, 0.0f), 1e-6f)))
+        node.rotation = {rotation.x, rotation.y, rotation.z, rotation.w};
+    else
+        node.rotation.clear();
+
+    if(!glm::all(glm::epsilonEqual(scale, glm::vec3(1.0f), 1e-6f)))
+        node.scale = {scale.x, scale.y, scale.z};
+    else
+        node.scale.clear();
+
+}
+
 glm::mat4 getNodeTransformMatrix(const tinygltf::Node &node) {
     if (node.matrix.size() == 16) {
         return glm::make_mat4(node.matrix.data());

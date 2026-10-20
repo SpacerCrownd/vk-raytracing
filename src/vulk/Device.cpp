@@ -1,7 +1,7 @@
 #include "Device.h"
 
 namespace ptvk {
-Device::Device(const PhysicalDevice &device,
+Device::Device(PhysicalDevice &device,
                std::vector<const char*> &devExtensions,
                const vk::QueueFlags &requestedQueueTypes,
                vk::PhysicalDeviceFeatures2 &features,

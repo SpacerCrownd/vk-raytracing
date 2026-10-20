@@ -8,6 +8,8 @@
 #include <tinygltf/tiny_gltf.h>
 #include <glm/glm.hpp>
 
+#include "vulk/Vulkan.h"
+
 // scene data
 namespace app {
 // a render node is the instance of a gltf primitive in the scene graph
@@ -98,28 +100,25 @@ public:
     RenderNodeRegistry&            getRenderNodeRegistry() { return m_renderNodeRegistry; }
 
     struct DirtyFlags {
-        std::unordered_set<int> renderNodesVkIDs; // indices of render nodes that need to be updated on gpu buffers
-        std::unordered_set<int> renderNodesRtIDs; // indices of render nodes that need to be updated on tlas
-        std::unordered_set<int> lightIDs;
-        std::unordered_set<int> nodeIDs;
+        std::unordered_set<int>                                     nodeIDs;
+        std::unordered_set<int>                                     renderNodesRtIDs; // indices of render nodes that need to be updated on tlas
+        std::array<std::unordered_set<int>, MAX_FRAMES_IN_FLIGHT>   renderNodesVkIDs; // indices of render nodes that need to be updated on gpu buffers, they are per frame in flight
+        std::array<std::unordered_set<int>, MAX_FRAMES_IN_FLIGHT>   lightIDs; // per frame in flight
         // possible additions:
         // material editing
         // ...
 
-        void clear() {
-            renderNodesVkIDs.clear();
-            renderNodesRtIDs.clear();
-            lightIDs.clear();
-            nodeIDs.clear();
-        }
-
         bool isEmpty() const {
-            return renderNodesVkIDs.empty() && renderNodesRtIDs.empty() && lightIDs.empty() && nodeIDs.empty();
+            bool isEmpty = true;
+            for (int i = 0; i < MAX_FRAMES_IN_FLIGHT; i++) {
+                isEmpty &= renderNodesVkIDs[i].empty();
+                isEmpty &= lightIDs[i].empty();
+            }
+            return isEmpty && renderNodesRtIDs.empty() && nodeIDs.empty();
         }
     };
 
     DirtyFlags& getDirtyFlags() { return m_dirtyFlags; }
-    void        clearDirtyFlags() { m_dirtyFlags.clear(); }
 
     void destroy();
 
@@ -128,6 +127,8 @@ public:
     void markLightDirty(int lightIndex);
     void markNodeDirty(int nodeIndex); // needs to be called when modifying node transform in-editor
 
+    void setNodeTRS(int nodeIdx, glm::vec3 translation, glm::quat rotation, glm::vec3 scale, int frameNum);
+
 private:
     // gltf data
     tinygltf::Model       m_model;
@@ -135,13 +136,13 @@ private:
 
     // Render data built from model
     RenderNodeRegistry           m_renderNodeRegistry;
-    std::vector<RenderPrimitive> m_renderPrimitives;
-    std::vector<RenderLight>     m_renderLights;
+    std::vector<RenderPrimitive> m_renderPrimitives{};
+    std::vector<RenderLight>     m_renderLights{};
 
     // transform matrices
-    std::vector<glm::mat4> m_nodesWorldMatrices; // index is nodeID
-    std::vector<glm::mat4> m_nodesLocalMatrices;
-    std::vector<int>       m_nodeParents;
+    std::vector<glm::mat4> m_nodesWorldMatrices{}; // index is nodeID
+    std::vector<glm::mat4> m_nodesLocalMatrices{};
+    std::vector<int>       m_nodeParents{};
 
     DirtyFlags m_dirtyFlags;
 

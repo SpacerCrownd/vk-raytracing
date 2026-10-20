@@ -7,11 +7,12 @@ namespace ptvk {
 GraphicsPipeline::GraphicsPipeline(
         const vk::raii::Device &device,
         const Shader& shader,
-        uint32_t numImages,
+        int numImages,
         vk::Format colorFormat,
         vk::Format depthFormat,
         bool enableDepthTesting,
         bool enableBlending,
+        bool enableVertexAssembly,
         std::vector<vk::DescriptorSetLayout> descLayouts
     ) : m_device(device), m_numImages(numImages)
 {
@@ -20,27 +21,6 @@ GraphicsPipeline::GraphicsPipeline(
         shader.createShaderStage(vk::ShaderStageFlagBits::eFragment, "fragMain")
     };
 
-    // vertex description
-    vk::VertexInputBindingDescription vertBinding = {
-        .binding = 0,
-        .stride = sizeof(shaderio::Vertex),
-        .inputRate = vk::VertexInputRate::eVertex
-    };
-    std::vector<vk::VertexInputAttributeDescription> vertexAttributes {
-        {.location = 0, .binding = 0, .format = vk::Format::eR32G32B32Sfloat},
-        {.location = 1, .binding = 0, .format = vk::Format::eR32Sfloat, .offset = offsetof(shaderio::Vertex, u)},
-        {.location = 2, .binding = 0, .format = vk::Format::eR32G32B32Sfloat, .offset = offsetof(shaderio::Vertex, normal)},
-        {.location = 3, .binding = 0, .format = vk::Format::eR32Sfloat, .offset = offsetof(shaderio::Vertex, v)},
-        {.location = 4, .binding = 0, .format = vk::Format::eR32G32B32A32Sfloat, .offset = offsetof(shaderio::Vertex, color)},
-        {.location = 5, .binding = 0, .format = vk::Format::eR32G32B32A32Sfloat, .offset = offsetof(shaderio::Vertex, tangent)}
-    };
-
-    vk::PipelineVertexInputStateCreateInfo vertexInputInfo = {
-        .vertexBindingDescriptionCount = 1,
-        .pVertexBindingDescriptions = &vertBinding,
-        .vertexAttributeDescriptionCount = static_cast<uint32_t>(vertexAttributes.size()),
-        .pVertexAttributeDescriptions = vertexAttributes.data()
-    };
     vk::PipelineInputAssemblyStateCreateInfo inputAssembly {
         .topology = vk::PrimitiveTopology::eTriangleList,
     };
@@ -92,7 +72,7 @@ GraphicsPipeline::GraphicsPipeline(
     };
 
     vk::PipelineLayoutCreateInfo pipelineLayoutInfo{
-        .setLayoutCount = 1,
+        .setLayoutCount = static_cast<uint32_t>(descLayouts.size()),
         .pSetLayouts = descLayouts.data(),
         .pushConstantRangeCount = 1,
         .pPushConstantRanges = &pushConstantRange,
@@ -107,27 +87,61 @@ GraphicsPipeline::GraphicsPipeline(
         .stencilTestEnable     = vk::False
     };
 
+    vk::VertexInputBindingDescription vertBinding;
+    std::vector<vk::VertexInputAttributeDescription> vertexAttributes;
+    vk::PipelineVertexInputStateCreateInfo vertexInputInfo {
+        .vertexBindingDescriptionCount = 0,
+        .pVertexBindingDescriptions = nullptr,
+        .vertexAttributeDescriptionCount = 0,
+        .pVertexAttributeDescriptions = nullptr
+    };
+
+    if (enableVertexAssembly) {
+        // vertex description
+        vertBinding = {
+            .binding = 0,
+            .stride = sizeof(shaderio::Vertex),
+            .inputRate = vk::VertexInputRate::eVertex
+        };
+
+        vertexAttributes = {
+            {.location = 0, .binding = 0, .format = vk::Format::eR32G32B32Sfloat},
+            {.location = 1, .binding = 0, .format = vk::Format::eR32Sfloat, .offset = offsetof(shaderio::Vertex, u)},
+            {.location = 2, .binding = 0, .format = vk::Format::eR32G32B32Sfloat, .offset = offsetof(shaderio::Vertex, normal)},
+            {.location = 3, .binding = 0, .format = vk::Format::eR32Sfloat, .offset = offsetof(shaderio::Vertex, v)},
+            {.location = 4, .binding = 0, .format = vk::Format::eR32G32B32A32Sfloat, .offset = offsetof(shaderio::Vertex, color)},
+            {.location = 5, .binding = 0, .format = vk::Format::eR32G32B32A32Sfloat, .offset = offsetof(shaderio::Vertex, tangent)}
+        };
+
+        vertexInputInfo = {
+            .vertexBindingDescriptionCount = 1,
+            .pVertexBindingDescriptions = &vertBinding,
+            .vertexAttributeDescriptionCount = static_cast<uint32_t>(vertexAttributes.size()),
+            .pVertexAttributeDescriptions = vertexAttributes.data()
+        };
+    }
+
     vk::StructureChain<vk::GraphicsPipelineCreateInfo, vk::PipelineRenderingCreateInfo> pipelineCreateInfoChain = {
-            vk::GraphicsPipelineCreateInfo{
-                .stageCount = 2,
-                .pStages = shaderStages,
-                .pVertexInputState = &vertexInputInfo,
-                .pInputAssemblyState = &inputAssembly,
-                .pViewportState = &viewportState,
-                .pRasterizationState = &rasterizer,
-                .pMultisampleState = &multisampling,
-                .pDepthStencilState = &depthStencil,
-                .pColorBlendState = &colorBlending,
-                .pDynamicState = &dynamicState,
-                .layout = m_pipelineLayout,
-                .renderPass = nullptr,
-            },
-            vk::PipelineRenderingCreateInfo{
-                .colorAttachmentCount = 1,
-                .pColorAttachmentFormats = &colorFormat,
-                .depthAttachmentFormat = depthFormat,
-                .stencilAttachmentFormat = vk::Format::eUndefined
-            }
+        vk::GraphicsPipelineCreateInfo{
+            .stageCount = 2,
+            .pStages = shaderStages,
+            .pVertexInputState = &vertexInputInfo,
+            .pInputAssemblyState = &inputAssembly,
+            .pViewportState = &viewportState,
+            .pRasterizationState = &rasterizer,
+            .pMultisampleState = &multisampling,
+            .pDepthStencilState = &depthStencil,
+            .pColorBlendState = &colorBlending,
+            .pDynamicState = &dynamicState,
+            .layout = m_pipelineLayout,
+            .renderPass = nullptr,
+        },
+        vk::PipelineRenderingCreateInfo{
+            .colorAttachmentCount = 1,
+            .pColorAttachmentFormats = &colorFormat,
+            .depthAttachmentFormat = depthFormat,
+            .stencilAttachmentFormat = vk::Format::eUndefined
+        }
     };
 
     m_pipeline = vk::raii::Pipeline(device, nullptr, pipelineCreateInfoChain.get<vk::GraphicsPipelineCreateInfo>());

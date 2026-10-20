@@ -187,7 +187,7 @@ bool GltfScene::updateNodeWorldMatrices() {
         m_nodesLocalMatrices[nodeID] = gltfutils::getNodeTransformMatrix(m_model.nodes[nodeID]);
     }
 
-    std::vector<bool> isDirty(m_dirtyFlags.nodeIDs.size(), false);
+    std::vector<bool> isDirty(m_model.nodes.size(), false);
     for (auto nodeID: m_dirtyFlags.nodeIDs) {
        isDirty[nodeID] = true;
     }
@@ -214,6 +214,8 @@ bool GltfScene::updateNodeWorldMatrices() {
         }
     }
 
+    m_dirtyFlags.nodeIDs.clear();
+
     // recursive update lambda
     std::function<void(int)> updateNodeTransformMat = [&](int nodeID) {
         // if parent is scene root use identity matrix
@@ -228,7 +230,9 @@ bool GltfScene::updateNodeWorldMatrices() {
                 m_renderNodeRegistry.getRenderNodes()[renderNodeID].worldMatrix = m_nodesWorldMatrices[nodeID];
 
                 // mark nodes for gpu and tlas update
-                m_dirtyFlags.renderNodesVkIDs.insert(renderNodeID);
+                for (int i = 0; i < MAX_FRAMES_IN_FLIGHT; i++) {
+                    m_dirtyFlags.renderNodesVkIDs[i].insert(renderNodeID);
+                }
                 m_dirtyFlags.renderNodesRtIDs.insert(renderNodeID);
             }
         }
@@ -289,17 +293,27 @@ void GltfScene::setSceneElementsDefaultNames()
 
 void GltfScene::markLightDirty(int lightIndex) {
     if(lightIndex >= 0 && lightIndex < static_cast<int>(m_model.lights.size())) {
-        m_dirtyFlags.lightIDs.insert(lightIndex);
+        for (int i = 0; i < MAX_FRAMES_IN_FLIGHT; i++) {
+            std::cout << "update light " << lightIndex << " for frame " << i << " queued" << std::endl;
+            m_dirtyFlags.lightIDs[i].insert(lightIndex);
+        }
     }
 }
 
 void GltfScene::markNodeDirty(int nodeIndex) {
     if(nodeIndex >= 0 && nodeIndex <static_cast<int>(m_model.nodes.size())) {
         m_dirtyFlags.nodeIDs.insert(nodeIndex);
-        const tinygltf::Node& node = m_model.nodes[nodeIndex];
 
+        const tinygltf::Node& node = m_model.nodes[nodeIndex];
         if(node.light >= 0)
             markLightDirty(node.light);
     }
+}
+
+void GltfScene::setNodeTRS(int nodeIdx, glm::vec3 translation, glm::quat rotation, glm::vec3 scale, int frameNum) {
+    auto& node = m_model.nodes[nodeIdx];
+    node.matrix.clear();
+    gltfutils::setNodeTRS(node, translation, rotation, scale);
+    markNodeDirty(nodeIdx);
 }
 }

@@ -9,11 +9,12 @@ class GraphicsPipeline {
 public:
     GraphicsPipeline(const vk::raii::Device& device,
                     const Shader& shader,
-                    uint32_t numImages,
+                    int numImages,
                     vk::Format colorFormat,
                     vk::Format depthFormat,
                     bool enableDepthTesting,
                     bool enableBlending,
+                    bool enableVertexAssembly,
                     std::vector<vk::DescriptorSetLayout> descLayouts);
 
     vk::PipelineLayout getLayout() { return m_pipelineLayout; }

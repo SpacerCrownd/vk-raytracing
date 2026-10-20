@@ -442,7 +442,7 @@ void Core::createSwapchain() {
 		                             {},
 		                             {},
 		                             vk::ImageLayout::eUndefined,
-		                             vk::ImageLayout::eTransferSrcOptimal,
+		                             vk::ImageLayout::eShaderReadOnlyOptimal,
 		                             subresourceRange);
 	}
 
@@ -616,7 +616,7 @@ bool Core::prepareFrame() {
 
 	if (res != vk::Result::eSuccess && res != vk::Result::eSuboptimalKHR)
 	{
-		assert(result == vk::Result::eTimeout || result == vk::Result::eNotReady);
+		assert(res == vk::Result::eTimeout || res == vk::Result::eNotReady);
 		throw std::runtime_error("failed to acquire swap chain image!");
 	}
 

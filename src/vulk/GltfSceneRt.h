@@ -20,9 +20,7 @@ public:
                     vk::BuildAccelerationStructureFlagsKHR flags);
 
     void createTLAS(const vk::raii::CommandBuffer &cmd,
-                    const app::GltfScene &scene,
-                    const GltfSceneVk &sceneVk,
-                    vk::BuildAccelerationStructureFlagsKHR flags);
+                    const app::GltfScene &scene);
 
     // update tlas instances from dirty flags
     bool syncTLAS(const vk::raii::CommandBuffer &cmd, app::GltfScene &scene);
@@ -43,7 +41,7 @@ private:
 
 };
 
-AccelerationStructureGeometryInfo primitiveToGeometry(const GltfSceneVk &sceneVk, const app::RenderPrimitive &submesh, uint32_t primID, bool isOpaque);
+AccelerationStructureGeometryInfo primitiveToGeometry(const GltfSceneVk &sceneVk, const app::RenderPrimitive &submesh, uint32_t primID);
 }
 
 

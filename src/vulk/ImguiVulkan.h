@@ -1,20 +1,28 @@
 ﻿#ifndef VK_RAYTRACING_IMGUIVULKAN_H
 #define VK_RAYTRACING_IMGUIVULKAN_H
 
-#include <imgui/imgui.h>
-#include "Vulkan.h"
-#include "Resources.h"
+#include <imgui.h>
+#include <imgui_impl_glfw.h>
+#include <imgui_impl_vulkan.h>
 
+#include "Core.h"
+#include "Vulkan.h"
+
+bool IsMouseControlledByImGUI();
 
 namespace ptvk {
 class ImguiVulkan {
 public:
+    ImguiVulkan(Core& vkCore);
+    ~ImguiVulkan();
 
 private:
-    vk::raii::Sampler sampler{nullptr};
+    Core& m_vkCore;
 
-    Buffer vertexBuffer;
-    Buffer indexBuffer;
+    int m_framebufferWidth{0};
+    int m_framebufferHeight{0};
+
+    vk::raii::DescriptorPool m_descriptorPool{nullptr};       // Pool for allocating descriptor sets
 };
 }
 

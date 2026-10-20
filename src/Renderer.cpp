@@ -5,19 +5,25 @@
 
 #include <glm/gtc/matrix_transform.hpp>
 #include <glm/gtx/string_cast.hpp>
+#include <glm/gtx/quaternion.hpp>
+#include <nfd.h>
 #include <iostream>
 
 namespace app {
-Renderer::Renderer(int width, int height, const char* pAppName) : m_window(width, height, pAppName),
-                                                                  m_vkCore(pAppName, m_window),
-                                                                  m_camera(glm::vec3(0.0f, 0.0f, 0.0f))
-{
-    m_window.addOnKeyChanged([this](int key, int scancode, int action, int mods){
+Renderer::Renderer(int width, int height, const char *pAppName) : m_window(width, height, pAppName),
+                                                                  m_vkCore(pAppName, m_window) {
+    m_window.addOnKeyChanged([this](int key, int scancode, int action, int mods) {
         m_camera.onKeyChanged(key, scancode, action, mods);
+        if (key == GLFW_KEY_SPACE && action == GLFW_PRESS) {
+            m_showGUI = !m_showGUI;
+            std::cout << m_showGUI << std::endl;
+        }
     });
 
     m_window.addOnMouseButtonChanged([this](int button, int action, int mods) {
-        m_camera.onMouseButtonChanged(this->m_window.getWindow(), button, action, mods);
+        if (!IsMouseControlledByImGUI()) {
+            m_camera.onMouseButtonChanged(this->m_window.getWindow(), button, action, mods);
+        }
     });
 
     m_window.addOnCursorPositionChanged([this](double x, double y) {
@@ -34,6 +40,7 @@ Renderer::Renderer(int width, int height, const char* pAppName) : m_window(width
 
     m_pSamplerPool = std::make_unique<ptvk::SamplerPool>(m_vkCore.getDevice().getVkDevice());
     m_pStaging = std::make_unique<ptvk::StagingUploader>(m_vkCore.getResourceAllocator());
+    m_pImgui = std::make_unique<ptvk::ImguiVulkan>(m_vkCore);
 }
 
 Renderer::~Renderer() {
@@ -46,17 +53,6 @@ void Renderer::run() {
     loadShaders();
     createGraphicsPipeline();
     createRtPipeline();
-
-    std::vector<std::string> files = {
-        "assets/basicmesh.glb",
-        "assets/DirectionalLight.glb",
-        "assets/sponza.glb",
-    };
-
-    if (!createScene(files[2])) {
-        cleanupScene();
-    }
-    //initializeImGui();
 
     mainLoop();
 }
@@ -74,26 +70,33 @@ void Renderer::update() {
     m_deltaTime = currentFrameTime - m_lastFrameTime;
     m_lastFrameTime = currentFrameTime;
 
+    /* Node update test
+    auto& node = m_pScene->getModel().nodes[0];
+    glm::vec3 translation, scale;
+    glm::quat rotation;
+    gltfutils::getNodeTRS(node, translation, rotation, scale);
+
+    glm::quat deltaRotation = glm::angleAxis(glm::radians(360.0f * static_cast<float>(m_deltaTime)) , glm::vec3(0.0f, 1.0f, 0.0f));
+    rotation = rotation * deltaRotation;
+    m_pScene->setNodeTRS(0, translation, rotation, scale);
+    */
+
     m_camera.update(m_deltaTime);
 }
 
 void Renderer::draw() {
     if (m_vkCore.resizeRequested) {
         m_vkCore.recreateSwapchain();
-        resetFrameCounter();
-    }
-
-    if (!m_pSceneVk) {
-        return; // no valid scene loaded, don't render
+        resetAccumulation();
     }
 
     if (!m_vkCore.prepareFrame()) {
         return;
     }
 
-    auto& cmdBuffer = m_vkCore.beginCommandRecording();
+    auto &cmdBuffer = m_vkCore.beginCommandRecording();
 
-    prepareFrameData(cmdBuffer);
+    updateGUI();
 
     vk::ImageSubresourceRange subresourceRange = {
         .aspectMask = vk::ImageAspectFlagBits::eColor,
@@ -105,172 +108,265 @@ void Renderer::draw() {
 
     // get swapchain image
     uint32_t imgIndex = m_vkCore.getCurrentImageIndex();
-    const auto& swapchainImage = m_vkCore.getSwapchain().GetSwapchainImage(static_cast<int>(imgIndex));
+    const auto &swapchainImage = m_vkCore.getSwapchain().GetSwapchainImage(static_cast<int>(imgIndex));
+    const auto &swapchainImageView = m_vkCore.getSwapchain().GetSwapchainImageView(static_cast<int>(imgIndex));
     auto swapchainExtent = m_vkCore.getSwapchain().GetExtent();
 
-    // get draw image
-    auto& drawImage = m_vkCore.getDrawImage();
+    // transition swapchain image to attachment
+    ptvk::utils::imageLayoutTransition(cmdBuffer,
+                                       swapchainImage,
+                                       {},
+                                       vk::PipelineStageFlagBits2::eColorAttachmentOutput,
+                                       {},
+                                       vk::AccessFlagBits2::eColorAttachmentWrite,
+                                       vk::ImageLayout::eUndefined,
+                                       vk::ImageLayout::eColorAttachmentOptimal,
+                                       subresourceRange);
 
-    if (m_currentPipeline == eRaster) {
-        // transition draw image for use depending on pipeline used + synchronize with fif for image reuse
-        ptvk::utils::imageLayoutTransition(
-            cmdBuffer,
-            drawImage.image,
-            vk::PipelineStageFlagBits2::eTransfer,
-            vk::PipelineStageFlagBits2::eColorAttachmentOutput,
-            vk::AccessFlagBits2::eTransferRead,
-            vk::AccessFlagBits2::eColorAttachmentWrite,
-            vk::ImageLayout::eUndefined,
-            vk::ImageLayout::eColorAttachmentOptimal,
-            subresourceRange);
+    if (m_pSceneVk) {
+        prepareFrameData(cmdBuffer);
 
-        // synchronize depth image usage
-        ptvk::utils::imageLayoutTransition(
-            cmdBuffer,
-            m_vkCore.getDepthImage().image,
-            vk::PipelineStageFlagBits2::eEarlyFragmentTests | vk::PipelineStageFlagBits2::eLateFragmentTests,
-            vk::PipelineStageFlagBits2::eEarlyFragmentTests | vk::PipelineStageFlagBits2::eLateFragmentTests,
-            vk::AccessFlagBits2::eDepthStencilAttachmentRead | vk::AccessFlagBits2::eDepthStencilAttachmentWrite,
-            vk::AccessFlagBits2::eDepthStencilAttachmentRead | vk::AccessFlagBits2::eDepthStencilAttachmentWrite,
-            vk::ImageLayout::eDepthAttachmentOptimal,
-            vk::ImageLayout::eDepthAttachmentOptimal,
-            subresourceRange);
+        // get draw image
+        auto &drawImage = m_vkCore.getDrawImage();
+        //////
+        //  Main Draw Pass
+        //////
+        {
+            if (currentPipeline == eRaster) {
+                // transition draw image for use depending on pipeline used + synchronize with fif for image reuse
+                ptvk::utils::imageLayoutTransition(
+                    cmdBuffer,
+                    drawImage.image,
+                    vk::PipelineStageFlagBits2::eFragmentShader,
+                    vk::PipelineStageFlagBits2::eColorAttachmentOutput,
+                    vk::AccessFlagBits2::eShaderRead,
+                    vk::AccessFlagBits2::eColorAttachmentWrite,
+                    vk::ImageLayout::eUndefined,
+                    vk::ImageLayout::eColorAttachmentOptimal,
+                    subresourceRange);
 
-        // prepare to start dynamic rendering
-        //cmdBuffer.clearColorImage(swapchainImage, vk::ImageLayout::eTransferDstOptimal, clearColor, imageRange);
-        vk::ClearValue clearColor = vk::ClearColorValue(.0f, .0f, .0f, 1.0f);
-        vk::ClearValue depthValue = vk::ClearDepthStencilValue(1.0f, 0);
+                // synchronize depth image usage
+                ptvk::utils::imageLayoutTransition(
+                    cmdBuffer,
+                    m_vkCore.getDepthImage().image,
+                    vk::PipelineStageFlagBits2::eEarlyFragmentTests | vk::PipelineStageFlagBits2::eLateFragmentTests,
+                    vk::PipelineStageFlagBits2::eEarlyFragmentTests | vk::PipelineStageFlagBits2::eLateFragmentTests,
+                    vk::AccessFlagBits2::eDepthStencilAttachmentRead |
+                    vk::AccessFlagBits2::eDepthStencilAttachmentWrite,
+                    vk::AccessFlagBits2::eDepthStencilAttachmentRead |
+                    vk::AccessFlagBits2::eDepthStencilAttachmentWrite,
+                    vk::ImageLayout::eDepthAttachmentOptimal,
+                    vk::ImageLayout::eDepthAttachmentOptimal,
+                    {
+                        .aspectMask = vk::ImageAspectFlagBits::eDepth,
+                        .baseMipLevel = 0,
+                        .levelCount = 1,
+                        .baseArrayLayer = 0,
+                        .layerCount = 1,
+                    });
+
+                // prepare to start dynamic rendering
+                //cmdBuffer.clearColorImage(swapchainImage, vk::ImageLayout::eTransferDstOptimal, clearColor, imageRange);
+                vk::ClearValue clearColor = vk::ClearColorValue(backgroundColor.x, backgroundColor.y, backgroundColor.z,
+                                                                1.0f);
+                vk::ClearValue depthValue = vk::ClearDepthStencilValue(1.0f, 0);
+                vk::RenderingAttachmentInfo colorAttachmentInfo = {
+                    .imageView = drawImage.view,
+                    .imageLayout = vk::ImageLayout::eColorAttachmentOptimal,
+                    .loadOp = vk::AttachmentLoadOp::eClear,
+                    .storeOp = vk::AttachmentStoreOp::eStore,
+                    .clearValue = clearColor,
+                };
+                vk::RenderingAttachmentInfo depthAttachmentInfo = {
+                    .imageView = m_vkCore.getDepthImage().view,
+                    .imageLayout = vk::ImageLayout::eDepthAttachmentOptimal,
+                    .loadOp = vk::AttachmentLoadOp::eClear,
+                    .storeOp = vk::AttachmentStoreOp::eDontCare,
+                    .clearValue = depthValue
+                };
+                vk::RenderingInfo renderingInfo = {
+                    .renderArea = {
+                        .offset = {.x = 0, .y = 0},
+                        .extent = {
+                            .width = drawImage.extent.width,
+                            .height = drawImage.extent.height
+                        }
+                    },
+                    .layerCount = 1,
+                    .colorAttachmentCount = 1,
+                    .pColorAttachments = &colorAttachmentInfo,
+                    .pDepthAttachment = &depthAttachmentInfo
+                };
+
+                // begin dynamic rendering
+                cmdBuffer.beginRendering(renderingInfo);
+
+                // bind pipeline
+                m_pOpaqueRasterPipeline->bind(cmdBuffer);
+
+                cmdBuffer.setViewport(0, vk::Viewport(0.0f, 0.0f, static_cast<float>(swapchainExtent.width),
+                                                      static_cast<float>(swapchainExtent.height), 0.0f, 1.0f));
+                cmdBuffer.setScissor(0, vk::Rect2D(vk::Offset2D(0, 0), swapchainExtent));
+
+                cmdBuffer.bindDescriptorSets(vk::PipelineBindPoint::eGraphics,
+                                             m_pOpaqueRasterPipeline->getLayout(),
+                                             0,
+                                             *m_textureDescriptorSet,
+                                             nullptr);
+
+                struct NodeData {
+                    int materialID;
+                    int renderNodeID;
+                    int renderPrimID;
+                };
+
+                // start drawing
+                const auto &rnodes = m_pScene->getRenderNodes();
+                uint32_t offset = offsetof(shaderio::RasterPushConstant, materialID);
+
+                for (int nodeID = 0; nodeID < rnodes.size(); nodeID++) {
+                    const auto &rnode = rnodes[nodeID];
+                    const RenderPrimitive &subMesh = m_pScene->getRenderPrimitive(rnode.renderPrimID);
+                    NodeData pushConst = {
+                        .materialID = rnode.materialID,
+                        .renderNodeID = nodeID,
+                        .renderPrimID = rnode.renderPrimID
+                    };
+                    cmdBuffer.pushConstants<NodeData>(m_pOpaqueRasterPipeline->getLayout(),
+                                                      vk::ShaderStageFlagBits::eAllGraphics, offset, pushConst);
+
+                    cmdBuffer.bindVertexBuffers(0, m_pSceneVk->getVertexBuffers()[rnode.renderPrimID].buffer, {0});
+                    cmdBuffer.bindIndexBuffer(m_pSceneVk->getIndexBuffers()[rnode.renderPrimID].buffer, 0,
+                                              vk::IndexType::eUint32);
+                    cmdBuffer.drawIndexed(subMesh.indexCount, 1, 0, 0, 0);
+                }
+
+                cmdBuffer.endRendering();
+            } else if (currentPipeline == eRaytracing) {
+                ptvk::utils::imageLayoutTransition(
+                    cmdBuffer,
+                    drawImage.image,
+                    vk::PipelineStageFlagBits2::eTransfer,
+                    vk::PipelineStageFlagBits2::eRayTracingShaderKHR,
+                    vk::AccessFlagBits2::eTransferRead,
+                    vk::AccessFlagBits2::eShaderWrite | vk::AccessFlagBits2::eShaderRead,
+                    vk::ImageLayout::eShaderReadOnlyOptimal,
+                    vk::ImageLayout::eGeneral,
+                    subresourceRange);
+
+                m_pRtPipeline->bind(cmdBuffer);
+                // bind texture descriptor set
+                cmdBuffer.bindDescriptorSets(vk::PipelineBindPoint::eRayTracingKHR,
+                                             m_pRtPipeline->getLayout(),
+                                             0,
+                                             *m_textureDescriptorSet,
+                                             nullptr);
+
+                pushRtDescriptors(cmdBuffer);
+
+                const vk::Extent2D extent = m_vkCore.getSwapchain().GetExtent();
+                cmdBuffer.traceRaysKHR(m_pRtPipeline->raygenRegion, m_pRtPipeline->missRegion, m_pRtPipeline->hitRegion,
+                                       m_pRtPipeline->callableRegion, extent.width, extent.height, 1);
+            }
+        }
+
+        // --
+        // postprocessing pass, draw image input -> swapchain image color attachment
+        // --
+
+        // transition draw image to shader read
+        ptvk::utils::imageLayoutTransition(cmdBuffer,
+                                           drawImage.image,
+                                           vk::PipelineStageFlagBits2::eRayTracingShaderKHR |
+                                           vk::PipelineStageFlagBits2::eColorAttachmentOutput,
+                                           vk::PipelineStageFlagBits2::eFragmentShader,
+                                           vk::AccessFlagBits2::eShaderWrite |
+                                           vk::AccessFlagBits2::eColorAttachmentWrite,
+                                           vk::AccessFlagBits2::eShaderRead,
+                                           currentPipeline == eRaster
+                                               ? vk::ImageLayout::eColorAttachmentOptimal
+                                               : vk::ImageLayout::eGeneral,
+                                           vk::ImageLayout::eShaderReadOnlyOptimal,
+                                           subresourceRange);
+
+        /////
+        // Begin postprocessing pass
+        /////
+        {
+            // prepare to start dynamic rendering
+            vk::ClearValue clearColor = vk::ClearColorValue(.0f, .0f, .0f, 1.0f);
+            vk::RenderingAttachmentInfo colorAttachmentInfo = {
+                .imageView = swapchainImageView,
+                .imageLayout = vk::ImageLayout::eColorAttachmentOptimal,
+                .loadOp = vk::AttachmentLoadOp::eClear,
+                .storeOp = vk::AttachmentStoreOp::eStore,
+                .clearValue = clearColor,
+            };
+            vk::RenderingInfo renderingInfo = {
+                .renderArea = {
+                    .offset = {.x = 0, .y = 0},
+                    .extent = {
+                        .width = swapchainExtent.width,
+                        .height = swapchainExtent.height
+                    }
+                },
+                .layerCount = 1,
+                .colorAttachmentCount = 1,
+                .pColorAttachments = &colorAttachmentInfo,
+            };
+
+            // begin dynamic rendering
+            cmdBuffer.beginRendering(renderingInfo);
+
+            m_pPostprocessPipeline->bind(cmdBuffer);
+            cmdBuffer.setViewport(0, vk::Viewport(0.0f, 0.0f, static_cast<float>(swapchainExtent.width),
+                                                  static_cast<float>(swapchainExtent.height), 0.0f, 1.0f));
+            cmdBuffer.setScissor(0, vk::Rect2D(vk::Offset2D(0, 0), swapchainExtent));
+            pushPPDescriptors(cmdBuffer);
+            cmdBuffer.draw(3, 1, 0, 0);
+
+            cmdBuffer.endRendering();
+        }
+    }
+    // else only render UI
+
+    /////
+    // Begin UI pass
+    /////
+    {
+        vk::ClearValue clearColor = vk::ClearColorValue(backgroundColor.x, backgroundColor.y, backgroundColor.z, 1.0f);
         vk::RenderingAttachmentInfo colorAttachmentInfo = {
-            .imageView = drawImage.view,
+            .imageView = swapchainImageView,
             .imageLayout = vk::ImageLayout::eColorAttachmentOptimal,
-            .loadOp = vk::AttachmentLoadOp::eClear,
+            .loadOp = m_pSceneVk ? vk::AttachmentLoadOp::eLoad : vk::AttachmentLoadOp::eClear,
             .storeOp = vk::AttachmentStoreOp::eStore,
-            .clearValue = clearColor,
+            .clearValue = clearColor
         };
-        vk::RenderingAttachmentInfo depthAttachmentInfo = {
-            .imageView = m_vkCore.getDepthImage().view,
-            .imageLayout = vk::ImageLayout::eDepthAttachmentOptimal,
-            .loadOp = vk::AttachmentLoadOp::eClear,
-            .storeOp = vk::AttachmentStoreOp::eDontCare,
-            .clearValue = depthValue
-        };
+
         vk::RenderingInfo renderingInfo = {
             .renderArea = {
-                .offset = {.x = 0,.y = 0},
+                .offset = {.x = 0, .y = 0},
                 .extent = {
-                    .width = drawImage.extent.width,
-                    .height = drawImage.extent.height
+                    .width = swapchainExtent.width,
+                    .height = swapchainExtent.height
                 }
             },
             .layerCount = 1,
             .colorAttachmentCount = 1,
             .pColorAttachments = &colorAttachmentInfo,
-            .pDepthAttachment = &depthAttachmentInfo
         };
 
-        // begin dynamic rendering
         cmdBuffer.beginRendering(renderingInfo);
-
-        // bind pipeline
-        m_pOpaqueRasterPipeline->bind(cmdBuffer);
-
-        cmdBuffer.setViewport(0, vk::Viewport(0.0f, 0.0f, static_cast<float>(swapchainExtent.width), static_cast<float>(swapchainExtent.height), 0.0f, 1.0f));
-        cmdBuffer.setScissor(0, vk::Rect2D(vk::Offset2D(0, 0), swapchainExtent));
-
-        cmdBuffer.bindDescriptorSets(vk::PipelineBindPoint::eGraphics,
-            m_pOpaqueRasterPipeline->getLayout(),
-            0,
-            *m_textureDescriptorSet,
-            nullptr);
-
-        struct NodeData {
-            int materialID;
-            int renderNodeID;
-            int renderPrimID;
-        };
-
-        // start drawing
-        const auto& rnodes = m_pScene->getRenderNodes();
-        uint32_t offset = offsetof(shaderio::RasterPushConstant, materialID);
-
-        for (int nodeID = 0; nodeID < rnodes.size(); nodeID++) {
-            const auto& rnode = rnodes[nodeID];
-            const RenderPrimitive& subMesh = m_pScene->getRenderPrimitive(rnode.renderPrimID);
-            NodeData pushConst = {
-                .materialID = rnode.materialID,
-                .renderNodeID = nodeID,
-                .renderPrimID = rnode.renderPrimID
-            };
-            cmdBuffer.pushConstants<NodeData>(m_pOpaqueRasterPipeline->getLayout(), vk::ShaderStageFlagBits::eAllGraphics, offset, pushConst);
-
-            cmdBuffer.bindVertexBuffers(0, m_pSceneVk->getVertexBuffers()[rnode.renderPrimID].buffer, {0});
-            cmdBuffer.bindIndexBuffer(m_pSceneVk->getIndexBuffers()[rnode.renderPrimID].buffer, 0, vk::IndexType::eUint32);
-            cmdBuffer.drawIndexed(subMesh.indexCount, 1, 0, 0, 0);
-        }
-
+        ImGui_ImplVulkan_NewFrame();
+        ImGui_ImplVulkan_RenderDrawData(ImGui::GetDrawData(), *cmdBuffer);
         cmdBuffer.endRendering();
-
     }
-    else if (m_currentPipeline == eRaytracing) {
-        ptvk::utils::imageLayoutTransition(
-            cmdBuffer,
-            drawImage.image,
-            vk::PipelineStageFlagBits2::eTransfer,
-            vk::PipelineStageFlagBits2::eRayTracingShaderKHR,
-            vk::AccessFlagBits2::eTransferRead,
-            vk::AccessFlagBits2::eShaderWrite | vk::AccessFlagBits2::eShaderRead,
-            vk::ImageLayout::eTransferSrcOptimal,
-            vk::ImageLayout::eGeneral,
-            subresourceRange);
-
-        m_pRtPipeline->bind(cmdBuffer);
-        // bind texture descriptor set
-        cmdBuffer.bindDescriptorSets(vk::PipelineBindPoint::eRayTracingKHR,
-            m_pRtPipeline->getLayout(),
-            0,
-            *m_textureDescriptorSet,
-            nullptr);
-
-        pushRtDescriptors(cmdBuffer);
-
-        const vk::Extent2D extent = m_vkCore.getSwapchain().GetExtent();
-        cmdBuffer.traceRaysKHR(m_pRtPipeline->raygenRegion, m_pRtPipeline->missRegion, m_pRtPipeline->hitRegion, m_pRtPipeline->callableRegion, extent.width, extent.height, 1);
-    }
-
-    // --
-    // Copy draw image into swapchain image
-    // --
-    // transition swapchain image to transfer dst
-    ptvk::utils::imageLayoutTransition(cmdBuffer,
-                                 swapchainImage,
-                                 vk::PipelineStageFlagBits2::eColorAttachmentOutput,
-                                 vk::PipelineStageFlagBits2::eTransfer,
-                                 {},
-                                 vk::AccessFlagBits2::eTransferWrite,
-                                 vk::ImageLayout::eUndefined,
-                                 vk::ImageLayout::eTransferDstOptimal,
-                                 subresourceRange);
-
-    // transition draw image to transfer src
-    ptvk::utils::imageLayoutTransition(cmdBuffer,
-                                 drawImage.image,
-                                 vk::PipelineStageFlagBits2::eRayTracingShaderKHR | vk::PipelineStageFlagBits2::eColorAttachmentOutput,
-                                 vk::PipelineStageFlagBits2::eTransfer,
-                                 vk::AccessFlagBits2::eShaderWrite | vk::AccessFlagBits2::eColorAttachmentWrite,
-                                 vk::AccessFlagBits2::eTransferRead,
-                                 m_currentPipeline == eRaster ? vk::ImageLayout::eColorAttachmentOptimal : vk::ImageLayout::eGeneral,
-                                 vk::ImageLayout::eTransferSrcOptimal,
-                                 subresourceRange);
-
-    // copy draw image to swapchain for presentation
-    vk::Extent2D drawExtent = {drawImage.extent.width, drawImage.extent.height};
-    ptvk::utils::blitImage(cmdBuffer, drawImage.image, swapchainImage, drawExtent, swapchainExtent);
 
     // transition swapchain image for presentation
     ptvk::utils::imageLayoutTransition(
         cmdBuffer,
         swapchainImage,
-        vk::ImageLayout::eTransferDstOptimal,
+        vk::ImageLayout::eColorAttachmentOptimal,
         vk::ImageLayout::ePresentSrcKHR);
 
     m_vkCore.submitFrame();
@@ -307,13 +403,15 @@ bool Renderer::createScene(const std::filesystem::path &filename) {
 
     int imgCount = static_cast<int>(m_pSceneVk->getTextureCount());
     if (static_cast<uint32_t>(imgCount) > m_maxTextures) {
-        std::cout << std::format("Scene requires {} textures but descriptor set supports {}\n", imgCount, m_maxTextures);
+        std::cout << std::format("Scene requires {} textures but descriptor set supports {}\n", imgCount,
+                                 m_maxTextures);
         return false;
     }
 
     int samplerCount = static_cast<int>(m_pSceneVk->getSamplerCount());
     if (static_cast<uint32_t>(samplerCount) > m_maxSamplers) {
-        std::cout << std::format("Scene requires {} samplers but descriptor set supports {}\n", samplerCount, m_maxSamplers);
+        std::cout << std::format("Scene requires {} samplers but descriptor set supports {}\n", samplerCount,
+                                 m_maxSamplers);
         return false;
     }
 
@@ -364,6 +462,20 @@ bool Renderer::createScene(const std::filesystem::path &filename) {
     return true;
 }
 
+void Renderer::changeScene(const std::filesystem::path &filename) {
+    m_vkCore.deviceWaitIdle();
+    resetAccumulation();
+    if (!createScene(filename)) {
+        cleanupScene();
+    }
+}
+
+void Renderer::changePipeline(PipelineType type) {
+    m_vkCore.deviceWaitIdle();
+    resetAccumulation();
+    currentPipeline = type;
+}
+
 void Renderer::cleanupScene() {
     m_vkCore.deviceWaitIdle();
     // TODO clean up ui related to scene
@@ -375,23 +487,26 @@ void Renderer::cleanupScene() {
 void Renderer::loadShaders() {
     m_pRasterShader = std::make_unique<ptvk::Shader>(m_vkCore.getDevice().getVkDevice(), "raster.spv");
     m_pRtShader = std::make_unique<ptvk::Shader>(m_vkCore.getDevice().getVkDevice(), "pathtrace.spv");
+    m_pTonemapShader = std::make_unique<ptvk::Shader>(m_vkCore.getDevice().getVkDevice(), "tonemap.spv");
     printf("[INFO] Shaders Loaded\n");
 }
 
 void Renderer::createDescriptors() {
-    auto& device = m_vkCore.getDevice().getVkDevice();
+    auto &device = m_vkCore.getDevice().getVkDevice();
 
-    auto& deviceProperties = m_vkCore.getDevice().getPhysicalDevice().m_devProperties2.properties;
+    auto &deviceProperties = m_vkCore.getDevice().getPhysicalDevice().m_devProperties2.properties;
     m_maxTextures = std::min(m_maxTextures, deviceProperties.limits.maxDescriptorSetSampledImages - 1);
     m_maxSamplers = std::min(m_maxTextures, deviceProperties.limits.maxDescriptorSetSamplers - 1);
 
     // descriptor set for textures and samplers
     // no need for update flags since we only update textures and samplers on scene load and not during rendering (no add/remove ops, currently)
-    vk::DescriptorBindingFlags descVariableFlags[2] {
-        { // textures
+    vk::DescriptorBindingFlags descVariableFlags[2]{
+        {
+            // textures
             vk::DescriptorBindingFlagBits::ePartiallyBound
         },
-        { // samplers
+        {
+            // samplers
             vk::DescriptorBindingFlagBits::ePartiallyBound
         }
     };
@@ -424,6 +539,7 @@ void Renderer::createDescriptors() {
 
     m_textureDescriptorLayout = device.createDescriptorSetLayout(layoutInfo);
 
+    // allocate the actual descriptor sets
     std::vector<vk::DescriptorPoolSize> poolSizes{
         vk::DescriptorPoolSize(vk::DescriptorType::eSampledImage, m_maxTextures),
         vk::DescriptorPoolSize(vk::DescriptorType::eSampler, m_maxSamplers),
@@ -465,13 +581,27 @@ void Renderer::createDescriptors() {
         .pBindings = m_rtDescriptorBindings.data()
     };
     m_rtDescriptorLayout = device.createDescriptorSetLayout(rtLayoutInfo);
+
+    // postprocessing descriptor layout
+    m_postprocessDescriptorBindings[0] = vk::DescriptorSetLayoutBinding(
+        shaderio::DescriptorBindingPoints::eOutImage,
+        vk::DescriptorType::eSampledImage,
+        1,
+        vk::ShaderStageFlagBits::eAll);
+
+    vk::DescriptorSetLayoutCreateInfo ppDescLayoutInfo = {
+        .flags = vk::DescriptorSetLayoutCreateFlagBits::ePushDescriptor,
+        .bindingCount = static_cast<uint32_t>(m_postprocessDescriptorBindings.size()),
+        .pBindings = m_postprocessDescriptorBindings.data()
+    };
+    m_postprocessDescriptorLayout = device.createDescriptorSetLayout(ppDescLayoutInfo);
 }
 
-void Renderer::pushRtDescriptors(const vk::raii::CommandBuffer& cmd) {
+void Renderer::pushRtDescriptors(const vk::raii::CommandBuffer &cmd) {
     std::array<vk::WriteDescriptorSet, 2> writes{};
 
     // TLAS
-    vk::WriteDescriptorSetAccelerationStructureKHR descAccel {
+    vk::WriteDescriptorSetAccelerationStructureKHR descAccel{
         .accelerationStructureCount = 1,
         .pAccelerationStructures = &*m_pSceneRt->getTlas()
     };
@@ -501,16 +631,33 @@ void Renderer::pushRtDescriptors(const vk::raii::CommandBuffer& cmd) {
     cmd.pushDescriptorSetKHR(vk::PipelineBindPoint::eRayTracingKHR, m_pRtPipeline->getLayout(), 1, writes);
 }
 
+void Renderer::pushPPDescriptors(const vk::raii::CommandBuffer &cmd) {
+    std::array<vk::WriteDescriptorSet, 1> writes{};
+    vk::DescriptorImageInfo hdrImageDescriptor{
+        .imageView = m_vkCore.getDrawImage().view,
+        .imageLayout = vk::ImageLayout::eShaderReadOnlyOptimal
+    };
+    writes[0] = vk::WriteDescriptorSet{
+        .dstBinding = shaderio::DescriptorBindingPoints::eOutImage,
+        .dstArrayElement = 0,
+        .descriptorCount = 1,
+        .descriptorType = vk::DescriptorType::eSampledImage,
+        .pImageInfo = &hdrImageDescriptor,
+    };
+    cmd.pushDescriptorSetKHR(vk::PipelineBindPoint::eGraphics, m_pPostprocessPipeline->getLayout(), 0, writes);
+}
+
 void Renderer::createFrameDataBuffers() {
     // create frame data buffer
     vk::BufferCreateInfo bufferInfo = {
         .size = sizeof(shaderio::FrameData),
-        .usage = vk::BufferUsageFlagBits::eUniformBuffer | vk::BufferUsageFlagBits::eShaderDeviceAddress | vk::BufferUsageFlagBits::eTransferDst
+        .usage = vk::BufferUsageFlagBits::eUniformBuffer | vk::BufferUsageFlagBits::eShaderDeviceAddress |
+                 vk::BufferUsageFlagBits::eTransferDst
     };
 
     VmaAllocationCreateInfo allocInfo = {
         .flags = VMA_ALLOCATION_CREATE_HOST_ACCESS_SEQUENTIAL_WRITE_BIT
-               | VMA_ALLOCATION_CREATE_MAPPED_BIT,
+                 | VMA_ALLOCATION_CREATE_MAPPED_BIT,
         .usage = VMA_MEMORY_USAGE_AUTO,
         .requiredFlags = VK_MEMORY_PROPERTY_HOST_COHERENT_BIT | VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT
     };
@@ -523,35 +670,45 @@ void Renderer::createFrameDataBuffers() {
 void Renderer::createGraphicsPipeline() {
     auto colorFormat = m_vkCore.getDrawImage().format;
     auto depthFormat = m_vkCore.getDepthFormat();
-    std::vector<vk::DescriptorSetLayout> layouts {m_textureDescriptorLayout};
-    m_pOpaqueRasterPipeline = std::make_unique<ptvk::GraphicsPipeline>(m_vkCore.getDevice().getVkDevice(), *m_pRasterShader, 1, colorFormat, depthFormat, m_enableDepth, false, layouts);
+    std::vector<vk::DescriptorSetLayout> rasterDescLayouts{m_textureDescriptorLayout};
+    m_pOpaqueRasterPipeline = std::make_unique<ptvk::GraphicsPipeline>(m_vkCore.getDevice().getVkDevice(),
+                                                                       *m_pRasterShader, 1, colorFormat, depthFormat,
+                                                                       enableDepth, false, true, rasterDescLayouts);
+
+    std::vector<vk::DescriptorSetLayout> postProcessDescLayouts{m_postprocessDescriptorLayout};
+    m_pPostprocessPipeline = std::make_unique<ptvk::GraphicsPipeline>(m_vkCore.getDevice().getVkDevice(),
+                                                                      *m_pTonemapShader, 1,
+                                                                      m_vkCore.getSwapchain().GetSwapchainFormat(),
+                                                                      depthFormat, false, false, false,
+                                                                      postProcessDescLayouts);
 }
 
 void Renderer::createAccelerationStructures() {
-    m_pSceneRt->createBLAS(m_vkCore, *m_pScene, *m_pSceneVk, enableDebugging ? vk::BuildAccelerationStructureFlagBitsKHR::ePreferFastBuild : vk::BuildAccelerationStructureFlagBitsKHR::ePreferFastTrace);
+    m_pSceneRt->createBLAS(m_vkCore, *m_pScene, *m_pSceneVk,
+                           enableDebugging
+                               ? vk::BuildAccelerationStructureFlagBitsKHR::ePreferFastBuild
+                               : vk::BuildAccelerationStructureFlagBitsKHR::ePreferFastTrace);
     std::cout << "[INFO] All Mesh Blas created and built" << std::endl;
 
     vk::raii::CommandBuffer cmd = m_vkCore.beginSingleTimeCommandBuffer();
-    m_pSceneRt->createTLAS(cmd, *m_pScene, *m_pSceneVk, vk::BuildAccelerationStructureFlagBitsKHR::eAllowUpdate | (enableDebugging ? vk::BuildAccelerationStructureFlagBitsKHR::ePreferFastBuild : vk::BuildAccelerationStructureFlagBitsKHR::ePreferFastTrace));
+    m_pSceneRt->createTLAS(cmd, *m_pScene);
     m_vkCore.submitSingleTimeCommandBuffer(cmd);
     std::cout << "[INFO] Tlas created and built" << std::endl;
 }
 
 void Renderer::createRtPipeline() {
-    std::vector<vk::DescriptorSetLayout> layouts {m_textureDescriptorLayout, m_rtDescriptorLayout};
-    m_pRtPipeline = std::make_unique<ptvk::RtPipeline>(m_vkCore.getDevice(), m_vkCore.getResourceAllocator(), *m_pRtShader, layouts);
+    std::vector<vk::DescriptorSetLayout> layouts{m_textureDescriptorLayout, m_rtDescriptorLayout};
+    m_pRtPipeline = std::make_unique<ptvk::RtPipeline>(m_vkCore.getDevice(), m_vkCore.getResourceAllocator(),
+                                                       *m_pRtShader, layouts);
 }
 
-void Renderer::initializeImGui() {
-
-}
-
-void Renderer::resetFrameCounter() {
+// should be called whenever the scene or renderer configuration is changed
+void Renderer::resetAccumulation() {
     m_frameCount = -1;
     m_totalSamples = 0;
 }
 
-void Renderer::prepareFrameData(const vk::raii::CommandBuffer& cmd) {
+void Renderer::prepareFrameData(const vk::raii::CommandBuffer &cmd) {
     int frame = static_cast<int>(m_vkCore.getCurrentFrameIndex());
     // sync scene changes with gpu
     bool changed = false;
@@ -559,30 +716,37 @@ void Renderer::prepareFrameData(const vk::raii::CommandBuffer& cmd) {
     changed |= m_pSceneVk->updateFromScene(*m_pScene, frame);
     changed |= m_pSceneRt->syncTLAS(cmd, *m_pScene);
     changed |= m_camera.changed;
+    changed |= m_configChanged;
     m_camera.changed = false;
+    m_configChanged = false;
     if (changed) {
-        resetFrameCounter();
+        resetAccumulation();
     }
     m_frameCount++;
 
     // update frame data buffer
     auto [width, height, depth] = m_vkCore.getDrawImage().extent;
-    glm::mat4x4 projMat = glm::perspectiveRH_ZO(glm::radians(60.0f), static_cast<float>(width)/static_cast<float>(height), 0.1f, 1000.0f);
+    glm::mat4x4 projMat = glm::perspective(glm::radians(m_camera.fov),
+                                           static_cast<float>(width) / static_cast<float>(height), 0.01f, 1000.0f);
     projMat[1][1] *= -1; // flip y
     shaderio::FrameData frameData = {
         .viewProjMatrix = projMat * m_camera.getViewMatrix(),
         .projInvMatrix = glm::inverse(projMat),
         .viewInvMatrix = glm::inverse(m_camera.getViewMatrix()),
         .cameraPosition = glm::vec4(m_camera.position, 0),
-        .exposureEV = m_camera.exposureEV
+        .exposureEV = m_camera.exposureEV,
+        .backgroundColor = backgroundColor,
+        .lightDir = glm::vec3(0, -1, 0) * glm::quat(glm::radians(lightRotationEuler)),
+        .useLight = enableDirLight,
+        .lightColor = glm::vec4(lightColor, lightIntensity),
     };
     cmd.updateBuffer<shaderio::FrameData>(m_bFrameData[frame].buffer, 0, frameData);
 
-    // update push constant
-    if (m_currentPipeline == eRaster) {
-        m_rasterPushConstant.frameData = reinterpret_cast<shaderio::FrameData *>(m_bFrameData[frame].address);
-        m_rasterPushConstant.sceneInfo = reinterpret_cast<shaderio::GltfSceneInfo *>(m_pSceneVk->getSceneInfo(frame).address);
+    m_rasterPushConstant.frameData = reinterpret_cast<shaderio::FrameData *>(m_bFrameData[frame].address);
+    m_rasterPushConstant.sceneInfo = reinterpret_cast<shaderio::GltfSceneInfo *>(m_pSceneVk->getSceneInfo(frame).address);
 
+    // update push constant
+    if (currentPipeline == eRaster) {
         cmd.pushConstants<shaderio::RasterPushConstant>(
             m_pOpaqueRasterPipeline->getLayout(),
             vk::ShaderStageFlagBits::eAllGraphics,
@@ -591,9 +755,15 @@ void Renderer::prepareFrameData(const vk::raii::CommandBuffer& cmd) {
     } else {
         // rt
         m_rtPushConstant.frameData = reinterpret_cast<shaderio::FrameData *>(m_bFrameData[frame].address);
-        m_rtPushConstant.sceneInfo = reinterpret_cast<shaderio::GltfSceneInfo *>(m_pSceneVk->getSceneInfo(frame).address);
+        m_rtPushConstant.sceneInfo = reinterpret_cast<shaderio::GltfSceneInfo *>(m_pSceneVk->getSceneInfo(frame).
+            address);
+        m_rtPushConstant.maxDepth = bounces;
+        m_rtPushConstant.maxSamples = maxSamples;
+        m_rtPushConstant.numSamples = samplesPerPixel;
         m_rtPushConstant.totalSamples = m_totalSamples;
-        m_totalSamples += m_rtPushConstant.numSamples;
+        if (maxSamples == 0 || m_totalSamples < maxSamples) {
+            m_totalSamples += m_rtPushConstant.numSamples;
+        }
 
         cmd.pushConstants<shaderio::RtPushConstant>(
             m_pRtPipeline->getLayout(),
@@ -603,10 +773,342 @@ void Renderer::prepareFrameData(const vk::raii::CommandBuffer& cmd) {
         );
     }
 
+    cmd.pushConstants<shaderio::RasterPushConstant>(
+        m_pPostprocessPipeline->getLayout(),
+        vk::ShaderStageFlagBits::eAllGraphics,
+        0,
+        m_rasterPushConstant);
+
     ptvk::utils::cmdMemoryBarrier(cmd,
-                        vk::PipelineStageFlagBits2::eTransfer,
-                        vk::PipelineStageFlagBits2::eRayTracingShaderKHR | vk::PipelineStageFlagBits2::eAllGraphics,
-                       vk::AccessFlagBits2::eTransferWrite,
-                       vk::AccessFlagBits2::eShaderRead);
+                                  vk::PipelineStageFlagBits2::eTransfer,
+                                  vk::PipelineStageFlagBits2::eRayTracingShaderKHR |
+                                  vk::PipelineStageFlagBits2::eAllGraphics,
+                                  vk::AccessFlagBits2::eTransferWrite,
+                                  vk::AccessFlagBits2::eShaderRead);
+}
+
+void Renderer::updateGUI() {
+    ImGuiIO &io = ImGui::GetIO();
+    ImGui_ImplVulkan_NewFrame();
+    ImGui_ImplGlfw_NewFrame();
+
+    int frame = m_vkCore.getCurrentFrameIndex();
+
+    ImGui::NewFrame();
+    if (m_showGUI) {
+        ImGui::DockSpaceOverViewport(0, ImGui::GetMainViewport(), ImGuiDockNodeFlags_PassthruCentralNode);
+        if (ImGui::Begin("Renderer Settings", &m_showGUI, ImGuiWindowFlags_AlwaysAutoResize)) {
+            const char *pipelineNames[] = {
+                "Rasterization",
+                "Raytracing"
+            };
+            constexpr PipelineType pipelineTypes[] = {
+                PipelineType::eRaster,
+                PipelineType::eRaytracing
+            };
+            static int selected = 1;
+            if (ImGui::BeginCombo("Rendering Pipeline", pipelineNames[selected])) {
+                for (int i = 0; i < IM_ARRAYSIZE(pipelineNames); ++i) {
+                    const bool isSelected = (selected == i);
+
+                    if (ImGui::Selectable(pipelineNames[i], isSelected)) {
+                        selected = i;
+                        changePipeline(pipelineTypes[i]);
+                    }
+
+                    if (isSelected)
+                        ImGui::SetItemDefaultFocus();
+                }
+                ImGui::EndCombo();
+            }
+
+            if (ImGui::CollapsingHeader("Performance", ImGuiTreeNodeFlags_DefaultOpen)) {
+                float fps = ImGui::GetIO().Framerate;
+                ImGui::Text("FPS: %.1f", fps);
+                ImGui::Text("Frametime: %.2f ms", 1000.0f / fps);
+                ImGui::Text("Frame Count: %d", m_frameCount);
+                ImGui::Text("Total Samples Accumulated: %d ", m_totalSamples);
+            }
+
+            if (ImGui::CollapsingHeader("Raytracing Options", ImGuiTreeNodeFlags_DefaultOpen)) {
+                if (ImGui::SliderInt("Samples per Pixel (spp)", &samplesPerPixel, 1, 100)) {
+                    resetAccumulation();
+                }
+                if (ImGui::SliderInt("Max Ray Bounces", &bounces, 1, 100)) {
+                    resetAccumulation();
+                }
+                ImGui::SliderInt("Max Samples Accumulated", &maxSamples, 0, 3000);
+            }
+        }
+        ImGui::End();
+
+        if (ImGui::Begin("Inspector", &m_showGUI, ImGuiWindowFlags_AlwaysAutoResize | ImGuiWindowFlags_MenuBar)) {
+            if (ImGui::BeginMenuBar()) {
+                if (ImGui::BeginMenu("Files")) {
+                    if (ImGui::MenuItem("Load Scene...")) {
+                        nfdu8char_t *path = nullptr;
+
+                        nfdu8filteritem_t filters[] = {
+                            {.name = "glTF models", .spec = "gltf,glb"}
+                        };
+
+                        nfdresult_t result = NFD_OpenDialogU8(
+                            &path,
+                            filters, // filters
+                            1, // filter count
+                            reinterpret_cast<const nfdu8char_t *>(std::filesystem::current_path().u8string().c_str())
+                            // default path
+                        );
+
+                        if (result == NFD_OKAY) {
+                            if (!createScene(path)) {
+                                cleanupScene();
+                            }
+                            resetAccumulation();
+                            NFD_FreePathU8(path);
+                        }
+                    }
+                    ImGui::EndMenu();
+                }
+                ImGui::EndMenuBar();
+            }
+
+            if (ImGui::CollapsingHeader("Camera")) {
+                if (ImGui::SliderFloat("Camera vFOV", &m_camera.fov, 10.0f, 90.0f)) {
+                    resetAccumulation();
+                }
+                if (ImGui::SliderInt("Camera Exposure EV", &m_camera.exposureEV, -5, 5)) {
+                    resetAccumulation();
+                }
+                ImGui::SliderFloat("Camera Speed", &m_camera.speed, 0.1f, 100.0f);
+                ImGui::DragFloat("Camera Sensitivity", &m_camera.sensitivity, 0.001f, 0.0f, 10.0f);
+            }
+
+            ImVec4 color(backgroundColor.r, backgroundColor.g, backgroundColor.b, 1.0f);
+            ImGui::Text("Background Color:");
+            if (ImGui::ColorEdit3("Background Color", reinterpret_cast<float *>(&color), ImGuiColorEditFlags_Float)) {
+                backgroundColor = glm::vec3(color.x, color.y, color.z);
+                resetAccumulation();
+            }
+
+            if (m_pSceneVk && ImGui::CollapsingHeader("Scene")) {
+                auto &model = m_pScene->getModel();
+                if (ImGui::CollapsingHeader("Nodes")) {
+                    for (int i = 0; i < model.nodes.size(); i++) {
+                        auto& node = model.nodes[i];
+                        glm::vec3 translation;
+                        glm::quat q;
+                        glm::vec3 scale;
+                        gltfutils::getNodeTRS(node, translation, q, scale);
+
+                        glm::vec3 rotation = glm::degrees(glm::eulerAngles(q));
+
+                        ImGui::PushID(i);
+
+                        if(ImGui::TreeNode(node.name.c_str())) {
+                            // Position
+                            ImGui::Separator();
+                            ImGui::Text("Position");
+
+                            bool changed = false;
+
+                            ImGui::SetNextItemWidth(50);
+                            changed |= ImGui::DragFloat("X##pos", &translation.x, 0.01f);
+
+                            ImGui::SameLine();
+                            ImGui::SetNextItemWidth(50);
+                            changed |= ImGui::DragFloat("Y##pos", &translation.y, 0.01f);
+
+                            ImGui::SameLine();
+                            ImGui::SetNextItemWidth(50);
+                            changed |= ImGui::DragFloat("Z##pos", &translation.z, 0.01f);
+
+                            // Rotation
+                            ImGui::Separator();
+                            ImGui::Text("Rotation (degrees)");
+
+                            ImGui::SetNextItemWidth(50);
+                            changed |= ImGui::DragFloat("X##rot", &rotation.x, 0.1f, -180.0f, 180.0f);
+
+                            ImGui::SameLine();
+                            ImGui::SetNextItemWidth(50);
+                            changed |= ImGui::DragFloat("Y##rot", &rotation.y, 0.1f, -180.0f, 180.0f);
+
+                            ImGui::SameLine();
+                            ImGui::SetNextItemWidth(50);
+                            changed |= ImGui::DragFloat("Z##rot", &rotation.z, 0.1f, -180.0f, 180.0f);
+
+                            // Scale
+                            ImGui::Separator();
+                            ImGui::Text("Scale");
+
+                            ImGui::SetNextItemWidth(50);
+                            changed |= ImGui::DragFloat("X##scale", &scale.x, 0.01f);
+
+                            ImGui::SameLine();
+                            ImGui::SetNextItemWidth(50);
+                            changed |= ImGui::DragFloat("Y##scale", &scale.y, 0.01f);
+
+                            ImGui::SameLine();
+                            ImGui::SetNextItemWidth(50);
+                            changed |= ImGui::DragFloat("Z##scale", &scale.z, 0.01f);
+
+                            // Apply changes
+                            if (changed) {
+                                m_pScene->setNodeTRS(i, translation, glm::radians(rotation), scale, frame);
+                                resetAccumulation();
+                            }
+                            ImGui::TreePop();
+                        }
+
+                        ImGui::Separator();
+                        ImGui::PopID();
+
+                    }
+                }
+
+                if (ImGui::CollapsingHeader("Lights")) {
+                    for (int i = 0; i < model.lights.size(); i++) {
+                        auto& light = model.lights[i];
+                        ImGui::PushID(i);
+
+                        if (ImGui::TreeNode(light.name.c_str())) {
+                            bool changed = false;
+
+                            // Color
+                            ImGui::Separator();
+                            ImGui::Text("Color");
+
+                            float color[3] = {
+                                static_cast<float>(light.color[0]),
+                                static_cast<float>(light.color[1]),
+                                static_cast<float>(light.color[2])
+                            };
+
+                            if (ImGui::ColorEdit3("Color", color)) {
+                                light.color[0] = color[0];
+                                light.color[1] = color[1];
+                                light.color[2] = color[2];
+                                changed = true;
+                            }
+
+                            // Range
+                            ImGui::Separator();
+                            ImGui::Text("Range");
+
+                            float range = static_cast<float>(light.range);
+
+                            if (ImGui::DragFloat("Range", &range, 0.1f, 0.01f, 10000.0f)){
+                                light.range = static_cast<double>(range);
+                                changed = true;
+                            }
+
+                            // Intensity
+                            ImGui::Separator();
+                            ImGui::Text("Intensity");
+                            float intensity = static_cast<float>(light.intensity);
+                            if(ImGui::DragFloat("Intensity", &intensity, 0.1f, 0.0f, 100000.0f)) {
+                                light.intensity = static_cast<double>(intensity);
+                                changed = true;
+                            }
+
+                            // Type
+                            ImGui::Separator();
+                            ImGui::Text("Type");
+
+                            const char* lightTypes[] = {
+                                "directional",
+                                "point",
+                                "spot"
+                            };
+
+                            int type;
+                            if (light.type == "directional")
+                                type = 0;
+                            else if (light.type == "point")
+                                type = 1;
+                            else if (light.type == "spot")
+                                type = 2;
+
+                            if (ImGui::Combo("Type", &type, lightTypes, IM_ARRAYSIZE(lightTypes))) {
+                                switch (type) {
+                                    case 0: light.type = "directional";
+                                        break;
+                                    case 1: light.type = "point";
+                                        break;
+                                    case 2: light.type = "spot";
+                                        break;
+                                    default:
+                                        break;
+                                }
+                                changed = true;
+                            }
+
+                            float innerConeAngle = glm::degrees(static_cast<float>(light.spot.innerConeAngle));
+                            float outerConeAngle = glm::degrees(static_cast<float>(light.spot.outerConeAngle));
+
+                            if (light.type == "spot" && ImGui::DragFloat("Inner Cone Size (degrees)", &innerConeAngle, 0.01, 0, 360)) {
+                                light.spot.innerConeAngle = glm::radians(static_cast<double>(innerConeAngle));
+                                changed = true;
+                            }
+
+                            if (light.type == "spot" && ImGui::DragFloat("Outer Cone Size (degrees)", &outerConeAngle, 0.01, 0, 360)) {
+                                light.spot.outerConeAngle = glm::radians(static_cast<double>(outerConeAngle));
+                                changed = true;
+                            }
+
+                            if (changed) {
+                                //std::cout << i << " changed" << std::endl;
+                                m_pScene->markLightDirty(i);
+                                resetAccumulation();
+                            }
+                            ImGui::TreePop();
+                        }
+                        ImGui::Separator();
+                        ImGui::PopID();
+                    }
+                }
+
+                if (ImGui::CollapsingHeader("Sunlight")) {
+                    if (ImGui::Checkbox("Enable Sunlight", &enableDirLight)) {
+                        resetAccumulation();
+                    }
+
+                    ImGui::Text("Rotation");
+                    ImGui::Separator();
+
+                    ImGui::SetNextItemWidth(50);
+                    if (ImGui::DragFloat("X ", &lightRotationEuler.x, 0.1f, -180.0f, 180.0f)) {
+                        resetAccumulation();
+                    }
+                    ImGui::SameLine();
+                    ImGui::SetNextItemWidth(50);
+                    if (ImGui::DragFloat("Y ", &lightRotationEuler.y, 0.1f, -180.0f, 180.0f)) {
+                        resetAccumulation();
+                    }
+                    ImGui::SameLine();
+                    ImGui::SetNextItemWidth(50);
+                    if (ImGui::DragFloat("Z ", &lightRotationEuler.z, 0.1f, -180.0f, 180.0f)) {
+                        resetAccumulation();
+                    }
+
+                    ImGui::Text("Intensity");
+                    ImGui::Separator();
+                    if (ImGui::DragFloat("##1", &lightIntensity, 0.1f, 0, 20.0f)) {
+                        resetAccumulation();
+                    }
+
+                    ImGui::Text("Color");
+                    ImGui::Separator();
+                    if (ImGui::ColorPicker3("##2", glm::value_ptr(lightColor))) {
+                        resetAccumulation();
+                    }
+                }
+            }
+        }
+        ImGui::End();
+    }
+
+    ImGui::Render();
 }
 }

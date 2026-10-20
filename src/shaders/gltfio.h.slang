@@ -42,8 +42,8 @@ struct GltfMaterial {
     float3 emissiveColor = float3(0);
     float  normalTextureScale = 1;
 
-    float  metallic = 1;
-    float  roughness = 1;
+    float  metallic = 0.5f;
+    float  roughness = 0.5f;
     int    alphaMode = AlphaMode::eAlphaModeOpaque;
     float  alphaCutoff = 0.5f;
 
@@ -81,7 +81,7 @@ struct GltfSceneInfo {
     GltfMaterial*        gltfMaterials;
     GltfLight*           gltfLights;
     GltfTextureInfo*     gltfTexturesInfos;
-    int                  numLights;
+    int                  numLights = 0;
 };
 }
 

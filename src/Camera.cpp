@@ -85,8 +85,8 @@ void Camera::onCursorPositionChanged(double xpos, double ypos) {
     lastY = ypos;
 
     // apply drag to camera
-    yaw   += static_cast<float>(dx) * static_cast<float>(sensitivity);
-    pitch -= static_cast<float>(dy) * static_cast<float>(sensitivity);
+    yaw   += static_cast<float>(dx) * sensitivity;
+    pitch -= static_cast<float>(dy) * sensitivity;
 
     pitch = std::clamp(pitch, glm::radians(-89.0f), glm::radians(89.0f));
 
@@ -99,9 +99,9 @@ void Camera::onCursorPositionChanged(double xpos, double ypos) {
 
 void Camera::onScroll(double xoffset, double yoffset) {
     if (yoffset < 0) {
-        speed = std::max(speed - 0.5f, 1.0f);
+        speed = std::max(speed - 0.1f, 0.1f);
     } else if (yoffset > 0) {
-        speed += 0.5f;
+        speed += 0.1f;
     }
 }
 

@@ -22,6 +22,8 @@ std::string generatePrimitiveKey(const tinygltf::Primitive &primitive);
 
 void getNodeTRS(const tinygltf::Node &node, glm::vec3 &translation, glm::quat &rotation, glm::vec3 &scale);
 
+void setNodeTRS(tinygltf::Node &node, glm::vec3 &translation, glm::quat &rotation, glm::vec3 &scale);
+
 glm::mat4 getNodeTransformMatrix(const tinygltf::Node &node);
 
 size_t getVertexCount(const tinygltf::Model &model, const tinygltf::Primitive &primitive);

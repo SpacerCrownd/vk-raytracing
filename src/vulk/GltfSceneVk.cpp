@@ -119,19 +119,18 @@ bool GltfSceneVk::updateFromScene(app::GltfScene &scene, int frameNum) {
         return false;
 
     // update lights
-    const auto& dirtyLights = dirtyFlags.lightIDs;
+    const auto& dirtyLights = dirtyFlags.lightIDs[frameNum];
     const std::vector<app::RenderLight>& renderLights = scene.getRenderLights();
 
     if(!renderLights.empty() && (!dirtyLights.empty() || m_bRenderLights[frameNum].buffer == VK_NULL_HANDLE)) {
         uploadRenderLights(scene, dirtyLights, frameNum);
-        dirtyFlags.lightIDs.clear();
+        dirtyFlags.lightIDs[frameNum].clear();
     }
 
-    const auto& dirtyNodes = dirtyFlags.renderNodesVkIDs;
+    const auto& dirtyNodes = dirtyFlags.renderNodesVkIDs[frameNum];
     if(!dirtyNodes.empty() || m_bRenderNodes[frameNum].buffer == VK_NULL_HANDLE) {
         uploadRenderNodes(scene, dirtyNodes, frameNum);
-        dirtyFlags.renderNodesVkIDs.clear();
-        std::cout << "update node\n";
+        dirtyFlags.renderNodesVkIDs[frameNum].clear();
     }
 
     return true;
@@ -499,6 +498,41 @@ void GltfSceneVk::createDefaultImage(StagingUploader &staging, int id) {
     std::cout << "[INFO] Default image created\n";
 }
 
+static glm::vec4 getAccessorValue(const tinygltf::Model& model, const tinygltf::Accessor& accessor, size_t v) {
+    const tinygltf::BufferView& bufferView = model.bufferViews[accessor.bufferView];
+    const unsigned char* data = &model.buffers[bufferView.buffer].data[accessor.byteOffset + bufferView.byteOffset];
+
+    // Get the stride of the attribute elements within the buffer view
+    size_t byteStride = accessor.ByteStride(bufferView);
+    const unsigned char* ptr = data + v * byteStride;
+
+    glm::vec4 result(0.0f, 0.0f, 0.0f, 1.0f);
+    int numComponents = (accessor.type == TINYGLTF_TYPE_VEC2 ? 2 :
+                         accessor.type == TINYGLTF_TYPE_VEC3 ? 3 :
+                         accessor.type == TINYGLTF_TYPE_VEC4 ? 4 : 1);
+
+    for (int c = 0; c < numComponents; c++) {
+        float val = 0.0f;
+        if (accessor.componentType == TINYGLTF_COMPONENT_TYPE_FLOAT) {
+            val = *reinterpret_cast<const float*>(ptr + c * sizeof(float));
+        } else if (accessor.componentType == TINYGLTF_COMPONENT_TYPE_UNSIGNED_SHORT) {
+            unsigned short s = *reinterpret_cast<const unsigned short*>(ptr + c * sizeof(unsigned short));
+            val = accessor.normalized ? static_cast<float>(s) / 65535.0f : static_cast<float>(s);
+        } else if (accessor.componentType == TINYGLTF_COMPONENT_TYPE_SHORT) {
+            short s = *reinterpret_cast<const short*>(ptr + c * sizeof(short));
+            val = accessor.normalized ? std::max(static_cast<float>(s) / 32767.0f, -1.0f) : static_cast<float>(s);
+        } else if (accessor.componentType == TINYGLTF_COMPONENT_TYPE_UNSIGNED_BYTE) {
+            unsigned char b = *reinterpret_cast<const unsigned char*>(ptr + c * sizeof(unsigned char));
+            val = accessor.normalized ? static_cast<float>(b) / 255.0f : static_cast<float>(b);
+        } else if (accessor.componentType == TINYGLTF_COMPONENT_TYPE_BYTE) {
+            char b = *reinterpret_cast<const char*>(ptr + c * sizeof(char));
+            val = accessor.normalized ? std::max(static_cast<float>(b) / 127.0f, -1.0f) : static_cast<float>(b);
+        }
+        result[c] = val;
+    }
+    return result;
+}
+
 void GltfSceneVk::createVertexIndexBuffers(const app::GltfScene &scene) {
     std::vector<shaderio::GltfRenderPrimitive> renderPrimitives;
 
@@ -508,7 +542,7 @@ void GltfSceneVk::createVertexIndexBuffers(const app::GltfScene &scene) {
     renderPrimitives.reserve(numPrimitives);
 
     const auto& model = scene.getModel();
-
+    bool hasMissingTangents = false;
     // create vertex and index buffers for all unique render primitives (submesh)
     for (size_t primID = 0; primID < scene.getNumRenderPrimitives(); primID++) {
         auto& primitive = *scene.getRenderPrimitive(primID).pPrimitive;
@@ -517,78 +551,45 @@ void GltfSceneVk::createVertexIndexBuffers(const app::GltfScene &scene) {
         // Vertices
         //////
         std::vector<shaderio::Vertex> vertices{};
-        const float* positionsBuffer = nullptr;
-        const float* normalsBuffer = nullptr;
-        const float* texCoordsBuffer = nullptr;
-        const float* colorsBuffer = nullptr;
-        const float* tangentsBuffer = nullptr;
         size_t vertexCount = 0;
 
-        // assumptions:
-        //  only floats (stride and gltf component type ignored)
-        //  tightly packed (doesn't handle sparse
         if (primitive.attributes.contains("POSITION")) {
-            const tinygltf::Accessor& accessor = model.accessors[primitive.attributes.find("POSITION")->second];
-            const tinygltf::BufferView& view = model.bufferViews[accessor.bufferView];
-            positionsBuffer = reinterpret_cast<const float*>(&model.buffers[view.buffer].data[accessor.byteOffset + view.byteOffset]);
-            vertexCount = accessor.count;
-        }
-
-        if (primitive.attributes.contains("NORMAL")) {
-            const tinygltf::Accessor& accessor = model.accessors[primitive.attributes.find("NORMAL")->second];
-            const tinygltf::BufferView& view = model.bufferViews[accessor.bufferView];
-            normalsBuffer = reinterpret_cast<const float*>(&model.buffers[view.buffer].data[accessor.byteOffset + view.byteOffset]);
-        }
-
-        if (primitive.attributes.contains("TEXCOORD_0")) {
-            const tinygltf::Accessor& accessor = model.accessors[primitive.attributes.find("TEXCOORD_0")->second];
-            const tinygltf::BufferView& view = model.bufferViews[accessor.bufferView];
-            texCoordsBuffer = reinterpret_cast<const float*>(&(model.buffers[view.buffer].data[accessor.byteOffset + view.byteOffset]));
-        }
-
-        if (primitive.attributes.contains("COLOR_0")) {
-            const tinygltf::Accessor& accessor = model.accessors[primitive.attributes.find("COLOR_0")->second];
-            const tinygltf::BufferView& view = model.bufferViews[accessor.bufferView];
-            colorsBuffer = reinterpret_cast<const float*>(&(model.buffers[view.buffer].data[accessor.byteOffset + view.byteOffset]));
-        }
-
-        if (primitive.attributes.contains("TANGENT")) {
-            const tinygltf::Accessor& accessor = model.accessors[primitive.attributes.find("TANGENT")->second];
-            const tinygltf::BufferView& view = model.bufferViews[accessor.bufferView];
-            tangentsBuffer = reinterpret_cast<const float*>(&(model.buffers[view.buffer].data[accessor.byteOffset + view.byteOffset]));
+            vertexCount = model.accessors[primitive.attributes.find("POSITION")->second].count;
         }
 
         for (size_t v = 0; v < vertexCount; v++) {
-            shaderio::Vertex vertex = {
-                .position = glm::vec4(glm::make_vec3(&positionsBuffer[v * 3]), 1.0f),
-                .u = texCoordsBuffer ? texCoordsBuffer[v * 2] : 0.0f,
-                .normal = glm::normalize(glm::vec4(normalsBuffer ? glm::make_vec3(&normalsBuffer[v * 3]) : glm::vec3(0.0f), .0f)),
-                .v = texCoordsBuffer ? texCoordsBuffer[v * 2 + 1] : 0.0f,
-                .color = glm::vec4(1.0f),
-                .tangent = tangentsBuffer ? glm::make_vec4(&tangentsBuffer[v * 4]) : glm::vec4(0.0f),
-            };
+            shaderio::Vertex vertex = {};
 
-            if (colorsBuffer) {
-                const tinygltf::Accessor& accessor =
-                    model.accessors[primitive.attributes.at("COLOR_0")];
+            if (primitive.attributes.contains("POSITION")) {
+                const auto& accessor = model.accessors.at(primitive.attributes.at("POSITION"));
+                vertex.position = getAccessorValue(model, accessor, v);
+            }
 
-                if (accessor.type == TINYGLTF_TYPE_VEC3) {
-                    vertex.color = glm::vec4(
-                        colorsBuffer[v * 3 + 0],
-                        colorsBuffer[v * 3 + 1],
-                        colorsBuffer[v * 3 + 2],
-                        1.0f
-                    );
-                } else if (accessor.type == TINYGLTF_TYPE_VEC4) {
-                    vertex.color = glm::vec4(
-                        colorsBuffer[v * 4 + 0],
-                        colorsBuffer[v * 4 + 1],
-                        colorsBuffer[v * 4 + 2],
-                        colorsBuffer[v * 4 + 3]
-                    );
-                } else {
-                    std::cout << "[ERROR] Unknown color attribute type" << std::endl;
-                }
+            if (primitive.attributes.contains("NORMAL")) {
+                const auto& accessor = model.accessors.at(primitive.attributes.at("NORMAL"));
+                vertex.normal = glm::normalize(getAccessorValue(model, accessor, v));
+            }
+
+            if (primitive.attributes.contains("TEXCOORD_0")) {
+                const auto& accessor = model.accessors.at(primitive.attributes.at("TEXCOORD_0"));
+                glm::vec4 uv = getAccessorValue(model, accessor, v);
+                vertex.u = uv.x;
+                vertex.v = uv.y;
+            }
+
+            if (primitive.attributes.contains("COLOR_0")) {
+                const auto& accessor = model.accessors.at(primitive.attributes.at("COLOR_0"));
+                vertex.color = getAccessorValue(model, accessor, v);
+            } else {
+                vertex.color = glm::vec4(1.0f);
+            }
+
+            if (primitive.attributes.contains("TANGENT")) {
+                const auto& accessor = model.accessors.at(primitive.attributes.at("TANGENT"));
+                vertex.tangent = getAccessorValue(model, accessor, v);
+
+            } else {
+                hasMissingTangents = true;
             }
 
             vertices.push_back(vertex);
@@ -676,6 +677,10 @@ void GltfSceneVk::createVertexIndexBuffers(const app::GltfScene &scene) {
         renderPrimitives.push_back(prim);
     }
 
+    if (hasMissingTangents) {
+        std::cout << "[WARNING] MISSING TANGENTS" << std::endl;
+    }
+
     vk::BufferCreateInfo bufferInfo = {
         .size = std::span(renderPrimitives).size_bytes(),
         .usage = vk::BufferUsageFlagBits::eVertexBuffer
@@ -720,6 +725,7 @@ void GltfSceneVk::uploadRenderNodes(const app::GltfScene &scene, const std::unor
     if (dirtyNodes.empty()) {
         // if no specified dirty nodes, upload all nodes
         std::vector<shaderio::GltfRenderNode> gltfRenderNodes;
+        gltfRenderNodes.reserve(renderNodes.size());
         for (const auto& renderNode : renderNodes) {
             gltfRenderNodes.emplace_back(renderNode.worldMatrix,
                              glm::inverse(renderNode.worldMatrix),
@@ -729,7 +735,7 @@ void GltfSceneVk::uploadRenderNodes(const app::GltfScene &scene, const std::unor
         memcpy(m_bRenderNodes[frameNum].pMapping, gltfRenderNodes.data(), std::span(gltfRenderNodes).size_bytes());
     } else {
         for (int nodeID : dirtyNodes) {
-            std::cout << "updating render node\n";
+            //std::cout << "updating render node\n";
             shaderio::GltfRenderNode gltfRenderNode = {
                 .objectToWorld = renderNodes[nodeID].worldMatrix,
                 .worldToObject = glm::inverse(renderNodes[nodeID].worldMatrix),
@@ -749,7 +755,7 @@ void GltfSceneVk::uploadRenderLights(const app::GltfScene &scene, const std::uno
         std::cout << "[INFO] Scene contains no render lights" << std::endl;
         return;
     }
-
+    std::cout << "[INFO] Updating render lights" << std::endl;
     std::vector<shaderio::GltfLight> gltfLights = createGltfLights(renderLights, scene.getModel().lights);
 
     if (m_bRenderLights[frameNum].buffer == VK_NULL_HANDLE) {
@@ -769,12 +775,14 @@ void GltfSceneVk::uploadRenderLights(const app::GltfScene &scene, const std::uno
     }
 
     if (dirtyLights.empty()) {
+        std::cout << "[INFO] dirty lights empty" << std::endl;
         // if no specified dirty nodes, upload all nodes
         memcpy(m_bRenderLights[frameNum].pMapping, gltfLights.data(), std::span(gltfLights).size_bytes());
     } else {
         for (int lightID : dirtyLights) {
-
             const size_t offset = static_cast<size_t>(lightID) * sizeof(shaderio::GltfLight);
+
+            //std::cout << scene.getModel().lights[lightID].type << std::endl;
 
             memcpy(m_bRenderLights[frameNum].pMapping + offset, &gltfLights[lightID], sizeof(shaderio::GltfLight));
         }

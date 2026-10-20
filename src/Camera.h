@@ -15,9 +15,10 @@ public:
     glm::vec3   position;
     float       pitch{0.f};
     float       yaw{0.f};
-    float       speed{5.0f};
+    float       speed{2.5f};
+    float       fov{45.0f};
 
-    double sensitivity{0.001f};
+    float sensitivity{0.001f};
 
     bool    dragging{false};
     double  lastX{0.f};

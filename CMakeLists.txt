@@ -31,6 +31,48 @@ FetchContent_Declare(
 )
 FetchContent_MakeAvailable(glm)
 
+# ImGui
+FetchContent_Declare(
+        imgui
+        GIT_REPOSITORY https://github.com/ocornut/imgui.git
+        GIT_TAG v1.93.0-docking
+        GIT_SHALLOW TRUE
+)
+
+FetchContent_MakeAvailable(imgui)
+
+# NFD
+FetchContent_Declare(
+        nfd
+        GIT_REPOSITORY https://github.com/btzy/nativefiledialog-extended.git
+        GIT_TAG        v1.4.1
+)
+
+FetchContent_MakeAvailable(nfd)
+
+add_library(imgui_lib STATIC
+        ${imgui_SOURCE_DIR}/imgui.cpp
+        ${imgui_SOURCE_DIR}/imgui_draw.cpp
+        ${imgui_SOURCE_DIR}/imgui_tables.cpp
+        ${imgui_SOURCE_DIR}/imgui_widgets.cpp
+
+        # GLFW platform backend
+        ${imgui_SOURCE_DIR}/backends/imgui_impl_glfw.cpp
+
+        # Vulkan renderer backend
+        ${imgui_SOURCE_DIR}/backends/imgui_impl_vulkan.cpp
+)
+
+target_include_directories(imgui_lib PUBLIC
+        ${imgui_SOURCE_DIR}
+        ${imgui_SOURCE_DIR}/backends
+)
+
+target_link_libraries(imgui_lib PUBLIC
+        Vulkan::Vulkan
+        glfw
+)
+
 add_executable(${PROJECT_NAME}
         src/TinygltfImpl.cpp
         src/vulk/Core.cpp
@@ -152,6 +194,19 @@ add_slang_shader(
         spirv_1_4
 )
 
+add_slang_shader(
+        ${PROJECT_NAME}_tonemap_shaders
+
+        "${CMAKE_CURRENT_SOURCE_DIR}/src/shaders/tonemap.slang"
+
+        ENTRIES
+        -entry vertMain
+        -entry fragMain
+
+        PROFILE
+        spirv_1_4
+)
+
 target_include_directories(${PROJECT_NAME} PRIVATE "./vendor")
 
 add_custom_command(TARGET ${PROJECT_NAME} POST_BUILD
@@ -160,7 +215,7 @@ add_custom_command(TARGET ${PROJECT_NAME} POST_BUILD
         ${CMAKE_CURRENT_BINARY_DIR}/assets
 )
 
-add_dependencies(${PROJECT_NAME} ${PROJECT_NAME}_rt_shaders ${PROJECT_NAME}_raster_shaders)
+add_dependencies(${PROJECT_NAME} ${PROJECT_NAME}_rt_shaders ${PROJECT_NAME}_raster_shaders ${PROJECT_NAME}_tonemap_shaders)
 
 # Libraries
-target_link_libraries(${PROJECT_NAME} PRIVATE Vulkan::Vulkan glfw glm::glm)
+target_link_libraries(${PROJECT_NAME} PRIVATE Vulkan::Vulkan glfw glm::glm imgui_lib nfd)

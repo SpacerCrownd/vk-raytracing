@@ -20,15 +20,20 @@ public:
 	void deviceWaitIdle();
 	void recreateSwapchain();
 
-	vk::Format							  getDepthFormat() const { return m_pPhysDevice->m_depthFormat; }
-	vk::raii::Queue&					  getQueue() { return m_queue; }
-	const Swapchain&					  getSwapchain() const { return *m_pSwapchain; }
-	const Device&						  getDevice() const { return *m_pDevice; }
-	uint32_t							  getCurrentFrameIndex() const { return m_currentFrameIndex; }
-	uint32_t							  getCurrentImageIndex() const { return m_currentImageIndex; }
-	const ResourceAllocator&			  getResourceAllocator() const { return *m_pResourceAllocator; }
-	const Image&						  getDrawImage() const { return m_drawImage; }
-	const Image&						  getDepthImage() const { return m_depthImage; }
+	vk::Format					getDepthFormat() const { return m_pPhysDevice->m_depthFormat; }
+	vk::raii::Queue&			getQueue() { return m_queue; }
+	const Swapchain&			getSwapchain() const { return *m_pSwapchain; }
+	const Device&				getDevice() const { return *m_pDevice; }
+	GLFWwindow*					getWindow() const { return m_window.getWindow(); }
+	uint32_t					getCurrentFrameIndex() const { return m_currentFrameIndex; }
+	uint32_t					getCurrentImageIndex() const { return m_currentImageIndex; }
+	const ResourceAllocator&	getResourceAllocator() const { return *m_pResourceAllocator; }
+	const Image&				getDrawImage() const { return m_drawImage; }
+	const Image&				getDepthImage() const { return m_depthImage; }
+	const vk::Instance&			getInstance() const { return m_instance; }
+	uint32_t getInstanceVersion() const { return vk::makeApiVersion(0, m_instanceVersion.Major, m_instanceVersion.Minor, m_instanceVersion.Patch); }
+
+	void getFramebufferSize(int &width, int &height) const { return glfwGetWindowSize(m_window.getWindow(), &width, &height);}
 
 	vk::raii::CommandBuffer& beginCommandRecording();
 

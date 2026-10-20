@@ -139,8 +139,8 @@ void RtPipeline::createShaderBindingTable(const vk::RayTracingPipelineCreateInfo
     };
     m_sbtBuffer = m_allocator.createBufferWithAlignment(buffInfo, allocInfo, baseAlignment);
 
-    memcpy(m_sbtBuffer.pMapping + raygenOffset + raygenStride * 0, shaderHandles.data() + 0 * handleSize, handleSize);
-    raygenRegion.deviceAddress = m_sbtBuffer.address + raygenOffset;
+    memcpy(m_sbtBuffer.pMapping, shaderHandles.data(), handleSize);
+    raygenRegion.deviceAddress = m_sbtBuffer.address;
     raygenRegion.stride = raygenStride;
     raygenRegion.size = raygenSize;
 

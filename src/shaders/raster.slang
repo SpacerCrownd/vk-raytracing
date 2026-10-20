@@ -21,17 +21,6 @@ struct VertexOutput {
     float2 texCoords;
 };
 
-// ACES film tonemapper (Narkowicz)
-float3 tonemapACES(float3 x) {
-    float a = 2.51f;
-    float b = 0.03f;
-    float c = 2.43f;
-    float d = 0.59f;
-    float e = 0.14f;
-
-    return saturate((x * (a * x + b)) / (x * (c * x + d) + e));
-}
-
 float3 sampleNormalMap(
     Texture2D normalTexture,
     SamplerState normalSampler,
@@ -54,13 +43,16 @@ float3 sampleNormalMap(
     return normalize(mul(tangentNormal, TBN));
 }
 
-float3 fresnelSchlick(float HdotV, float3 F0) {
+float3 fresnelSchlick(float HdotV, float3 F0)
+{
     return F0 + (1.0f - F0) * pow(1.0f - HdotV, 5.0f);
 }
 
 // D
-float distributionGGX(float NdotH, float roughness) {
-    float a2 = roughness * roughness;
+float distributionGGX(float NdotH, float roughness)
+{
+    float a = roughness * roughness;
+    float a2 = a * a;
 
     float NdotH2 = NdotH * NdotH;
 
@@ -70,18 +62,19 @@ float distributionGGX(float NdotH, float roughness) {
     return a2 / max(denom, 1e-7f);
 }
 
-// Schlick G1
-float geometrySchlickGGX(float NdotX, float roughness) {
-    float r = roughness + 1.0f;
-    float k = (r * r) / 8.0f;
+// smith exact Geometry function
+float smithGeometryMasking(float NdotX, float roughness)
+{
+    float alpha = roughness * roughness;
+    float alpha2 = alpha * alpha;
 
-    return NdotX / (NdotX * (1.0f - k) + k);
+    return (2.0f * NdotX) / (NdotX + sqrt(alpha2 + (1.0f - alpha2) * NdotX * NdotX));
 }
 
 // Smith G with Schlick Approximation
 float geometrySmith(float NdotV, float NdotL, float roughness) {
-    float ggxV = geometrySchlickGGX(NdotV, roughness);
-    float ggxL = geometrySchlickGGX(NdotL, roughness);
+    float ggxV = smithGeometryMasking(NdotV, roughness);
+    float ggxL = smithGeometryMasking(NdotL, roughness);
 
     return ggxV * ggxL;
 }
@@ -94,11 +87,9 @@ float3 evaluateBRDF(float3 albedo, float metallic, float roughness, float3 N, fl
     float NdotH = saturate(dot(N, H));
     float HdotV = saturate(dot(H, V));
 
-    if (NdotL <= 0.0f || NdotV <= 0.0f)
+    if (NdotL == 0.0f || NdotV == 0.0f)
         return 0.0f;
 
-    // Dielectrics use ~4% reflectance at normal incidence.
-    // Metals use their base color as F0.
     float3 F0 = lerp(float3(0.04f), albedo, metallic);
 
     float3 F = fresnelSchlick(HdotV, F0);
@@ -137,7 +128,7 @@ VertexOutput vertMain(shaderio::Vertex input) {
 float4 fragMain(VertexOutput vertIn) : SV_Target {
     shaderio::GltfSceneInfo* scn = pushConst.sceneInfo;
     shaderio::GltfMaterial material = scn->gltfMaterials[pushConst.materialID];
-    float3 albedo = material.baseColor.xyz;
+    float4 baseColor = material.baseColor * vertIn.color;
     float metallic = saturate(material.metallic);
     float roughness = clamp(material.roughness, 0.04f, 1.0f);
     float opacity = 1.0f;
@@ -147,8 +138,8 @@ float4 fragMain(VertexOutput vertIn) : SV_Target {
         Texture2D texture = textures[NonUniformResourceIndex(texInfo.imageID)];
         SamplerState sampler = samplers[NonUniformResourceIndex(texInfo.samplerID)];
         float4 texel = texture.Sample(sampler, vertIn.texCoords);
-        opacity = texel.w;
-        albedo *= texel.xyz;
+        baseColor *= texel;
+        opacity = baseColor.a * texel.a;
     }
 
     if (material.metallicRoughnessTextureID >= 0) {
@@ -181,6 +172,12 @@ float4 fragMain(VertexOutput vertIn) : SV_Target {
     float3 V = normalize(pushConst.frameData->cameraPosition.xyz - vertIn.worldPos);
 
     float3 Lo = 0.0f;
+
+    if(pushConst.frameData->useLight == 1) {
+        float3 L = normalize(-pushConst.frameData->lightDir);
+        float3 Li = pushConst.frameData->lightColor.rgb * pushConst.frameData->lightColor.a;
+        Lo += evaluateBRDF(baseColor.rgb, metallic, roughness, N, V, L) * Li;
+    }
 
     for (int i = 0; i < scn->numLights; ++i) {
         shaderio::GltfLight light = scn->gltfLights[i];
@@ -225,11 +222,11 @@ float4 fragMain(VertexOutput vertIn) : SV_Target {
         // GGX
         float3 Li = light.color * light.intensity * attenuation;
         // Lo = Le + integral(f * Li * NdotL)
-        Lo += evaluateBRDF(albedo, metallic, roughness, N, V, L) * Li;
+        Lo += evaluateBRDF(baseColor.rgb, metallic, roughness, N, V, L) * Li;
+
     }
+
     //float3 ambient = albedo * float3(0.02f);
     float3 color = Lo;
-    float exposure = exp2(pushConst.frameData->exposureEV);
-
-    return float4(tonemapACES(exposure * color), opacity);
+    return float4(color, opacity);
 }

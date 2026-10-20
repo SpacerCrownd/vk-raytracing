@@ -14,9 +14,10 @@ public:
     vk::raii::SwapchainKHR&       GetSwapchain() { return m_swapchain; }
     const vk::raii::SwapchainKHR& GetSwapchain() const { return m_swapchain; }
     int                           GetSwapchainImageCount() const { return static_cast<int>(m_swapchainImages.size()); }
-    vk::Image                     GetSwapchainImage(int n) const { return m_swapchainImages[n]; };
-    vk::Format                    GetSwapchainFormat() const { return m_swapchainSurfaceFormat.format; }
-    vk::Extent2D                  GetExtent() const { return m_swapchainExtent; }
+    const vk::Image&              GetSwapchainImage(int n) const { return m_swapchainImages[n]; };
+    const vk::raii::ImageView&    GetSwapchainImageView(int n) const { return m_swapchainImageViews[n]; }
+    const vk::Format&             GetSwapchainFormat() const { return m_swapchainSurfaceFormat.format; }
+    const vk::Extent2D&           GetExtent() const { return m_swapchainExtent; }
 
     vk::Result AcquireNextImage(const vk::raii::Semaphore& renderSemaphore, uint32_t& imageIndex) const;
 

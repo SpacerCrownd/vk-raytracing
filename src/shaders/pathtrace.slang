@@ -35,50 +35,50 @@ float3 sampleNormalMap(
     normal.xy *= normalScale;
     normal.z = sqrt(saturate(1.0f - dot(normal.xy, normal.xy)));
 
-    float3 T = normalize(tangent.xyz);
-    float3 B = tangent.w * cross(N, T);
+    float3 T = normalize(tangent.xyz - N * dot(N, tangent.xyz));
+    float3 B = normalize(cross(N, T)) * tangent.w;
     float3x3 TBN = float3x3(T, B, N);
 
     return normalize(mul(normal, TBN));
 }
 
-float3 fresnelSchlick(float HdotV, float3 F0)
+float fresnelSchlick(float F0, float cosTheta)
 {
-    return F0 + (1.0f - F0) * pow(1.0f - HdotV, 5.0f);
+    return F0 + (1.0 - F0) * pow(1.0F - cosTheta, 5.0);
 }
 
-float fresnelSchlick(float HdotV, float F0)
+float3 fresnelSchlick(float3 F0, float cosTheta) 
 {
-    return F0 + (1.0f - F0) * pow(1.0f - HdotV, 5.0f);
+    return F0 + (1.0 - F0) * pow(1.0F - cosTheta, 5.0);
 }
 
-// D (NDF)
+// D (NDF) GGX/Trowbridge-Reitz Distribution
 float distributionGGX(float NdotH, float roughness)
 {
-    float a2 = roughness * roughness;
-
+    float a = roughness * roughness; // gltf roughness parameter needs to be squared
+    float a2 = a * a;
     float NdotH2 = NdotH * NdotH;
 
-    float denom = NdotH2 * (a2 - 1.0f) + 1.0f;
+    float denom = (NdotH2 * (a2 - 1.0) + 1.0);
     denom = PI * denom * denom;
 
-    return a2 / max(denom, 1e-7f);
+    return a2 / denom;
 }
 
-// G1
-float geometrySchlickGGX(float NdotX, float roughness)
+// smith exact Geometry function
+float smithGeometryMasking(float NdotX, float roughness)
 {
-    float r = roughness + 1.0f;
-    float k = (r * r) / 8.0f;
+    float alpha = roughness * roughness;
+    float alpha2 = alpha * alpha;
 
-    return NdotX / (NdotX * (1.0f - k) + k);
+    return (2.0f * NdotX) / (NdotX + sqrt(alpha2 + (1.0f - alpha2) * NdotX * NdotX));
 }
 
-// G2
+// Geometry function Smith's method with Schlick-GGX approximation
 float geometrySmith(float NdotV, float NdotL, float roughness)
 {
-    float ggxV = geometrySchlickGGX(NdotV, roughness);
-    float ggxL = geometrySchlickGGX(NdotL, roughness);
+    float ggxV = smithGeometryMasking(NdotV, roughness);
+    float ggxL = smithGeometryMasking(NdotL, roughness);
 
     return ggxV * ggxL;
 }
@@ -90,9 +90,14 @@ float geometrySmith(float NdotV, float NdotL, float roughness)
 // Output Ne: normal sampled with PDF D_Ve(Ne) = G1(Ve) * max(0, dot(Ve, Ne)) * D(Ne) / Ve.z
 float3 sampleVNDF(float3 V, float roughness, float2 xi)
 {
-    float3 Vh = normalize(float3(V.x * roughness, V.y * roughness, V.z));
+    if (V.z <= 0.0f)
+    {
+        return float3(0.0f, 0.0f, 1.0f); // Fallback to normal
+    }
+    float a = roughness * roughness;
+    float3 Vh = normalize(float3(V.x * a, V.y * a, V.z));
 
-    float3 T1 = (V.z < 0.99999f) ? normalize(cross(V, float3(0.0f, 0.0f, 1.0f))) : float3(1.0f, 0.0f, 0.0f);
+    float3 T1 = (Vh.z < 0.99999f) ? normalize(cross(Vh, float3(0.0f, 0.0f, 1.0f))) : float3(1.0f, 0.0f, 0.0f);
 
     float3 T2 = cross(T1, Vh);
 
@@ -110,42 +115,46 @@ float3 sampleVNDF(float3 V, float roughness, float2 xi)
     // reproject onto hemisphere
     float3 Nh = p1 * T1 + p2 * T2 + p3 * Vh;
 
-    float3 H = normalize(float3(Nh.x * roughness, Nh.y * roughness, max(0.0f, Nh.z)));
+    float3 H = normalize(float3(Nh.x * a, Nh.y * a, max(0.0f, Nh.z)));
 
     return H;
 }
 
-// returns pdf
-float evaluateBRDF(float3 albedo, float metallic, float roughness, float3 N, float3 V, float3 L, inout float3 brdfDiffuse, inout float3 brdfGlossy)
+// Returns the probability that bsdfSampleSimple samples a glossy lobe.
+float brdfGlossyProbability(float NdotV, float metallic)
 {
-    // GGX BRDF Evaluation
+    // mix dielectric fresnel and metal fresnel by metallic factor as probability
+    return lerp(fresnelSchlick(0.04F, NdotV), 1.0F, metallic);
+}
+
+void evaluateBRDF(float3 albedo, float metallic, float roughness, float3 N, float3 V, float3 L, inout float3 brdfDiffuse, inout float3 brdfGlossy, inout float pdf)
+{
     float3 H = normalize(L + V);
     float NdotV = saturate(dot(N, V));
     float NdotL = saturate(dot(N, L));
     float NdotH = saturate(dot(N, H));
-    float VdotH = saturate(dot(V, H));
+    float HdotV = saturate(dot(V, H));
 
-    if(NdotV == 0.0f || NdotL == 0.0f || VdotH == 0.0f || NdotH == 0.0f)
+    if(NdotV == 0.0f || NdotL == 0.0f || HdotV == 0.0f || NdotH == 0.0f)
     {
-        return 0.0f;
+        brdfDiffuse = brdfGlossy = 0;
+        pdf = 0;
+        return;
     }
 
-    float3 F0 = lerp(float3(0.04f), albedo, metallic); // how reflective it is at normal incidence
-    float3 fGlossy = fresnelSchlick(VdotH, F0);
-    float fDielectric = fresnelSchlick(VdotH, 0.04f);
-    float fDiffuse = (1 - fDielectric) * (1 - metallic); // at grazing angle decrease diffuse brdf (complementary to glossy Fresnel) -> VdotH closer to 0 -> f closer to 1
-
     float D = distributionGGX(NdotH, roughness);
-    float G1V = geometrySchlickGGX(NdotV, roughness);
-    float G1L = geometrySchlickGGX(NdotL, roughness);
+    float G = geometrySmith(NdotV, NdotL, roughness);
+    float3 F0 = lerp(float3(0.04f), albedo, metallic); // how reflective it is at normal incidence
+    float3 fGlossy = fresnelSchlick(F0, HdotV);
+    float3 fDiffuse = (float3(1.0) - fGlossy) * (1.0 - metallic); // energy conservation, diffuse is the rest of the energy
 
-    float diffusePdf  = (1 / PI) * NdotL;
-    float specularPdf = (G1V * D) / max(4 * NdotV, 0);
+    float G1V = smithGeometryMasking(NdotV, roughness);
 
-    brdfDiffuse = albedo * fDiffuse * diffusePdf; // premultiply by NdotL
-    brdfGlossy = (G1L * fGlossy) * specularPdf; // premultiply by NdotL
-
-    return lerp(diffusePdf, specularPdf, lerp(fresnelSchlick( NdotV, 0.04F), 1.0F, metallic));
+    brdfGlossy = (D * G * fGlossy) / (4 * NdotV); // premul by NdotL
+    brdfDiffuse = (albedo * fDiffuse / PI) * NdotL; // premul by NdotL
+    float pdfGlossy = (G1V * D) / (4 * NdotV);
+    float pdfDiffuse = (NdotL/PI);
+    pdf = lerp(pdfDiffuse, pdfGlossy, brdfGlossyProbability(NdotV, metallic));
 }
 
 struct HitPayload
@@ -156,8 +165,7 @@ struct HitPayload
     float  hitT;
 
     uint   seed;
-    float3 throughput = float3(1.0f);
-    bool   nextEventValid = true;
+    float3 throughput;
 };
 
 [shader("raygeneration")]
@@ -165,29 +173,28 @@ void raygenMain()
 {
     bool isFirstFrame = pushConst.totalSamples == 0;
 
-    float2 launchID = (float2)DispatchRaysIndex().xy;        // Current pixel (x,y)
-    float2 launchSize = (float2)DispatchRaysDimensions().xy; // Image size (width,height)
+    float2 pixelPos = (float2)DispatchRaysIndex().xy;        // Current pixel (x,y)
+    float2 imageSize = (float2)DispatchRaysDimensions().xy;
 
     // if I have enough samples skip to keep framerate for ui navigation
-    if(pushConst.totalSamples >= pushConst.maxSamples) {
+    if(pushConst.maxSamples > 0 && pushConst.totalSamples >= pushConst.maxSamples) {
         return;
     }
 
-    uint rng = uint(uint(launchID.x) * uint(1973) + uint(launchID.y) * uint(9277) + uint(pushConst.totalSamples) * uint(26699)) | uint(1);
+    uint rng = uint(uint(pixelPos.x) * uint(1973) + uint(pixelPos.y) * uint(9277) + uint(pushConst.totalSamples) * uint(26699)) | uint(1);
+
+    HitPayload payload = {};
+    payload.seed = rng;
 
     float3 color = float3(0.0f);
-
-    // samples
     for (uint i = 0; i < pushConst.numSamples; i++)
     {
-        HitPayload payload = {};
-        payload.seed = rng;
         payload.throughput = float3(1.0f);
-        payload.nextEventValid = true;
+        payload.doScatter = true;
 
         // Convert pixel coordinates
         float2 jitter = float2(randomFloat01(rng), randomFloat01(rng)); // for antialiasing
-        float2 clipCoords = (launchID + jitter) / launchSize * 2.0 - 1.0;
+        float2 clipCoords = (pixelPos + jitter) / imageSize * 2.0 - 1.0;
         float4 viewCoords = mul(pushConst.frameData->projInvMatrix, float4(clipCoords, 1.0, 1.0)); // Transform from NDC to view space using inverse projection matrix
 
         RayDesc ray;
@@ -200,7 +207,7 @@ void raygenMain()
         for (uint j = 0; j <= pushConst.maxDepth; j++)
         {
             // Parameters: AS, flags, instance mask, sbt offset, sbt stride, miss offset, ray, payload
-            TraceRay(tlas, 0, 0xFF, 0, 0, 0, ray, payload);
+            TraceRay(tlas, RAY_FLAG_CULL_BACK_FACING_TRIANGLES, 0xFF, 0, 0, 0, ray, payload);
             sampleColor += payload.radiance;
 
             if (payload.hitT == INFINITY || !payload.doScatter)
@@ -234,23 +241,22 @@ void raygenMain()
     // uniform weighted temporal accumulation
     if (isFirstFrame)
     {
-        //outImage[int2(launchID)] = float4(1.0f, 0.0f, 1.0f, 1.0f);
-        outImage[int2(launchID)] = float4(color, 1.0f);
+        //outImage[int2(pixelPos)] = float4(1.0f, 0.0f, 1.0f, 1.0f);
+        outImage[int2(pixelPos)] = float4(color, 1.0f);
     }
     else
     {
         float newTotal = pushConst.totalSamples + pushConst.numSamples;
-        float4 oldColor = outImage[int2(launchID)];
+        float4 oldColor = outImage[int2(pixelPos)];
         color = (oldColor.rgb * pushConst.totalSamples + color * pushConst.numSamples) / newTotal;
 
-        outImage[int2(launchID)] = float4(color, 1.0f);
+        outImage[int2(pixelPos)] = float4(color, 1.0f);
     }
 }
 
 [shader("closesthit")]
 void closesthitMain(inout HitPayload payload, in BuiltInTriangleIntersectionAttributes attr)
 {
-    payload.nextEventValid = false;
     payload.doScatter = true;
 
     // hit data
@@ -271,27 +277,31 @@ void closesthitMain(inout HitPayload payload, in BuiltInTriangleIntersectionAttr
     float3 pos = getInterpolatedVertexPosition(primitive, indices, barycentrics);
     pos = mul(node.objectToWorld, float4(pos, 1.0f)).xyz;
 
-    float3 normal = getInterpolatedVertexNormal(primitive, indices, barycentrics);
-    normal = mul(transpose(node.worldToObject), float4(normal, .0f)).xyz;
+    float4 tangentOS = getInterpolatedVertexTangent(primitive, indices, barycentrics);
+    float4 tangent = float4(mul((float3x3)node.objectToWorld, tangentOS.xyz), tangentOS.w);
 
-    float4 tangent = getInterpolatedVertexTangent(primitive, indices, barycentrics);
-    tangent = mul(node.objectToWorld, tangent);
+    float3 normal = normalize(getInterpolatedVertexNormal(primitive, indices, barycentrics));
+    normal = normalize(mul(float3x3(transpose(node.worldToObject)), normal));
 
     float2 texCoords = getInterpolatedVertexTexCoords(primitive, indices, barycentrics);
 
     float4 baseColor = material.baseColor;
+
     baseColor *= getInterpolatedVertexColor(primitive, indices, barycentrics);
+
     if (material.baseColorTextureID >= 0)
     {
         shaderio::GltfTextureInfo texInfo = textureInfos[material.baseColorTextureID];
         Texture2D texture = textures[NonUniformResourceIndex(texInfo.imageID)];
         SamplerState sampler = samplers[NonUniformResourceIndex(texInfo.samplerID)];
-        baseColor *= texture.SampleLevel(sampler, texCoords, 0);
+        float4 texel = texture.SampleLevel(sampler, texCoords, 0);
+        baseColor *= texel;
     }
 
     float3 albedo = baseColor.rgb;
     float roughness = material.roughness;
     float metallic = material.metallic;
+
     if (material.metallicRoughnessTextureID >= 0)
     {
         shaderio::GltfTextureInfo texInfo = pushConst.sceneInfo->gltfTexturesInfos[material.metallicRoughnessTextureID];
@@ -305,99 +315,103 @@ void closesthitMain(inout HitPayload payload, in BuiltInTriangleIntersectionAttr
     roughness = clamp(roughness, 0.05f, 1.0f);
     metallic = saturate(metallic);
 
-    float3 N = normalize(normal);
+    float3 N = normal;
+    float3 V = -WorldRayDirection();
+    float3 Lo = float3(0.0f); // outgoing radiance (toward V)
+
     if (material.normalTextureID >= 0)
     {
         shaderio::GltfTextureInfo texInfo = textureInfos[material.normalTextureID];
         Texture2D texture = textures[NonUniformResourceIndex(texInfo.imageID)];
         SamplerState sampler = samplers[NonUniformResourceIndex(texInfo.samplerID)];
-
-        N = sampleNormalMap(
-            texture,
-            sampler,
-            texCoords,
-            N,
-            tangent,
-            material.normalTextureScale);
+        N = sampleNormalMap(texture, sampler, texCoords, N, tangent, material.normalTextureScale);
     }
-
-    float3 V = normalize(pushConst.frameData->cameraPosition.xyz - pos);
-    float3 Lo = float3(0.0f);
 
     // light contribution
-    int randomLight = int(randomFloat01(payload.seed) * sceneInfo.numLights);
-    shaderio::GltfLight light = sceneInfo.gltfLights[randomLight];
-    float lightSelectionPdf = max(1.0f / sceneInfo.numLights, 1e-10F);
+    int numLights = pushConst.frameData->useLight == 1 ? sceneInfo.numLights + 1 : sceneInfo.numLights;
+    int randomLight = int(randomFloat01(payload.seed) * (numLights - 1));
 
-    float3 L;
-    float attenuation = 1.0f;
-    float distance = INFINITY;
-    if (light.type == shaderio::LightType::eDirectional)
+    shaderio::GltfLight light;
+    if(numLights > 0)
     {
-        L = normalize(-light.direction);
-    }
-    else
-    {
-        // Point / spot light
-        float3 toLight = light.position - pos;
-
-        distance = length(toLight);
-
-        L = toLight / max(distance, 1e-6f);
-
-        attenuation = 1.0f / max(distance * distance, 1e-4f);
-
-        // cutoff if exceeds range
-        if (light.range > 0.0f)
+        if(randomLight < sceneInfo.numLights)
         {
-            float rangeFactor = saturate(1.0f - distance / light.range);
-
-            attenuation *= rangeFactor * rangeFactor;
+            // gltf scene light selected
+            light = sceneInfo.gltfLights[randomLight];
         }
-    }
-
-    // Spotlight cone
-    if (light.type == shaderio::LightType::eSpot)
-    {
-        float3 lightToSurface = normalize(pos - light.position);
-
-        float cosTheta = dot(normalize(light.direction), lightToSurface);
-
-        float cosInner = cos(light.innerAngle);
-        float cosOuter = cos(light.outerAngle);
-
-        float spotFactor = saturate((cosTheta - cosOuter) / max(cosInner - cosOuter, 1e-5f));
-
-        attenuation *= spotFactor;
-    }
-
-    payload.nextEventValid = dot(L, N) > 0.0f && attenuation > 0.0f;
-
-    if(payload.nextEventValid)
-    {
-        // trace shadow ray to check visibility
-        RayDesc shadowRay;
-        shadowRay.Origin = pos;
-        shadowRay.Direction = L;
-        shadowRay.TMin = 0.0f;
-        shadowRay.TMax = distance;
-
-        ShadowPayload shadowPayload;
-        shadowPayload.seed = payload.seed;
-
-        TraceRay(tlas, 0, 0xFF, 1, 0, 1, shadowRay, shadowPayload);
-
-        if(!shadowPayload.blocked)
+        else
         {
-            float3 Li = light.color * light.intensity * attenuation;
+            // global directional light selected
+            light.color = pushConst.frameData->lightColor.rgb;
+            light.intensity = pushConst.frameData->lightColor.a;
+            light.direction = pushConst.frameData->lightDir;
+            light.type = shaderio::LightType::eDirectional;
+        }
 
-            float3 brdfGlossy;
-            float3 brdfDiffuse;
+        float lightSelectionPdf = max(1.0f / numLights, 1e-10F);
 
-            float pdf = evaluateBRDF(albedo, metallic, roughness, N, V, L, brdfDiffuse, brdfGlossy);
-            if(pdf > 0.0f)
+        float3 L;
+        float attenuation = 1.0f;
+        float distance = INFINITY;
+        if (light.type == shaderio::LightType::eDirectional)
+        {
+            L = normalize(-light.direction);
+        }
+        else
+        {
+            // Point / spot light
+            float3 toLight = light.position - pos;
+            distance = sqrt(dot(toLight, toLight));
+            L = toLight / distance;
+
+            if (light.range > 0.0)
             {
-                Lo += (brdfGlossy + brdfDiffuse) * Li * payload.throughput / lightSelectionPdf;
+                float distanceOverRange = distance / light.range;
+                attenuation = saturate(1.0f - (distanceOverRange * distanceOverRange) * (distanceOverRange * distanceOverRange));
+            }
+
+            attenuation /= distance * distance;
+        }
+
+        // Spotlight cone
+        if (light.type == shaderio::LightType::eSpot)
+        {
+            float3 lightToSurface = normalize(pos - light.position);
+
+            float cosTheta = dot(normalize(light.direction), lightToSurface);
+
+            float cosInner = cos(light.innerAngle);
+            float cosOuter = cos(light.outerAngle);
+
+            float spotFactor = saturate((cosTheta - cosOuter) / max(cosInner - cosOuter, 1e-5f));
+
+            attenuation *= spotFactor;
+        }
+        bool nextEventValid = saturate(dot(L, N)) > 0.0f && attenuation > 0.0f;
+        if(nextEventValid)
+        {
+            // trace shadow ray to check visibility
+            RayDesc shadowRay;
+            shadowRay.Origin = pos;
+            shadowRay.Direction = L;
+            shadowRay.TMin = 0.001;
+            shadowRay.TMax = distance;
+
+            ShadowPayload shadowPayload;
+            shadowPayload.seed = payload.seed;
+
+            TraceRay(tlas, RAY_FLAG_CULL_BACK_FACING_TRIANGLES, 0xFF, 1, 0, 1, shadowRay, shadowPayload);
+
+            if(true)
+            {
+                float3 Li = light.color * light.intensity * attenuation;
+
+                float3 brdfGlossy;
+                float3 brdfDiffuse;
+                float pdf;
+                evaluateBRDF(albedo, metallic, roughness, N, V, L, brdfDiffuse, brdfGlossy, pdf);
+
+                Lo += (brdfGlossy + brdfDiffuse) * (Li / lightSelectionPdf) * payload.throughput;
             }
         }
     }
@@ -406,61 +420,65 @@ void closesthitMain(inout HitPayload payload, in BuiltInTriangleIntersectionAttr
     // sample new direction
     float NdotV = saturate(dot(N, V));
     float rand = randomFloat01(payload.seed);
-    float glossyProb = lerp(fresnelSchlick( NdotV, 0.04F), 1.0F, metallic);
-    // depending on probability given by glossyness choose between vndf ggx sampling or cosine weighted sampling for diffuse
-    if(rand <= glossyProb)
-    {
-        // transform V into local coordinates
-        float r1 = randomFloat01(payload.seed);
-        float r2 = randomFloat01(payload.seed);
-        float3 T = normalize(tangent.xyz);
-        float3 B = normalize(cross(N, T) * tangent.w);
-        float3 localV = float3(dot(T, V), dot(B, V), NdotV); // transform view vector into tangent space
-        float3 H = sampleVNDF(localV, roughness, float2(r1, r2));
-        // transform back into world space
-        H = T * H.x + B * H.y + N * H.z;
+    float glossyProb = brdfGlossyProbability(NdotV, metallic);
 
-        if(dot(H, V) <= 0.0f)
+    // if visible
+    if(NdotV > 0) { // normal mapping creates artifacting (for possible solutions see https://dl.acm.org/doi/10.1145/3130800.3130806)
+        // depending on probability given by glossyness choose between vndf sampling or cosine weighted sampling for diffuse
+        if(rand <= glossyProb)
         {
-            payload.doScatter = false;
+            // transform to local space
+            float r1 = randomFloat01(payload.seed);
+            float r2 = randomFloat01(payload.seed);
+            float3 T = normalize(tangent.xyz - N * dot(N, tangent.xyz));
+            float3 B = normalize(cross(N, T)) * tangent.w;
+            float3 localV = float3(dot(T, V), dot(B, V), NdotV); // transform view vector into tangent space
+            float3 H = sampleVNDF(localV, roughness, float2(r1, r2));
+            // transform to world space
+            H = T * H.x + B * H.y + N * H.z;
+            payload.scatterDir = reflect(-V, H);
+        }
+        else
+        {
+            float3 T = normalize(tangent.xyz - N * dot(N, tangent.xyz));
+            float3 B = normalize(cross(N, T)) * tangent.w;
+            float3 localDir = cosineSampleHemisphere(randomFloat01(payload.seed), randomFloat01(payload.seed));
+            payload.scatterDir = T * localDir.x + B * localDir.y + N * localDir.z;
         }
 
-        payload.scatterDir = reflect(-V, H);
-    }
-    else
-    {
-        float3 T = normalize(tangent.xyz);
-        float3 B = normalize(cross(N, T) * tangent.w);
-        float3 localDir = cosineSampleHemisphere(randomFloat01(payload.seed), randomFloat01(payload.seed));
-        payload.scatterDir = T * localDir.x + B * localDir.y + N * localDir.z;
-    }
-
-    if(dot(payload.scatterDir, N) > 0.0f)
-    {
         float3 brdfGlossy;
         float3 brdfDiffuse;
-        float pdf = evaluateBRDF(albedo,metallic, roughness, N, V, payload.scatterDir, brdfGlossy, brdfDiffuse);
-        float3 brdfTotal = brdfDiffuse + brdfGlossy;
+        float pdf;
+        evaluateBRDF(albedo,metallic, roughness, N, V, payload.scatterDir, brdfGlossy, brdfDiffuse, pdf);
 
-        if(pdf <= 0.00001F || any(isnan(brdfTotal)))
+        float3 brdfTotal = brdfDiffuse + brdfGlossy;
+        if(any(isnan(brdfTotal)) || pdf <= 0.00001F)
         {
             payload.doScatter = false;
         }
         else
         {
-            payload.throughput *= brdfTotal / max(pdf, 1e-6f);
+            payload.throughput *= brdfTotal / pdf;
         }
     } else {
+        // absorbed
         payload.doScatter = false;
     }
 
     // update radiance
     payload.radiance = Lo;
     payload.hitT = hitT;
+
+    /*
+    payload.radiance = float3(saturate(N));
+    payload.doScatter = false;
+    return;
+    */
 }
 
 float getOpacity(shaderio::GltfRenderNode renderNode, shaderio::GltfRenderPrimitive renderPrim, int triangleID, float3 barycentrics)
 {
+    uint3 triangleIndex = renderPrim.indices[triangleID];
     uint matIndex  = renderNode.materialID;
     shaderio::GltfMaterial* materials = pushConst.sceneInfo->gltfMaterials;
     shaderio::GltfMaterial mat = materials[matIndex];
@@ -469,11 +487,10 @@ float getOpacity(shaderio::GltfRenderNode renderNode, shaderio::GltfRenderPrimit
     if(mat.alphaMode == shaderio::AlphaMode::eAlphaModeOpaque)
         return 1.0;
 
-    uint3 triangleIndex = renderPrim.indices[triangleID];
-
     float alpha = 1;
-
     alpha = mat.baseColor.a;
+    alpha *= getInterpolatedVertexColor(renderPrim, triangleIndex, barycentrics).a;
+
     if(mat.baseColorTextureID >= 0)
     {
         shaderio::GltfTextureInfo texInfo = texInfos[mat.baseColorTextureID];
@@ -481,8 +498,6 @@ float getOpacity(shaderio::GltfRenderNode renderNode, shaderio::GltfRenderPrimit
 
         alpha *= textures[texInfo.imageID].SampleLevel(samplers[texInfo.samplerID], uv, 0).a;
     }
-
-    alpha *= getInterpolatedVertexColor(renderPrim, triangleIndex, barycentrics).a;
 
     if(mat.alphaMode == shaderio::AlphaMode::eAlphaModeMask)
     {
@@ -506,8 +521,8 @@ void anyhitMain(inout HitPayload payload, in BuiltInTriangleIntersectionAttribut
 
     // stochastic opacity
     float opacity = getOpacity(renderNode, renderPrim, triangleID, barycentrics);
-    if(randomFloat01(payload.seed) >= opacity)
-    {
+    float r = randomFloat01(payload.seed);
+    if(r > opacity) {
         IgnoreHit();
     }
 }
@@ -515,15 +530,15 @@ void anyhitMain(inout HitPayload payload, in BuiltInTriangleIntersectionAttribut
 [shader("miss")]
 void missMain(inout HitPayload payload)
 {
-    // TODO: sample env cubemap
     payload.hitT = INFINITY;
-    payload.radiance = float3(0.5, 0.5, 0.5) * payload.throughput;
+    payload.radiance = pushConst.frameData.backgroundColor * payload.throughput;
+    //payload.radiance = float3(0);
 }
 
 struct ShadowPayload {
     uint seed;
     bool blocked = false;
-}
+};
 
 [shader("closesthit")]
 void closesthitShadow(inout ShadowPayload payload, in BuiltInTriangleIntersectionAttributes attr)
@@ -546,7 +561,7 @@ void anyhitShadow(inout ShadowPayload payload, in BuiltInTriangleIntersectionAtt
     float opacity = getOpacity(renderNode, renderPrim, primitiveID, barycentrics);
     float r = randomFloat01(payload.seed);
 
-    if (r < opacity)
+    if (r <= opacity)
     {
         AcceptHitAndEndSearch();
     }

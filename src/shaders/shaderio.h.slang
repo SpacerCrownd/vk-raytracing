@@ -18,15 +18,20 @@ struct FrameData {
     float4x4 viewInvMatrix;
     float3   cameraPosition;
     int      exposureEV;
+    float3   backgroundColor;
+    float    _padding;
+    float3   lightDir;
+    int      useLight;
+    float4   lightColor; // w is intensity
 };
 
 struct RtPushConstant {
     FrameData*      frameData;
     GltfSceneInfo*  sceneInfo;
-    int             maxDepth     = 5;
-    int             numSamples   = 2;
+    int             maxDepth     = 3;
+    int             numSamples   = 1;
     int             totalSamples = 0;
-    int             maxSamples = 100;
+    int             maxSamples = 0;
 };
 
 struct RasterPushConstant {

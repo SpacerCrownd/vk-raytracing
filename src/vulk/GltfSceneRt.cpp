@@ -32,8 +32,7 @@ void GltfSceneRt::createBLAS(Core &vkCore,
     for (uint32_t primID = 0; primID < renderPrimitives.size(); primID++) {
         auto& currBuildData = m_blasBuildData[primID];
         currBuildData.type = vk::AccelerationStructureTypeKHR::eBottomLevel;
-
-        AccelerationStructureGeometryInfo geoInfo = primitiveToGeometry(sceneVk, renderPrimitives[primID], primID, scene.getModel().materials[renderPrimitives[primID].pPrimitive->material].alphaMode == "OPAQUE");
+        AccelerationStructureGeometryInfo geoInfo = primitiveToGeometry(sceneVk, renderPrimitives[primID], primID);
         currBuildData.addGeometry(geoInfo);
         vk::AccelerationStructureBuildSizesInfoKHR sizeInfo = currBuildData.finalizeGeometry(device, flags);
 
@@ -94,9 +93,7 @@ void GltfSceneRt::createBLAS(Core &vkCore,
 }
 
 void GltfSceneRt::createTLAS(const vk::raii::CommandBuffer &cmd,
-                             const app::GltfScene &scene,
-                             const GltfSceneVk &sceneVk,
-                             vk::BuildAccelerationStructureFlagsKHR flags)
+                             const app::GltfScene &scene)
 {
     std::cout << "[INFO] Tlas building started" << std::endl;
 
@@ -111,6 +108,10 @@ void GltfSceneRt::createTLAS(const vk::raii::CommandBuffer &cmd,
 
         if (materials[renderNode.materialID].alphaMode == "OPAQUE") {
             instanceFlags |= VK_GEOMETRY_INSTANCE_FORCE_OPAQUE_BIT_KHR;
+        }
+
+        if (materials[renderNode.materialID].doubleSided) {
+            instanceFlags |= VK_GEOMETRY_INSTANCE_TRIANGLE_FACING_CULL_DISABLE_BIT_KHR;
         }
 
         vk::AccelerationStructureInstanceKHR instance = {
@@ -170,7 +171,7 @@ void GltfSceneRt::createTLAS(const vk::raii::CommandBuffer &cmd,
 }
 
 bool GltfSceneRt::syncTLAS(const vk::raii::CommandBuffer &cmd, app::GltfScene &scene) {
-    auto& df = scene.getDirtyFlags();
+    auto& df = scene.getDirtyFlags(); // tlas updates are synchronized, no need for per frame dirty indices
     const auto& dirtyNodes = df.renderNodesRtIDs;
 
     const auto& renderNodes = scene.getRenderNodes();
@@ -185,6 +186,10 @@ bool GltfSceneRt::syncTLAS(const vk::raii::CommandBuffer &cmd, app::GltfScene &s
 
         if (materials[renderNode.materialID].alphaMode == "OPAQUE") {
             instanceFlags |= VK_GEOMETRY_INSTANCE_FORCE_OPAQUE_BIT_KHR;
+        }
+
+        if (materials[renderNode.materialID].doubleSided) {
+            instanceFlags |= VK_GEOMETRY_INSTANCE_TRIANGLE_FACING_CULL_DISABLE_BIT_KHR;
         }
 
         vk::AccelerationStructureInstanceKHR instance = {
@@ -202,14 +207,14 @@ bool GltfSceneRt::syncTLAS(const vk::raii::CommandBuffer &cmd, app::GltfScene &s
     }
 
     df.renderNodesRtIDs.clear();
+
     m_tlasBuildData.cmdUpdateAccelerationStructure(cmd, m_tlas.accel, m_tlasScratchBuffer.address);
     return true;
 }
 
 AccelerationStructureGeometryInfo primitiveToGeometry(const GltfSceneVk &sceneVk,
                                                       const app::RenderPrimitive &submesh,
-                                                      uint32_t primID,
-                                                      bool isOpaque)
+                                                      uint32_t primID)
 {
     uint32_t numTriangles = submesh.indexCount / 3;
 
@@ -234,9 +239,6 @@ AccelerationStructureGeometryInfo primitiveToGeometry(const GltfSceneVk &sceneVk
         .geometry = geometryData,
         .flags = vk::GeometryFlagBitsKHR::eNoDuplicateAnyHitInvocation
     };
-
-    if (isOpaque)
-        geometryInfo.geometry.flags |= vk::GeometryFlagBitsKHR::eOpaque;
 
     geometryInfo.rangeInfo = {
         .primitiveCount = numTriangles
