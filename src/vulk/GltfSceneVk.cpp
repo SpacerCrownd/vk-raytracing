@@ -587,11 +587,7 @@ void GltfSceneVk::createVertexIndexBuffers(const app::GltfScene &scene) {
             if (primitive.attributes.contains("TANGENT")) {
                 const auto& accessor = model.accessors.at(primitive.attributes.at("TANGENT"));
                 vertex.tangent = getAccessorValue(model, accessor, v);
-
-            } else {
-                hasMissingTangents = true;
             }
-
             vertices.push_back(vertex);
         }
 
@@ -731,6 +727,9 @@ void GltfSceneVk::uploadRenderNodes(const app::GltfScene &scene, const std::unor
                              glm::inverse(renderNode.worldMatrix),
                              renderNode.renderPrimID,
                              renderNode.materialID);
+            //std::cout << scene.getModel().nodes[renderNode.refNodeID].name << std::endl;
+            //std::cout << renderNode.materialID << std::endl;
+            //std::cout << "Metallic Factor: " << scene.getModel().materials[renderNode.materialID].pbrMetallicRoughness.metallicFactor << std::endl;
         }
         memcpy(m_bRenderNodes[frameNum].pMapping, gltfRenderNodes.data(), std::span(gltfRenderNodes).size_bytes());
     } else {
@@ -755,7 +754,7 @@ void GltfSceneVk::uploadRenderLights(const app::GltfScene &scene, const std::uno
         std::cout << "[INFO] Scene contains no render lights" << std::endl;
         return;
     }
-    std::cout << "[INFO] Updating render lights" << std::endl;
+    //std::cout << "[INFO] Updating render lights" << std::endl;
     std::vector<shaderio::GltfLight> gltfLights = createGltfLights(renderLights, scene.getModel().lights);
 
     if (m_bRenderLights[frameNum].buffer == VK_NULL_HANDLE) {
@@ -775,7 +774,7 @@ void GltfSceneVk::uploadRenderLights(const app::GltfScene &scene, const std::uno
     }
 
     if (dirtyLights.empty()) {
-        std::cout << "[INFO] dirty lights empty" << std::endl;
+        //std::cout << "[INFO] dirty lights empty" << std::endl;
         // if no specified dirty nodes, upload all nodes
         memcpy(m_bRenderLights[frameNum].pMapping, gltfLights.data(), std::span(gltfLights).size_bytes());
     } else {

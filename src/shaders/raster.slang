@@ -96,14 +96,13 @@ float3 evaluateBRDF(float3 albedo, float metallic, float roughness, float3 N, fl
     float D = distributionGGX(NdotH, roughness);
     float G = geometrySmith(NdotV, NdotL, roughness);
 
-    float3 specular = (D * G * F) / (4.0f * NdotV * NdotL);
-
     float3 kS = F;
     float3 kD = (1.0f - kS) * (1.0f - metallic);
 
-    float3 diffuse = (kD * albedo) / PI;
+    float3 specular = (D * G * kS) / (4.0f * NdotV);
+    float3 diffuse = (kD * albedo * NdotL) / PI;
 
-    return (diffuse + specular) * NdotL;
+    return (diffuse + specular);
 }
 
 [shader("vertex")]

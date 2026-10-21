@@ -294,7 +294,7 @@ void GltfScene::setSceneElementsDefaultNames()
 void GltfScene::markLightDirty(int lightIndex) {
     if(lightIndex >= 0 && lightIndex < static_cast<int>(m_model.lights.size())) {
         for (int i = 0; i < MAX_FRAMES_IN_FLIGHT; i++) {
-            std::cout << "update light " << lightIndex << " for frame " << i << " queued" << std::endl;
+            //std::cout << "update light " << lightIndex << " for frame " << i << " queued" << std::endl;
             m_dirtyFlags.lightIDs[i].insert(lightIndex);
         }
     }

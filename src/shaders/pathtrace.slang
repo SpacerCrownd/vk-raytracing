@@ -257,8 +257,6 @@ void raygenMain()
 [shader("closesthit")]
 void closesthitMain(inout HitPayload payload, in BuiltInTriangleIntersectionAttributes attr)
 {
-    payload.doScatter = true;
-
     // hit data
     float3 barycentrics = float3(1 - attr.barycentrics.x - attr.barycentrics.y, attr.barycentrics.x, attr.barycentrics.y);
     float hitT = RayTCurrent();
@@ -327,9 +325,15 @@ void closesthitMain(inout HitPayload payload, in BuiltInTriangleIntersectionAttr
         N = sampleNormalMap(texture, sampler, texCoords, N, tangent, material.normalTextureScale);
     }
 
+    // check if has tangent
+    if (length(tangent) == 0) {
+        float3 up = (abs(N.z) < 0.999f) ? float3(0.0f, 0.0f, 1.0f) : float3(1.0f, 0.0f, 0.0f);
+        tangent = float4(normalize(cross(up, N)), 1.0f);
+    }
+
     // light contribution
     int numLights = pushConst.frameData->useLight == 1 ? sceneInfo.numLights + 1 : sceneInfo.numLights;
-    int randomLight = int(randomFloat01(payload.seed) * (numLights - 1));
+    int randomLight = int(randomFloat01(payload.seed) * numLights);
 
     shaderio::GltfLight light;
     if(numLights > 0)
@@ -387,6 +391,7 @@ void closesthitMain(inout HitPayload payload, in BuiltInTriangleIntersectionAttr
 
             attenuation *= spotFactor;
         }
+
         bool nextEventValid = saturate(dot(L, N)) > 0.0f && attenuation > 0.0f;
         if(nextEventValid)
         {
@@ -402,7 +407,7 @@ void closesthitMain(inout HitPayload payload, in BuiltInTriangleIntersectionAttr
 
             TraceRay(tlas, RAY_FLAG_CULL_BACK_FACING_TRIANGLES, 0xFF, 1, 0, 1, shadowRay, shadowPayload);
 
-            if(true)
+            if(!shadowPayload.blocked)
             {
                 float3 Li = light.color * light.intensity * attenuation;
 
@@ -452,6 +457,7 @@ void closesthitMain(inout HitPayload payload, in BuiltInTriangleIntersectionAttr
         evaluateBRDF(albedo,metallic, roughness, N, V, payload.scatterDir, brdfGlossy, brdfDiffuse, pdf);
 
         float3 brdfTotal = brdfDiffuse + brdfGlossy;
+
         if(any(isnan(brdfTotal)) || pdf <= 0.00001F)
         {
             payload.doScatter = false;

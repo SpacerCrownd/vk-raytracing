@@ -831,10 +831,10 @@ void Renderer::updateGUI() {
             }
 
             if (ImGui::CollapsingHeader("Raytracing Options", ImGuiTreeNodeFlags_DefaultOpen)) {
-                if (ImGui::SliderInt("Samples per Pixel (spp)", &samplesPerPixel, 1, 100)) {
+                if (ImGui::SliderInt("Samples per Pixel (spp)", &samplesPerPixel, 1, 50)) {
                     resetAccumulation();
                 }
-                if (ImGui::SliderInt("Max Ray Bounces", &bounces, 1, 100)) {
+                if (ImGui::SliderInt("Max Ray Bounces", &bounces, 0, 12)) {
                     resetAccumulation();
                 }
                 ImGui::SliderInt("Max Samples Accumulated", &maxSamples, 0, 3000);
