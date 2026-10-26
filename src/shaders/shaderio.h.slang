@@ -9,7 +9,13 @@ enum DescriptorBindingPoints {
     eOutImage,
     eTextures = 0,
     eSamplers,
-    eEnvCube,
+};
+
+enum OutputImage {
+    eResult = 0,
+    eAlbedo,
+    eNormal,
+    eAccumulation
 };
 
 struct FrameData {

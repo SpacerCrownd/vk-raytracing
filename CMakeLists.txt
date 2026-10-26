@@ -106,6 +106,8 @@ add_executable(${PROJECT_NAME}
         src/vulk/GltfSceneRt.h
         src/vulk/AccelerationStructure.cpp
         src/vulk/AccelerationStructure.h
+        src/vulk/OidnDenoiser.cpp
+        src/vulk/OidnDenoiser.h
 )
 
 # Shaders
@@ -218,4 +220,29 @@ add_custom_command(TARGET ${PROJECT_NAME} POST_BUILD
 add_dependencies(${PROJECT_NAME} ${PROJECT_NAME}_rt_shaders ${PROJECT_NAME}_raster_shaders ${PROJECT_NAME}_tonemap_shaders)
 
 # Libraries
-target_link_libraries(${PROJECT_NAME} PRIVATE Vulkan::Vulkan glfw glm::glm imgui_lib nfd)
+set(OIDN_ROOT "${CMAKE_CURRENT_SOURCE_DIR}/vendor/OpenImageDenoise")
+target_include_directories(${PROJECT_NAME} PRIVATE "${OIDN_ROOT}/include")
+target_link_directories(${PROJECT_NAME} PRIVATE "${OIDN_ROOT}/lib")
+
+target_link_libraries(${PROJECT_NAME} PRIVATE Vulkan::Vulkan glfw glm::glm imgui_lib nfd OpenImageDenoise)
+
+# Copy OIDN runtime DLLs beside the executable on Windows.
+if(WIN32)
+    file(GLOB OIDN_DLLS CONFIGURE_DEPENDS
+            "${OIDN_ROOT}/bin/*.dll"
+    )
+
+    if(NOT OIDN_DLLS)
+        message(WARNING
+                "No OIDN DLLs found in ${OIDN_ROOT}/bin"
+        )
+    else()
+        add_custom_command(TARGET ${PROJECT_NAME} POST_BUILD
+                COMMAND ${CMAKE_COMMAND} -E copy_if_different
+                ${OIDN_DLLS}
+                "$<TARGET_FILE_DIR:${PROJECT_NAME}>"
+                COMMAND_EXPAND_LISTS
+                COMMENT "Copying OIDN runtime DLLs"
+        )
+    endif()
+endif()

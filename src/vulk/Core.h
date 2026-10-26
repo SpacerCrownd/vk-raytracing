@@ -29,8 +29,11 @@ public:
 	uint32_t					getCurrentImageIndex() const { return m_currentImageIndex; }
 	const ResourceAllocator&	getResourceAllocator() const { return *m_pResourceAllocator; }
 	const Image&				getDrawImage() const { return m_drawImage; }
+	const Image&				getAccumulationImage() const { return m_accImage; }
+	const Image&				getAlbedoImage() const { return m_albedoImage; }
+	const Image&				getNormalImage() const { return m_normalImage; }
 	const Image&				getDepthImage() const { return m_depthImage; }
-	const vk::Instance&			getInstance() const { return m_instance; }
+	const vk::Instance&			getInstance() const { return *m_instance; }
 	uint32_t getInstanceVersion() const { return vk::makeApiVersion(0, m_instanceVersion.Major, m_instanceVersion.Minor, m_instanceVersion.Patch); }
 
 	void getFramebufferSize(int &width, int &height) const { return glfwGetWindowSize(m_window.getWindow(), &width, &height);}
@@ -59,6 +62,9 @@ private:
 	std::unique_ptr<Swapchain>         m_pSwapchain{};
 
 	Image m_drawImage{};
+	Image m_accImage{};
+	Image m_albedoImage{};
+	Image m_normalImage{};
 	Image m_depthImage{};
 
 	// graphics queue

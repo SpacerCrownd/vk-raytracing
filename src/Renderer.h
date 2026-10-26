@@ -8,6 +8,7 @@
 #include "vulk/SamplerPool.h"
 #include "vulk/RtPipeline.h"
 #include "vulk/GltfSceneRt.h"
+#include "vulk/OidnDenoiser.h"
 #include "shaders/shaderio.h.slang"
 #include "GltfScene.h"
 
@@ -26,6 +27,7 @@ public:
 
 	// config parameters
 	bool			enableDepth = true;
+	bool			enableDenoise = false;
 	PipelineType	currentPipeline = PipelineType::eRaytracing;
 
 	bool      enableDirLight = true;
@@ -51,6 +53,8 @@ private:
 	std::unique_ptr<ptvk::GraphicsPipeline> m_pOpaqueRasterPipeline{};
 	std::unique_ptr<ptvk::GraphicsPipeline> m_pPostprocessPipeline{};
 	std::unique_ptr<ptvk::RtPipeline>	    m_pRtPipeline{};
+
+	std::unique_ptr<ptvk::OidnDenoiser> m_pDenoiser{};
 
 	std::unique_ptr<ptvk::ImguiVulkan> m_pImgui{};
 

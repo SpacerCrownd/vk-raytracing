@@ -41,6 +41,7 @@ Renderer::Renderer(int width, int height, const char *pAppName) : m_window(width
     m_pSamplerPool = std::make_unique<ptvk::SamplerPool>(m_vkCore.getDevice().getVkDevice());
     m_pStaging = std::make_unique<ptvk::StagingUploader>(m_vkCore.getResourceAllocator());
     m_pImgui = std::make_unique<ptvk::ImguiVulkan>(m_vkCore);
+    m_pDenoiser = std::make_unique<ptvk::OidnDenoiser>(width, height, m_vkCore.getResourceAllocator());
 }
 
 Renderer::~Renderer() {
@@ -49,6 +50,7 @@ Renderer::~Renderer() {
 
 void Renderer::run() {
     createDescriptors();
+
     createFrameDataBuffers();
     loadShaders();
     createGraphicsPipeline();
@@ -94,7 +96,7 @@ void Renderer::draw() {
         return;
     }
 
-    auto &cmdBuffer = m_vkCore.beginCommandRecording();
+    auto *pCmd = &m_vkCore.beginCommandRecording();
 
     updateGUI();
 
@@ -113,7 +115,7 @@ void Renderer::draw() {
     auto swapchainExtent = m_vkCore.getSwapchain().GetExtent();
 
     // transition swapchain image to attachment
-    ptvk::utils::imageLayoutTransition(cmdBuffer,
+    ptvk::utils::imageLayoutTransition(*pCmd,
                                        swapchainImage,
                                        {},
                                        vk::PipelineStageFlagBits2::eColorAttachmentOutput,
@@ -124,10 +126,13 @@ void Renderer::draw() {
                                        subresourceRange);
 
     if (m_pSceneVk) {
-        prepareFrameData(cmdBuffer);
+        prepareFrameData(*pCmd);
 
         // get draw image
         auto &drawImage = m_vkCore.getDrawImage();
+        auto &accImage = m_vkCore.getAccumulationImage();
+        auto &albedoImage = m_vkCore.getAlbedoImage();
+        auto &normalImage = m_vkCore.getNormalImage();
         //////
         //  Main Draw Pass
         //////
@@ -135,7 +140,7 @@ void Renderer::draw() {
             if (currentPipeline == eRaster) {
                 // transition draw image for use depending on pipeline used + synchronize with fif for image reuse
                 ptvk::utils::imageLayoutTransition(
-                    cmdBuffer,
+                    *pCmd,
                     drawImage.image,
                     vk::PipelineStageFlagBits2::eFragmentShader,
                     vk::PipelineStageFlagBits2::eColorAttachmentOutput,
@@ -147,7 +152,7 @@ void Renderer::draw() {
 
                 // synchronize depth image usage
                 ptvk::utils::imageLayoutTransition(
-                    cmdBuffer,
+                    *pCmd,
                     m_vkCore.getDepthImage().image,
                     vk::PipelineStageFlagBits2::eEarlyFragmentTests | vk::PipelineStageFlagBits2::eLateFragmentTests,
                     vk::PipelineStageFlagBits2::eEarlyFragmentTests | vk::PipelineStageFlagBits2::eLateFragmentTests,
@@ -199,16 +204,16 @@ void Renderer::draw() {
                 };
 
                 // begin dynamic rendering
-                cmdBuffer.beginRendering(renderingInfo);
+                pCmd->beginRendering(renderingInfo);
 
                 // bind pipeline
-                m_pOpaqueRasterPipeline->bind(cmdBuffer);
+                m_pOpaqueRasterPipeline->bind(*pCmd);
 
-                cmdBuffer.setViewport(0, vk::Viewport(0.0f, 0.0f, static_cast<float>(swapchainExtent.width),
+                pCmd->setViewport(0, vk::Viewport(0.0f, 0.0f, static_cast<float>(swapchainExtent.width),
                                                       static_cast<float>(swapchainExtent.height), 0.0f, 1.0f));
-                cmdBuffer.setScissor(0, vk::Rect2D(vk::Offset2D(0, 0), swapchainExtent));
+                pCmd->setScissor(0, vk::Rect2D(vk::Offset2D(0, 0), swapchainExtent));
 
-                cmdBuffer.bindDescriptorSets(vk::PipelineBindPoint::eGraphics,
+                pCmd->bindDescriptorSets(vk::PipelineBindPoint::eGraphics,
                                              m_pOpaqueRasterPipeline->getLayout(),
                                              0,
                                              *m_textureDescriptorSet,
@@ -232,67 +237,145 @@ void Renderer::draw() {
                         .renderNodeID = nodeID,
                         .renderPrimID = rnode.renderPrimID
                     };
-                    cmdBuffer.pushConstants<NodeData>(m_pOpaqueRasterPipeline->getLayout(),
+                    pCmd->pushConstants<NodeData>(m_pOpaqueRasterPipeline->getLayout(),
                                                       vk::ShaderStageFlagBits::eAllGraphics, offset, pushConst);
 
-                    cmdBuffer.bindVertexBuffers(0, m_pSceneVk->getVertexBuffers()[rnode.renderPrimID].buffer, {0});
-                    cmdBuffer.bindIndexBuffer(m_pSceneVk->getIndexBuffers()[rnode.renderPrimID].buffer, 0,
+                    pCmd->bindVertexBuffers(0, m_pSceneVk->getVertexBuffers()[rnode.renderPrimID].buffer, {0});
+                    pCmd->bindIndexBuffer(m_pSceneVk->getIndexBuffers()[rnode.renderPrimID].buffer, 0,
                                               vk::IndexType::eUint32);
-                    cmdBuffer.drawIndexed(subMesh.indexCount, 1, 0, 0, 0);
+                    pCmd->drawIndexed(subMesh.indexCount, 1, 0, 0, 0);
                 }
 
-                cmdBuffer.endRendering();
-            } else if (currentPipeline == eRaytracing) {
-                ptvk::utils::imageLayoutTransition(
-                    cmdBuffer,
+                pCmd->endRendering();
+            }
+            else if (currentPipeline == eRaytracing) {
+                ptvk::utils::imageLayoutTransition( // last usage shader read from post processing
+                    *pCmd,
                     drawImage.image,
-                    vk::PipelineStageFlagBits2::eTransfer,
+                    vk::PipelineStageFlagBits2::eFragmentShader,
                     vk::PipelineStageFlagBits2::eRayTracingShaderKHR,
-                    vk::AccessFlagBits2::eTransferRead,
-                    vk::AccessFlagBits2::eShaderWrite | vk::AccessFlagBits2::eShaderRead,
+                    vk::AccessFlagBits2::eShaderRead,
+                    vk::AccessFlagBits2::eShaderWrite,
                     vk::ImageLayout::eShaderReadOnlyOptimal,
                     vk::ImageLayout::eGeneral,
                     subresourceRange);
 
-                m_pRtPipeline->bind(cmdBuffer);
+                m_pRtPipeline->bind(*pCmd);
                 // bind texture descriptor set
-                cmdBuffer.bindDescriptorSets(vk::PipelineBindPoint::eRayTracingKHR,
+                pCmd->bindDescriptorSets(vk::PipelineBindPoint::eRayTracingKHR,
                                              m_pRtPipeline->getLayout(),
                                              0,
                                              *m_textureDescriptorSet,
                                              nullptr);
 
-                pushRtDescriptors(cmdBuffer);
+                pushRtDescriptors(*pCmd);
 
                 const vk::Extent2D extent = m_vkCore.getSwapchain().GetExtent();
-                cmdBuffer.traceRaysKHR(m_pRtPipeline->raygenRegion, m_pRtPipeline->missRegion, m_pRtPipeline->hitRegion,
+                pCmd->traceRaysKHR(m_pRtPipeline->raygenRegion, m_pRtPipeline->missRegion, m_pRtPipeline->hitRegion,
                                        m_pRtPipeline->callableRegion, extent.width, extent.height, 1);
+
+                if (enableDenoise) {
+                    m_vkCore.submitSingleTimeCommandBuffer(*pCmd); // submit rendering commands early and wait for completion with a fence
+
+                    auto cmd = m_vkCore.beginSingleTimeCommandBuffer(); // single time cmd buffer for copy ops
+                    // transition denoise attachments to transfer src
+                    ptvk::utils::imageLayoutTransition(cmd,
+                                                       accImage.image,
+                                                       vk::PipelineStageFlagBits2::eRayTracingShaderKHR,
+                                                       vk::PipelineStageFlagBits2::eTransfer,
+                                                       vk::AccessFlagBits2::eShaderWrite,
+                                                       vk::AccessFlagBits2::eTransferRead,
+                                                       vk::ImageLayout::eGeneral,
+                                                       vk::ImageLayout::eTransferSrcOptimal,
+                                                       subresourceRange);
+
+                    ptvk::utils::imageLayoutTransition(cmd,
+                                                       albedoImage.image,
+                                                       vk::PipelineStageFlagBits2::eRayTracingShaderKHR,
+                                                       vk::PipelineStageFlagBits2::eTransfer,
+                                                       vk::AccessFlagBits2::eShaderWrite,
+                                                       vk::AccessFlagBits2::eTransferRead,
+                                                       vk::ImageLayout::eGeneral,
+                                                       vk::ImageLayout::eTransferSrcOptimal,
+                                                       subresourceRange);
+
+                    ptvk::utils::imageLayoutTransition(cmd,
+                                                       normalImage.image,
+                                                       vk::PipelineStageFlagBits2::eRayTracingShaderKHR,
+                                                       vk::PipelineStageFlagBits2::eTransfer,
+                                                       vk::AccessFlagBits2::eShaderWrite,
+                                                       vk::AccessFlagBits2::eTransferRead,
+                                                       vk::ImageLayout::eGeneral,
+                                                       vk::ImageLayout::eTransferSrcOptimal,
+                                                       subresourceRange);
+
+                    // copy output images to vulkan buffers
+                    m_pDenoiser->cmdCopyImageToBuffer(cmd, accImage, shaderio::OutputImage::eResult);
+                    m_pDenoiser->cmdCopyImageToBuffer(cmd, albedoImage, shaderio::OutputImage::eAlbedo);
+                    m_pDenoiser->cmdCopyImageToBuffer(cmd, normalImage, shaderio::OutputImage::eNormal);
+                    m_vkCore.submitSingleTimeCommandBuffer(cmd);
+                    m_pDenoiser->synchronousDenoise();
+
+                    // upload denoised image to draw image
+                    cmd = m_vkCore.beginSingleTimeCommandBuffer();
+                    m_pStaging->appendImage(drawImage, m_pDenoiser->output(), m_pDenoiser->outputSize(), vk::ImageLayout::eGeneral, vk::ImageLayout::eGeneral);
+                    m_pStaging->uploadAppendedCmd(cmd);
+                    ptvk::utils::imageLayoutTransition(cmd,
+                                                       accImage.image,
+                                                       vk::PipelineStageFlagBits2::eTransfer,
+                                                       vk::PipelineStageFlagBits2::eRayTracingShaderKHR,
+                                                       vk::AccessFlagBits2::eTransferRead,
+                                                       vk::AccessFlagBits2::eShaderWrite,
+                                                       vk::ImageLayout::eTransferSrcOptimal,
+                                                       vk::ImageLayout::eGeneral,
+                                                       subresourceRange);
+
+                    ptvk::utils::imageLayoutTransition(cmd,
+                                                       albedoImage.image,
+                                                       vk::PipelineStageFlagBits2::eTransfer,
+                                                       vk::PipelineStageFlagBits2::eRayTracingShaderKHR,
+                                                       vk::AccessFlagBits2::eTransferRead,
+                                                       vk::AccessFlagBits2::eShaderWrite,
+                                                       vk::ImageLayout::eTransferSrcOptimal,
+                                                       vk::ImageLayout::eGeneral,
+                                                       subresourceRange);
+
+                    ptvk::utils::imageLayoutTransition(cmd,
+                                                       normalImage.image,
+                                                       vk::PipelineStageFlagBits2::eTransfer,
+                                                       vk::PipelineStageFlagBits2::eRayTracingShaderKHR,
+                                                       vk::AccessFlagBits2::eTransferRead,
+                                                       vk::AccessFlagBits2::eShaderWrite,
+                                                       vk::ImageLayout::eTransferSrcOptimal,
+                                                       vk::ImageLayout::eGeneral,
+                                                       subresourceRange);
+
+                    m_vkCore.submitSingleTimeCommandBuffer(cmd);
+                    m_pStaging->releaseStaging();
+
+                    pCmd = &m_vkCore.beginCommandRecording(); // reset pool and start recording again
+                }
             }
         }
 
-        // --
+        /////
+        // Postprocessing pass
+        /////
         // postprocessing pass, draw image input -> swapchain image color attachment
-        // --
-
-        // transition draw image to shader read
-        ptvk::utils::imageLayoutTransition(cmdBuffer,
-                                           drawImage.image,
-                                           vk::PipelineStageFlagBits2::eRayTracingShaderKHR |
-                                           vk::PipelineStageFlagBits2::eColorAttachmentOutput,
-                                           vk::PipelineStageFlagBits2::eFragmentShader,
-                                           vk::AccessFlagBits2::eShaderWrite |
-                                           vk::AccessFlagBits2::eColorAttachmentWrite,
-                                           vk::AccessFlagBits2::eShaderRead,
-                                           currentPipeline == eRaster
-                                               ? vk::ImageLayout::eColorAttachmentOptimal
-                                               : vk::ImageLayout::eGeneral,
-                                           vk::ImageLayout::eShaderReadOnlyOptimal,
-                                           subresourceRange);
-
-        /////
-        // Begin postprocessing pass
-        /////
         {
+            // transition draw image to shader read
+            ptvk::utils::imageLayoutTransition(*pCmd,
+                                               drawImage.image,
+                                               vk::PipelineStageFlagBits2::eRayTracingShaderKHR |
+                                               vk::PipelineStageFlagBits2::eColorAttachmentOutput,
+                                               vk::PipelineStageFlagBits2::eFragmentShader,
+                                               vk::AccessFlagBits2::eShaderWrite |
+                                               vk::AccessFlagBits2::eColorAttachmentWrite,
+                                               vk::AccessFlagBits2::eShaderRead,
+                                               currentPipeline == eRaster ? vk::ImageLayout::eColorAttachmentOptimal : vk::ImageLayout::eGeneral,
+                                               vk::ImageLayout::eShaderReadOnlyOptimal,
+                                               subresourceRange);
+
             // prepare to start dynamic rendering
             vk::ClearValue clearColor = vk::ClearColorValue(.0f, .0f, .0f, 1.0f);
             vk::RenderingAttachmentInfo colorAttachmentInfo = {
@@ -316,16 +399,21 @@ void Renderer::draw() {
             };
 
             // begin dynamic rendering
-            cmdBuffer.beginRendering(renderingInfo);
+            pCmd->beginRendering(renderingInfo);
 
-            m_pPostprocessPipeline->bind(cmdBuffer);
-            cmdBuffer.setViewport(0, vk::Viewport(0.0f, 0.0f, static_cast<float>(swapchainExtent.width),
-                                                  static_cast<float>(swapchainExtent.height), 0.0f, 1.0f));
-            cmdBuffer.setScissor(0, vk::Rect2D(vk::Offset2D(0, 0), swapchainExtent));
-            pushPPDescriptors(cmdBuffer);
-            cmdBuffer.draw(3, 1, 0, 0);
+            pCmd->pushConstants<shaderio::RasterPushConstant>(
+                m_pPostprocessPipeline->getLayout(),
+                vk::ShaderStageFlagBits::eAllGraphics,
+                0,
+                m_rasterPushConstant);
 
-            cmdBuffer.endRendering();
+            m_pPostprocessPipeline->bind(*pCmd);
+            pCmd->setViewport(0, vk::Viewport(0.0f, 0.0f, static_cast<float>(swapchainExtent.width), static_cast<float>(swapchainExtent.height), 0.0f, 1.0f));
+            pCmd->setScissor(0, vk::Rect2D(vk::Offset2D(0, 0), swapchainExtent));
+            pushPPDescriptors(*pCmd);
+            pCmd->draw(3, 1, 0, 0);
+
+            pCmd->endRendering();
         }
     }
     // else only render UI
@@ -356,15 +444,15 @@ void Renderer::draw() {
             .pColorAttachments = &colorAttachmentInfo,
         };
 
-        cmdBuffer.beginRendering(renderingInfo);
+        pCmd->beginRendering(renderingInfo);
         ImGui_ImplVulkan_NewFrame();
-        ImGui_ImplVulkan_RenderDrawData(ImGui::GetDrawData(), *cmdBuffer);
-        cmdBuffer.endRendering();
+        ImGui_ImplVulkan_RenderDrawData(ImGui::GetDrawData(), *(*pCmd));
+        pCmd->endRendering();
     }
 
     // transition swapchain image for presentation
     ptvk::utils::imageLayoutTransition(
-        cmdBuffer,
+        *pCmd,
         swapchainImage,
         vk::ImageLayout::eColorAttachmentOptimal,
         vk::ImageLayout::ePresentSrcKHR);
@@ -375,6 +463,7 @@ void Renderer::draw() {
 
 void Renderer::onResize(int width, int height) {
     m_vkCore.resizeRequested = true;
+    m_pDenoiser = std::make_unique<ptvk::OidnDenoiser>(width, height, m_vkCore.getResourceAllocator());
 }
 
 bool Renderer::createScene(const std::filesystem::path &filename) {
@@ -572,7 +661,7 @@ void Renderer::createDescriptors() {
     m_rtDescriptorBindings[1] = vk::DescriptorSetLayoutBinding(
         shaderio::DescriptorBindingPoints::eOutImage,
         vk::DescriptorType::eStorageImage,
-        1,
+        4,
         vk::ShaderStageFlagBits::eAll);
 
     vk::DescriptorSetLayoutCreateInfo rtLayoutInfo = {
@@ -615,17 +704,31 @@ void Renderer::pushRtDescriptors(const vk::raii::CommandBuffer &cmd) {
     };
 
     // Output image
-    vk::DescriptorImageInfo outImageDescriptor{
-        .imageView = m_vkCore.getDrawImage().view,
-        .imageLayout = vk::ImageLayout::eGeneral
+    std::vector<vk::DescriptorImageInfo> outImages{
+        {
+            .imageView = m_vkCore.getDrawImage().view,
+            .imageLayout = vk::ImageLayout::eGeneral
+        },
+        {
+            .imageView = m_vkCore.getAlbedoImage().view,
+            .imageLayout = vk::ImageLayout::eGeneral
+        },
+        {
+            .imageView = m_vkCore.getNormalImage().view,
+            .imageLayout = vk::ImageLayout::eGeneral
+        },
+        {
+            .imageView = m_vkCore.getAccumulationImage().view,
+            .imageLayout = vk::ImageLayout::eGeneral
+        }
     };
 
     writes[1] = vk::WriteDescriptorSet{
         .dstBinding = shaderio::DescriptorBindingPoints::eOutImage,
         .dstArrayElement = 0,
-        .descriptorCount = 1,
+        .descriptorCount = 4,
         .descriptorType = vk::DescriptorType::eStorageImage,
-        .pImageInfo = &outImageDescriptor,
+        .pImageInfo = outImages.data(),
     };
 
     cmd.pushDescriptorSetKHR(vk::PipelineBindPoint::eRayTracingKHR, m_pRtPipeline->getLayout(), 1, writes);
@@ -773,12 +876,6 @@ void Renderer::prepareFrameData(const vk::raii::CommandBuffer &cmd) {
         );
     }
 
-    cmd.pushConstants<shaderio::RasterPushConstant>(
-        m_pPostprocessPipeline->getLayout(),
-        vk::ShaderStageFlagBits::eAllGraphics,
-        0,
-        m_rasterPushConstant);
-
     ptvk::utils::cmdMemoryBarrier(cmd,
                                   vk::PipelineStageFlagBits2::eTransfer,
                                   vk::PipelineStageFlagBits2::eRayTracingShaderKHR |
@@ -788,7 +885,6 @@ void Renderer::prepareFrameData(const vk::raii::CommandBuffer &cmd) {
 }
 
 void Renderer::updateGUI() {
-    ImGuiIO &io = ImGui::GetIO();
     ImGui_ImplVulkan_NewFrame();
     ImGui_ImplGlfw_NewFrame();
 
@@ -838,6 +934,7 @@ void Renderer::updateGUI() {
                     resetAccumulation();
                 }
                 ImGui::SliderInt("Max Samples Accumulated", &maxSamples, 0, 3000);
+                ImGui::Checkbox("Enable OIDN CPU Denoising", &enableDenoise);
             }
         }
         ImGui::End();

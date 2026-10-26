@@ -13,7 +13,7 @@ vk::raii::CommandBuffer beginSingleTimeCommands(const vk::raii::Device &device, 
 
     vk::raii::CommandBuffer cmd = std::move(vk::raii::CommandBuffers(device, allocInfo).front());
 
-    cmd.begin({ vk::StructureType::eCommandBufferBeginInfo, nullptr, vk::CommandBufferUsageFlagBits::eOneTimeSubmit });
+    cmd.begin({ vk::StructureType::eCommandBufferBeginInfo, nullptr, vk::CommandBufferUsageFlagBits::eOneTimeSubmit});
 
     return std::move(cmd);
 }

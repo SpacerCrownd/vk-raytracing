@@ -401,7 +401,7 @@ void Core::createSwapchain() {
 
 		vk::ImageCreateInfo imageInfo = {
 			.imageType = vk::ImageType::e2D,
-			.format = vk::Format::eR16G16B16A16Sfloat,
+			.format = vk::Format::eR32G32B32A32Sfloat,
 			.extent = imageExtent,
 			.mipLevels = 1,
 			.arrayLayers = 1,
@@ -426,6 +426,9 @@ void Core::createSwapchain() {
 		};
 
 		m_drawImage = m_pResourceAllocator->createImage(imageInfo, imageViewInfo, allocationInfo);
+		m_albedoImage = m_pResourceAllocator->createImage(imageInfo, imageViewInfo, allocationInfo);
+		m_normalImage = m_pResourceAllocator->createImage(imageInfo, imageViewInfo, allocationInfo);
+		m_accImage = m_pResourceAllocator->createImage(imageInfo, imageViewInfo, allocationInfo);
 
 		vk::ImageSubresourceRange subresourceRange = {
 			.aspectMask = vk::ImageAspectFlagBits::eColor,
@@ -443,6 +446,36 @@ void Core::createSwapchain() {
 		                             {},
 		                             vk::ImageLayout::eUndefined,
 		                             vk::ImageLayout::eShaderReadOnlyOptimal,
+		                             subresourceRange);
+
+		utils::imageLayoutTransition(cmd,
+		                             m_albedoImage.image,
+		                             vk::PipelineStageFlagBits2::eAllCommands,
+		                             vk::PipelineStageFlagBits2::eAllCommands,
+		                             {},
+		                             {},
+		                             vk::ImageLayout::eUndefined,
+		                             vk::ImageLayout::eGeneral,
+		                             subresourceRange);
+
+		utils::imageLayoutTransition(cmd,
+		                             m_normalImage.image,
+		                             vk::PipelineStageFlagBits2::eAllCommands,
+		                             vk::PipelineStageFlagBits2::eAllCommands,
+		                             {},
+		                             {},
+		                             vk::ImageLayout::eUndefined,
+		                             vk::ImageLayout::eGeneral,
+		                             subresourceRange);
+
+		utils::imageLayoutTransition(cmd,
+		                             m_accImage.image,
+		                             vk::PipelineStageFlagBits2::eAllCommands,
+		                             vk::PipelineStageFlagBits2::eAllCommands,
+		                             {},
+		                             {},
+		                             vk::ImageLayout::eUndefined,
+		                             vk::ImageLayout::eGeneral,
 		                             subresourceRange);
 	}
 

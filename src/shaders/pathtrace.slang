@@ -19,7 +19,7 @@ SamplerState samplers[];
 RaytracingAccelerationStructure tlas;
 
 [[vk::binding(shaderio::DescriptorBindingPoints::eOutImage, 1)]]
-RWTexture2D outImage;
+RWTexture2D outImages[];
 
 float3 sampleNormalMap(
     Texture2D normalTexture,
@@ -160,9 +160,12 @@ void evaluateBRDF(float3 albedo, float metallic, float roughness, float3 N, floa
 struct HitPayload
 {
     float3 radiance;
+    float3 albedo;
+    float3 normal;
     float3 scatterDir;
     bool   doScatter;
     float  hitT;
+
 
     uint   seed;
     float3 throughput;
@@ -186,7 +189,9 @@ void raygenMain()
     HitPayload payload = {};
     payload.seed = rng;
 
-    float3 color = float3(0.0f);
+    float3 color = float3(0);
+    float3 albedo = float3(0);
+    float3 normal = float3(0);
     for (uint i = 0; i < pushConst.numSamples; i++)
     {
         payload.throughput = float3(1.0f);
@@ -209,6 +214,12 @@ void raygenMain()
             // Parameters: AS, flags, instance mask, sbt offset, sbt stride, miss offset, ray, payload
             TraceRay(tlas, RAY_FLAG_CULL_BACK_FACING_TRIANGLES, 0xFF, 0, 0, 0, ray, payload);
             sampleColor += payload.radiance;
+
+            // if is first frame and 0th bounce
+            if(isFirstFrame && j == 0){
+                albedo = payload.albedo;
+                normal = payload.normal;
+            }
 
             if (payload.hitT == INFINITY || !payload.doScatter)
             {
@@ -242,15 +253,25 @@ void raygenMain()
     if (isFirstFrame)
     {
         //outImage[int2(pixelPos)] = float4(1.0f, 0.0f, 1.0f, 1.0f);
-        outImage[int2(pixelPos)] = float4(color, 1.0f);
+        outImages[int(shaderio::OutputImage::eResult)][int2(pixelPos)] = float4(color, 1.0f);
+        outImages[int(shaderio::OutputImage::eAccumulation)][int2(pixelPos)] = float4(color, 1.0f);
+        outImages[int(shaderio::OutputImage::eAlbedo)][int2(pixelPos)] = float4(albedo, 1.0f);
+        outImages[int(shaderio::OutputImage::eNormal)][int2(pixelPos)] = float4(normal, 1.0f);
     }
     else
     {
         float newTotal = pushConst.totalSamples + pushConst.numSamples;
-        float4 oldColor = outImage[int2(pixelPos)];
+        float4 oldColor = outImages[int(shaderio::OutputImage::eAccumulation)][int2(pixelPos)];
+        float4 oldAlbedo = outImages[int(shaderio::OutputImage::eAlbedo)][int2(pixelPos)];
+        float4 oldNormal = outImages[int(shaderio::OutputImage::eNormal)][int2(pixelPos)];
         color = (oldColor.rgb * pushConst.totalSamples + color * pushConst.numSamples) / newTotal;
+        float3 albedo = (oldAlbedo.rgb * pushConst.totalSamples + albedo * pushConst.numSamples) / newTotal;
+        float3 normal = (oldNormal.rgb * pushConst.totalSamples + normal * pushConst.numSamples) / newTotal;
 
-        outImage[int2(pixelPos)] = float4(color, 1.0f);
+        outImages[int(shaderio::OutputImage::eResult)][int2(pixelPos)] = float4(color, 1.0f);
+        outImages[int(shaderio::OutputImage::eAccumulation)][int2(pixelPos)] = float4(color, 1.0f);
+        outImages[int(shaderio::OutputImage::eAlbedo)][int2(pixelPos)] = float4(albedo, 1.0f);
+        outImages[int(shaderio::OutputImage::eNormal)][int2(pixelPos)] = float4(normal, 1.0f);
     }
 }
 
@@ -324,6 +345,9 @@ void closesthitMain(inout HitPayload payload, in BuiltInTriangleIntersectionAttr
         SamplerState sampler = samplers[NonUniformResourceIndex(texInfo.samplerID)];
         N = sampleNormalMap(texture, sampler, texCoords, N, tangent, material.normalTextureScale);
     }
+
+    payload.albedo = albedo;
+    payload.normal = N;
 
     // check if has tangent
     if (length(tangent) == 0) {
@@ -474,7 +498,6 @@ void closesthitMain(inout HitPayload payload, in BuiltInTriangleIntersectionAttr
     // update radiance
     payload.radiance = Lo;
     payload.hitT = hitT;
-
     /*
     payload.radiance = float3(saturate(N));
     payload.doScatter = false;
