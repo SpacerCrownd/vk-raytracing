@@ -8,6 +8,7 @@
 namespace ptvk {
 OidnDenoiser::OidnDenoiser(uint32_t width, uint32_t height, const ResourceAllocator& allocator) : m_width(width), m_height(height){
     m_device = oidn::newDevice(oidn::DeviceType::CPU);
+    m_device.set("setAffinity", true);
     m_device.commit();
     std::cout << "[OIDN] Device created" << std::endl;
     const size_t pixelCount = static_cast<size_t>(width) * height;
@@ -16,7 +17,7 @@ OidnDenoiser::OidnDenoiser(uint32_t width, uint32_t height, const ResourceAlloca
 
     m_filter = m_device.newFilter("RT");
     m_filter.set("hdr", true);
-    m_filter.set("cleanAux", true);
+    //m_filter.set("cleanAux", true);
     m_filter.set("quality", oidn::Quality::Fast);
     std::cout << "[OIDN] Filters created" << std::endl;
 
@@ -37,6 +38,11 @@ OidnDenoiser::OidnDenoiser(uint32_t width, uint32_t height, const ResourceAlloca
 
         m_imgBuffer = allocator.createBuffer(bufferInfo, allocInfo);
     }
+
+    m_filter.setImage("color", m_imgBuffers[shaderio::OutputImage::eResult].pMapping, oidn::Format::Float3, m_width, m_height, 0, 4 * sizeof(float), m_width * 4 * sizeof(float));
+    m_filter.setImage("albedo", m_imgBuffers[shaderio::OutputImage::eAlbedo].pMapping, oidn::Format::Float3, m_width, m_height, 0, 4 * sizeof(float), m_width * 4 * sizeof(float));
+    m_filter.setImage("normal", m_imgBuffers[shaderio::OutputImage::eNormal].pMapping, oidn::Format::Float3, m_width, m_height, 0, 4 * sizeof(float), m_width * 4 * sizeof(float));
+    m_filter.setImage("output", m_output.data(), oidn::Format::Float3, m_width, m_height, 0, 4 * sizeof(float), m_width * 4 * sizeof(float));
 }
 
 void OidnDenoiser::cmdCopyImageToBuffer(const vk::raii::CommandBuffer& cmd, const Image& img, shaderio::OutputImage outputImageType) {
@@ -66,14 +72,9 @@ void OidnDenoiser::cmdCopyImageToBuffer(const vk::raii::CommandBuffer& cmd, cons
 }
 
 void OidnDenoiser::synchronousDenoise() {
-    //using Clock = std::chrono::steady_clock;
+    using Clock = std::chrono::steady_clock;
 
     //auto t0 = Clock::now();
-    m_filter.setImage("color", m_imgBuffers[shaderio::OutputImage::eResult].pMapping, oidn::Format::Float3, m_width, m_height, 0, 4 * sizeof(float), m_width * 4 * sizeof(float));
-    m_filter.setImage("albedo", m_imgBuffers[shaderio::OutputImage::eAlbedo].pMapping, oidn::Format::Float3, m_width, m_height, 0, 4 * sizeof(float), m_width * 4 * sizeof(float));
-    m_filter.setImage("normal", m_imgBuffers[shaderio::OutputImage::eNormal].pMapping, oidn::Format::Float3, m_width, m_height, 0, 4 * sizeof(float), m_width * 4 * sizeof(float));
-    m_filter.setImage("output", m_output.data(), oidn::Format::Float3, m_width, m_height, 0, 4 * sizeof(float), m_width * 4 * sizeof(float));
-
     m_filter.commit();
     //auto t1 = Clock::now();
     m_filter.execute(); // synchronous

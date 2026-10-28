@@ -215,10 +215,10 @@ void raygenMain()
             TraceRay(tlas, RAY_FLAG_CULL_BACK_FACING_TRIANGLES, 0xFF, 0, 0, 0, ray, payload);
             sampleColor += payload.radiance;
 
-            // if is first frame and 0th bounce
-            if(isFirstFrame && j == 0){
-                albedo = payload.albedo;
-                normal = payload.normal;
+            if(j == 0) // only first hit
+            {
+                albedo += payload.albedo;
+                normal += payload.normal;
             }
 
             if (payload.hitT == INFINITY || !payload.doScatter)
@@ -241,6 +241,8 @@ void raygenMain()
         color += sampleColor;
     }
     color /= pushConst.numSamples;
+    albedo /= pushConst.numSamples;
+    normal /= pushConst.numSamples;
 
     // Removing fireflies
     float lum = dot(color.rgb, float3(1.0F / 3.0F));

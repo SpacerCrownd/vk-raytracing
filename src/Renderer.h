@@ -31,7 +31,7 @@ public:
 	PipelineType	currentPipeline = PipelineType::eRaytracing;
 
 	bool      enableDirLight = true;
-	glm::vec3 lightRotationEuler = glm::vec3(0, 0, 90);
+	glm::vec3 lightRotationEuler = glm::vec3(0, 0, 0);
 	glm::vec3 lightColor = glm::vec3(1.0f, 1.0f, 1.0f);
 	float     lightIntensity = 5.0f;
 

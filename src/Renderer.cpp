@@ -991,6 +991,7 @@ void Renderer::updateGUI() {
             if (m_pSceneVk && ImGui::CollapsingHeader("Scene")) {
                 auto &model = m_pScene->getModel();
                 if (ImGui::CollapsingHeader("Nodes")) {
+                    ImGui::PushID("Nodes");
                     for (int i = 0; i < model.nodes.size(); i++) {
                         auto& node = model.nodes[i];
                         glm::vec3 translation;
@@ -1060,11 +1061,12 @@ void Renderer::updateGUI() {
 
                         ImGui::Separator();
                         ImGui::PopID();
-
                     }
+                    ImGui::PopID();
                 }
 
                 if (ImGui::CollapsingHeader("Lights")) {
+                    ImGui::PushID("Lights");
                     for (int i = 0; i < model.lights.size(); i++) {
                         auto& light = model.lights[i];
                         ImGui::PushID(i);
@@ -1164,6 +1166,7 @@ void Renderer::updateGUI() {
                         ImGui::Separator();
                         ImGui::PopID();
                     }
+                    ImGui::PopID();
                 }
 
                 if (ImGui::CollapsingHeader("Sunlight")) {
@@ -1208,4 +1211,5 @@ void Renderer::updateGUI() {
 
     ImGui::Render();
 }
+
 }
