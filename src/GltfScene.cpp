@@ -219,9 +219,8 @@ bool GltfScene::updateNodeWorldMatrices() {
     // recursive update lambda
     std::function<void(int)> updateNodeTransformMat = [&](int nodeID) {
         // if parent is scene root use identity matrix
-        m_nodesWorldMatrices[nodeID] = m_nodeParents[nodeID] >= 0
-                                  ? m_nodesWorldMatrices[m_nodeParents[nodeID]]
-                                  : glm::mat4(1.0f) * m_nodesLocalMatrices[nodeID];
+        m_nodesWorldMatrices[nodeID] = m_nodesLocalMatrices[nodeID] *
+                                        (m_nodeParents[nodeID] >= 0 ? m_nodesWorldMatrices[m_nodeParents[nodeID]] : glm::mat4(1.0f));
 
         auto& node = m_model.nodes[nodeID];
 
@@ -301,7 +300,7 @@ void GltfScene::markLightDirty(int lightIndex) {
 }
 
 void GltfScene::markNodeDirty(int nodeIndex) {
-    if(nodeIndex >= 0 && nodeIndex <static_cast<int>(m_model.nodes.size())) {
+    if(nodeIndex >= 0 && nodeIndex < static_cast<int>(m_model.nodes.size())) {
         m_dirtyFlags.nodeIDs.insert(nodeIndex);
 
         const tinygltf::Node& node = m_model.nodes[nodeIndex];

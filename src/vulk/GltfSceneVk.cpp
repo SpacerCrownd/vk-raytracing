@@ -723,11 +723,12 @@ void GltfSceneVk::uploadRenderNodes(const app::GltfScene &scene, const std::unor
         std::vector<shaderio::GltfRenderNode> gltfRenderNodes;
         gltfRenderNodes.reserve(renderNodes.size());
         for (const auto& renderNode : renderNodes) {
+            //std::cout << "[INFO] Updating node " << renderNode.refNodeID << std::endl;
             gltfRenderNodes.emplace_back(renderNode.worldMatrix,
                              glm::inverse(renderNode.worldMatrix),
                              renderNode.renderPrimID,
                              renderNode.materialID);
-            //std::cout << scene.getModel().nodes[renderNode.refNodeID].name << std::endl;
+            std::cout << scene.getModel().nodes[renderNode.refNodeID].name << std::endl;
             //std::cout << renderNode.materialID << std::endl;
             //std::cout << "Metallic Factor: " << scene.getModel().materials[renderNode.materialID].pbrMetallicRoughness.metallicFactor << std::endl;
         }

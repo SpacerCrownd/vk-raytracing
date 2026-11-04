@@ -1,5 +1,5 @@
 # vk-raytracer
-A Vulkan-based Monte Carlo path tracer featuring glTF 2.0 scene loading and physically based rendering using the metallic-roughness workflow. 
+A Vulkan-based Monte Carlo path-tracer featuring glTF 2.0 scene loading and physically based rendering using the metallic-roughness workflow. 
 The renderer uses the GGX microfacet BRDF for specular lighting and Lambertian diffuse lighting, with Visible Normal Distribution Function (VNDF) sampling for specular reflections and cosine-weighted hemisphere sampling for diffuse reflections.
 Only delta-distribution light sources (punctual, directional and spotlight) are currently supported via Next Event Estimation.
 
@@ -34,4 +34,5 @@ https://docs.vulkan.org/tutorial/latest/00_Introduction.html
 https://github.com/nvpro-samples/vk_gltf_renderer
 https://github.com/RenderKit/oidn
 https://github.com/KhronosGroup/glTF/blob/main/extensions/2.0/Khronos/KHR_lights_punctual/README.md
-https://github.khronos.org/glTF-Tutorials/gltfTutorial/
+https://github.khronos.org/glTF-Tutorials/gltfTutorial/ \\
+[VNDF Sampling](https://jcgt.org/published/0007/04/01/paper.pdf)
