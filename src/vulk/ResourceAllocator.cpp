@@ -115,7 +115,6 @@ AccelerationStructure ResourceAllocator::createAccelerationStructure(vk::Acceler
      vk::BufferCreateInfo buffInfo = {
           .size = createInfo.size,
           .usage = vk::BufferUsageFlagBits::eAccelerationStructureStorageKHR | vk::BufferUsageFlagBits::eShaderDeviceAddress,
-
      };
 
      VmaAllocationCreateInfo allocInfo = {

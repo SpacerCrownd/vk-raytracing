@@ -19,8 +19,6 @@ public:
 	const PhysicalDevice&	getPhysicalDevice() const { return m_physicalDevice; }
 	PhysicalDevice&	getPhysicalDevice() { return m_physicalDevice; }
 
-	uint32_t getMemoryType(uint32_t typeBits, vk::MemoryPropertyFlags properties, vk::Bool32& memTypeFound) const;
-
 	struct {
 		uint32_t graphics;
 		uint32_t compute;
@@ -28,7 +26,7 @@ public:
 	} queueFamilyIndices{};
 
 private:
-	vk::raii::Device      m_device{VK_NULL_HANDLE};
+	vk::raii::Device m_device{VK_NULL_HANDLE};
 	PhysicalDevice& m_physicalDevice;
 
 	uint32_t getQueueFamilyIndex(vk::QueueFlags flags) const;

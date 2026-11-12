@@ -51,24 +51,7 @@ Device::Device(PhysicalDevice &device,
     }else {
         queueFamilyIndices.transfer = queueFamilyIndices.graphics;
     }
-
-    bool deviceSupportsDynamicRendering = m_physicalDevice.isExtensionSupported(vk::KHRDynamicRenderingExtensionName);
-    bool instance_is_1_3_or_more = (instanceVersion.Major >= 1) || (instanceVersion.Minor >= 3);
-    if (instance_is_1_3_or_more && deviceSupportsDynamicRendering) {
-        printf("[INFO] The Vulkan instance and device support dynamic rendering as a core feature\n");
-    }
-    else if (instanceVersion.Minor == 2) {
-        if (deviceSupportsDynamicRendering) {
-            devExtensions.push_back(vk::KHRDynamicRenderingExtensionName);
-        }
-        else {
-            throw std::runtime_error("The system doesn't support dynamic rendering");
-        }
-    }
-    else {
-        throw std::runtime_error("The system doesn't support dynamic rendering");
-    }
-
+    
     vk::DeviceCreateInfo deviceCreateInfo = {
         .pNext = &features,
         .queueCreateInfoCount = static_cast<uint32_t>(queueCreateInfos.size()),
@@ -80,31 +63,6 @@ Device::Device(PhysicalDevice &device,
     m_device = vk::raii::Device(m_physicalDevice.m_physDevice, deviceCreateInfo);
 
     printf("\n[INFO] Device created\n");
-}
-
-uint32_t Device::getMemoryType(uint32_t typeBits, vk::MemoryPropertyFlags properties, vk::Bool32& memTypeFound) const {
-    for (uint32_t i = 0; i < m_physicalDevice.m_memProperties.memoryTypeCount; i++)
-    {
-        if ((typeBits & 1) == 1)
-        {
-            if ((m_physicalDevice.m_memProperties.memoryTypes[i].propertyFlags & properties) == properties)
-            {
-                if (memTypeFound)
-                {
-                    memTypeFound = true;
-                }
-                return i;
-            }
-        }
-        typeBits >>= 1;
-    }
-
-    if (memTypeFound)
-    {
-        memTypeFound = false;
-        return 0;
-    }
-    throw std::runtime_error("Could not find a matching memory type");
 }
 
 uint32_t Device::getQueueFamilyIndex(vk::QueueFlags flags) const {

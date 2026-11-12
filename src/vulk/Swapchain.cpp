@@ -3,7 +3,7 @@
 
 namespace ptvk {
 static uint32_t ChooseNumImages(const vk::SurfaceCapabilitiesKHR& surfaceCaps) {
-    const uint32_t requestedNumImages = surfaceCaps.minImageCount + 1;
+    const uint32_t requestedNumImages = std::max(3u, surfaceCaps.minImageCount);
     uint32_t finalNumImages = 0;
 
     if (surfaceCaps.maxImageCount > 0 && requestedNumImages > surfaceCaps.maxImageCount) {
@@ -30,7 +30,7 @@ static vk::SurfaceFormatKHR ChooseSurfaceFormatAndColorSpace(const std::vector<v
     for (const auto surfaceFormat : surfaceFormats) {
         if (surfaceFormat.format == vk::Format::eB8G8R8A8Srgb
             && surfaceFormat.colorSpace == vk::ColorSpaceKHR::eSrgbNonlinear) {
-            return surfaceFormat;
+				return surfaceFormat;
             }
     }
 

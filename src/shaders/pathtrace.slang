@@ -166,7 +166,6 @@ struct HitPayload
     bool   doScatter;
     float  hitT;
 
-
     uint   seed;
     float3 throughput;
 };

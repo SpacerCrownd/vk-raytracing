@@ -119,7 +119,6 @@ void Core::createInstance(const char* appName) {
 	}
 
 	vk::InstanceCreateInfo createInfo{
-		.pNext = nullptr,
 		.pApplicationInfo = &appInfo,
 		.enabledLayerCount = static_cast<uint32_t>(requiredLayers.size()),
 		.ppEnabledLayerNames = requiredLayers.data(),
@@ -164,7 +163,7 @@ void Core::initResourceAllocator() {
 	};
 
 	VmaAllocatorCreateInfo allocatorCreateInfo = {
-		.flags = VMA_ALLOCATOR_CREATE_BUFFER_DEVICE_ADDRESS_BIT | VMA_ALLOCATOR_CREATE_EXT_MEMORY_BUDGET_BIT,
+		.flags = VMA_ALLOCATOR_CREATE_BUFFER_DEVICE_ADDRESS_BIT,
 		.physicalDevice = *m_pPhysDevice->m_physDevice,
 		.device = *m_pDevice->getVkDevice(),
 		.pVulkanFunctions = &vulkanFunctions,
