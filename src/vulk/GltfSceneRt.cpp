@@ -70,7 +70,8 @@ void GltfSceneRt::createBLAS(Core &vkCore,
         }
 
         vkCore.submitSingleTimeCommandBuffer(cmd);
-    } else {
+    }
+    else {
         std::cout << "[INFO] Total scratch buffer size > 512MB, sequential blas build path" << std::endl;
 
         vk::BufferCreateInfo buffInfo = {

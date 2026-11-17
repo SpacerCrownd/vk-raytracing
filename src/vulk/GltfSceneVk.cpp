@@ -679,10 +679,8 @@ void GltfSceneVk::createVertexIndexBuffers(const app::GltfScene &scene) {
 
     vk::BufferCreateInfo bufferInfo = {
         .size = std::span(renderPrimitives).size_bytes(),
-        .usage = vk::BufferUsageFlagBits::eVertexBuffer
-               | vk::BufferUsageFlagBits::eStorageBuffer
+        .usage = vk::BufferUsageFlagBits::eStorageBuffer
              | vk::BufferUsageFlagBits::eShaderDeviceAddress
-             | vk::BufferUsageFlagBits::eAccelerationStructureBuildInputReadOnlyKHR
     };
 
     VmaAllocationCreateInfo allocInfo = {
@@ -728,7 +726,7 @@ void GltfSceneVk::uploadRenderNodes(const app::GltfScene &scene, const std::unor
                              glm::inverse(renderNode.worldMatrix),
                              renderNode.renderPrimID,
                              renderNode.materialID);
-            std::cout << scene.getModel().nodes[renderNode.refNodeID].name << std::endl;
+            //std::cout << scene.getModel().nodes[renderNode.refNodeID].name << std::endl;
             //std::cout << renderNode.materialID << std::endl;
             //std::cout << "Metallic Factor: " << scene.getModel().materials[renderNode.materialID].pbrMetallicRoughness.metallicFactor << std::endl;
         }

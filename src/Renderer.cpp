@@ -16,7 +16,7 @@ Renderer::Renderer(int width, int height, const char *pAppName) : m_window(width
         m_camera.onKeyChanged(key, scancode, action, mods);
         if (key == GLFW_KEY_SPACE && action == GLFW_PRESS) {
             m_showGUI = !m_showGUI;
-            std::cout << m_showGUI << std::endl;
+            //std::cout << m_showGUI << std::endl;
         }
     });
 
@@ -89,6 +89,8 @@ void Renderer::update() {
 void Renderer::draw() {
     if (m_vkCore.resizeRequested) {
         m_vkCore.recreateSwapchain();
+        auto extent = m_vkCore.getSwapchain().GetExtent();
+        m_pDenoiser = std::make_unique<ptvk::OidnDenoiser>(extent.width, extent.height, m_vkCore.getResourceAllocator());
         resetAccumulation();
     }
 
@@ -463,7 +465,6 @@ void Renderer::draw() {
 
 void Renderer::onResize(int width, int height) {
     m_vkCore.resizeRequested = true;
-    m_pDenoiser = std::make_unique<ptvk::OidnDenoiser>(width, height, m_vkCore.getResourceAllocator());
 }
 
 bool Renderer::createScene(const std::filesystem::path &filename) {

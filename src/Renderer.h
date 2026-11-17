@@ -128,8 +128,6 @@ private:
 	void createAccelerationStructures();
 	void createRtPipeline();
 
-	void initializeImGui();
-
 	void resetAccumulation();
 };
 }

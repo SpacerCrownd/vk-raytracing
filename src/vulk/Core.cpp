@@ -540,8 +540,8 @@ void Core::recreateSwapchain() {
 	int width = 0, height = 0;
 	glfwGetFramebufferSize(m_window.getWindow(), &width, &height);
 	while (width == 0 || height == 0) {
-		glfwGetFramebufferSize(m_window.getWindow(), &width, &height);
 		glfwWaitEvents();
+		glfwGetFramebufferSize(m_window.getWindow(), &width, &height);
 	}
 
 	std::cout << "[INFO] Recreating Swapchain" << std::endl;

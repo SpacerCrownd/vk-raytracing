@@ -123,7 +123,6 @@ float3 sampleVNDF(float3 V, float roughness, float2 xi)
 // Returns the probability that bsdfSampleSimple samples a glossy lobe.
 float brdfGlossyProbability(float NdotV, float metallic)
 {
-    // mix dielectric fresnel and metal fresnel by metallic factor as probability
     return lerp(fresnelSchlick(0.04F, NdotV), 1.0F, metallic);
 }
 

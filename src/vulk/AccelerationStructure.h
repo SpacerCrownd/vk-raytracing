@@ -67,8 +67,6 @@ struct AccelerationStructureBuildData {
     void cmdBuildAccelerationStructure(const vk::raii::CommandBuffer &cmd, vk::AccelerationStructureKHR as, vk::DeviceAddress scratchBufferAddr);
     void cmdUpdateAccelerationStructure(const vk::raii::CommandBuffer &cmd, vk::AccelerationStructureKHR as, vk::DeviceAddress scratchBufferAddr);
 };
-
-// TODO: Create helper class for budgeting and parallel blas construction
 }
 
 #endif //VK_RAYTRACING_ACCELERATIONSTRUCTURE_H
